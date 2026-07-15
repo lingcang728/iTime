@@ -14,6 +14,26 @@ export async function toggleMaximizeWindow(): Promise<void> {
   await getCurrentWindow().toggleMaximize()
 }
 
+export async function isWindowMaximized(): Promise<boolean> {
+  if (!isTauriRuntime()) return false
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  return getCurrentWindow().isMaximized()
+}
+
+export async function startWindowDragging(): Promise<void> {
+  if (!isTauriRuntime()) return
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  const currentWindow = getCurrentWindow()
+  if (await currentWindow.isMaximized()) await currentWindow.unmaximize()
+  await currentWindow.startDragging()
+}
+
+export async function listenWindowResize(listener: () => void): Promise<() => void> {
+  if (!isTauriRuntime()) return () => undefined
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  return getCurrentWindow().onResized(listener)
+}
+
 export async function hideWindow(): Promise<void> {
   if (!isTauriRuntime()) return
   const { getCurrentWindow } = await import('@tauri-apps/api/window')
@@ -37,4 +57,3 @@ export async function listenDesktop<T>(event: string, listener: (payload: T) => 
   const { listen } = await import('@tauri-apps/api/event')
   return listen<T>(event, ({ payload }) => listener(payload))
 }
-

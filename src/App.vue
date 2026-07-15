@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import {
   PhBell, PhChartLineUp, PhClockCounterClockwise, PhGearSix, PhHouse,
-  PhKeyboard, PhMinus, PhPauseCircle, PhPlayCircle, PhRobot, PhSquare, PhTarget, PhX,
+  PhCopy, PhKeyboard, PhMinus, PhRobot, PhSquare, PhX,
 } from '@phosphor-icons/vue'
 import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
-import { hideWindow, minimizeWindow, quitApplication, toggleMaximizeWindow, listenDesktop } from './platform/desktop'
+import {
+  hideWindow, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
+  quitApplication, startWindowDragging, toggleMaximizeWindow,
+} from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import CloseDialog from './components/CloseDialog.vue'
 
 const store = useAppStore()
 const route = useRoute()
 const requestedTheme = new URLSearchParams(window.location.search).get('theme')
+const maximized = ref(false)
 const navItems = [
   { id: 'home', label: '首页', icon: PhHouse },
   { id: 'ai', label: 'AI 代理', icon: PhRobot },
@@ -51,6 +55,28 @@ async function requestClose(): Promise<void> {
   store.state.closeDialogOpen = true
 }
 
+async function syncMaximized(): Promise<void> {
+  maximized.value = await isWindowMaximized()
+}
+
+async function handleTitleMouseDown(event: MouseEvent): Promise<void> {
+  if (event.button !== 0 || event.detail > 1) return
+  if (event.target instanceof Element && event.target.closest('.window-controls')) return
+  await startWindowDragging()
+  await syncMaximized()
+}
+
+async function handleTitleDoubleClick(event: MouseEvent): Promise<void> {
+  if (event.target instanceof Element && event.target.closest('.window-controls')) return
+  await toggleMaximizeWindow()
+  await syncMaximized()
+}
+
+async function toggleWindowSize(): Promise<void> {
+  await toggleMaximizeWindow()
+  await syncMaximized()
+}
+
 onMounted(async () => {
   if (requestedTheme === 'light' || requestedTheme === 'dark') store.state.theme = requestedTheme
   store.applyTheme()
@@ -60,6 +86,8 @@ onMounted(async () => {
   cleanups.push(await listenDesktop<string>('navigate-to', (page) => router.push({ name: page })))
   cleanups.push(await listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }))
   cleanups.push(await listenDesktop('native-close-requested', () => requestClose()))
+  cleanups.push(await listenWindowResize(() => { void syncMaximized() }))
+  await syncMaximized()
 })
 
 onBeforeUnmount(() => {
@@ -71,7 +99,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="desktop-app">
     <aside class="sidebar">
-      <div class="brand-block" data-tauri-drag-region>
+      <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
         <img src="/src/assets/logo.svg" alt="iTime" />
         <div><strong>iTime</strong><span>v0.1.0</span></div>
       </div>
@@ -81,21 +109,25 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
-      <button class="recording-state" type="button" @click="store.setRecording(!store.state.recording)">
-        <component :is="store.state.recording ? PhPauseCircle : PhPlayCircle" :size="20" />
-        <span><strong>{{ store.state.recording ? '记录中' : '已暂停' }}</strong><small>{{ store.state.recording ? '点击暂停记录' : '点击继续记录' }}</small></span>
-      </button>
+      <div class="profile-card" aria-label="账户与 Pro 入口">
+        <img src="/src/assets/avatar-lin.svg" alt="林小北的头像" />
+        <div><strong>林小北</strong><small>个人空间</small></div>
+        <span class="pro-badge">Pro</span>
+      </div>
       <div class="goal-ring-card">
         <div class="goal-ring"><span>75%</span></div>
-        <div><strong>今日目标</strong><small>专注 6.5 / 8 小时</small></div>
+        <div class="goal-copy"><strong>今日目标</strong><small><span>专注</span><b>6.5 / 8 小时</b></small><small><span>代理</span><b>3.0 / 4 小时</b></small></div>
       </div>
     </aside>
     <section class="app-surface">
-      <div class="window-bar" data-tauri-drag-region>
-        <span></span>
+      <div class="window-bar" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
+        <span aria-hidden="true"></span>
         <div class="window-controls" data-shortcuts="ignore">
           <button type="button" aria-label="最小化" @click="minimizeWindow"><PhMinus :size="14" /></button>
-          <button type="button" aria-label="最大化" @click="toggleMaximizeWindow"><PhSquare :size="12" /></button>
+          <button type="button" :aria-label="maximized ? '还原' : '最大化'" @click="toggleWindowSize">
+            <PhCopy v-if="maximized" :size="12" />
+            <PhSquare v-else :size="12" />
+          </button>
           <button type="button" aria-label="关闭" class="close" @click="requestClose"><PhX :size="14" /></button>
         </div>
       </div>

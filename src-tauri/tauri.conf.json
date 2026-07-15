@@ -14,13 +14,15 @@
       {
         "label": "main",
         "title": "iTime",
-        "width": 1280,
-        "height": 820,
+        "width": 1180,
+        "height": 760,
         "minWidth": 960,
         "minHeight": 680,
         "center": true,
         "decorations": false,
         "resizable": true,
+        "minimizable": true,
+        "maximizable": true,
         "visible": true
       }
     ],
