@@ -2,12 +2,15 @@
 import { computed } from 'vue'
 import { PhAppWindow, PhFolderOpen } from '@phosphor-icons/vue'
 import { embeddedAppIcons } from '../data/appIconAssets'
+import chromeIcon from '../assets/apps/chrome.svg'
+import claudeIcon from '../assets/apps/claude.svg'
+import vscodeIcon from '../assets/apps/vscode.svg'
 
 const props = withDefaults(defineProps<{ iconKey: string; size?: number }>(), { size: 20 })
 const localIcons: Record<string, string> = {
-  claude: '/src/assets/apps/claude.svg',
-  vscode: '/src/assets/apps/vscode.svg',
-  chrome: '/src/assets/apps/chrome.svg',
+  claude: claudeIcon,
+  vscode: vscodeIcon,
+  chrome: chromeIcon,
 }
 const imageSource = computed(() => localIcons[props.iconKey] ?? embeddedAppIcons[props.iconKey])
 </script>

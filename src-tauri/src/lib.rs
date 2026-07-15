@@ -2,12 +2,44 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, State, WindowEvent,
+    webview::PageLoadEvent,
+    AppHandle, Emitter, LogicalSize, Manager, State, WindowEvent,
 };
+
+const DEFAULT_WINDOW_WIDTH: f64 = 1180.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 760.0;
+const MIN_WINDOW_WIDTH: f64 = 960.0;
+const MIN_WINDOW_HEIGHT: f64 = 680.0;
+const WORK_AREA_MARGIN: f64 = 16.0;
 
 struct RuntimeState {
     recording: Mutex<bool>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
+}
+
+fn fitted_window_size(work_width: f64, work_height: f64) -> (LogicalSize<f64>, LogicalSize<f64>) {
+    let width = DEFAULT_WINDOW_WIDTH.min((work_width - WORK_AREA_MARGIN).max(1.0));
+    let height = DEFAULT_WINDOW_HEIGHT.min((work_height - WORK_AREA_MARGIN).max(1.0));
+    let minimum = LogicalSize::new(MIN_WINDOW_WIDTH.min(width), MIN_WINDOW_HEIGHT.min(height));
+    (LogicalSize::new(width, height), minimum)
+}
+
+fn fit_main_window_to_work_area(window: &tauri::Window) -> tauri::Result<()> {
+    let monitor = window.current_monitor()?.or(window.primary_monitor()?);
+
+    if let Some(monitor) = monitor {
+        let scale_factor = monitor.scale_factor();
+        let work_area = monitor.work_area();
+        let work_width = f64::from(work_area.size.width) / scale_factor;
+        let work_height = f64::from(work_area.size.height) / scale_factor;
+        let (size, minimum) = fitted_window_size(work_width, work_height);
+
+        window.set_min_size(Some(minimum))?;
+        window.set_size(size)?;
+        window.center()?;
+    }
+
+    Ok(())
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -69,6 +101,14 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), PageLoadEvent::Finished) {
+                let window = webview.window();
+                let _ = fit_main_window_to_work_area(&window);
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        })
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "打开 iTime", true, None::<&str>)?;
             let toggle = MenuItem::with_id(app, "toggle", "暂停记录", true, None::<&str>)?;
@@ -140,4 +180,27 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running iTime");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uses_default_size_when_work_area_is_large_enough() {
+        let (size, minimum) = fitted_window_size(1920.0, 1040.0);
+        assert_eq!(size, LogicalSize::new(1180.0, 760.0));
+        assert_eq!(minimum, LogicalSize::new(960.0, 680.0));
+    }
+
+    #[test]
+    fn constrains_size_and_minimum_to_small_high_dpi_work_area() {
+        let (size, minimum) = fitted_window_size(1024.0, 720.0);
+        assert_eq!(size, LogicalSize::new(1008.0, 704.0));
+        assert_eq!(minimum, LogicalSize::new(960.0, 680.0));
+
+        let (smaller_size, smaller_minimum) = fitted_window_size(960.0, 600.0);
+        assert_eq!(smaller_size, LogicalSize::new(944.0, 584.0));
+        assert_eq!(smaller_minimum, smaller_size);
+    }
 }

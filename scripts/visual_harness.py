@@ -11,7 +11,8 @@ output = root / "artifacts" / "visual"
 output.mkdir(parents=True, exist_ok=True)
 base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:1420"
 pages = ["home", "ai", "timeline", "input", "weekly", "goals", "settings"]
-sizes = [(960, 680), (1024, 720), (1100, 720), (1180, 760)]
+sizes = [(960, 680), (1024, 720), (1100, 720), (1180, 760), (1280, 800)]
+fit_pages = {"home", "ai", "weekly"}
 
 
 def url(page, query="theme=light"):
@@ -34,7 +35,8 @@ def inspect_layout(page):
         "if(style.display==='none'||style.visibility==='hidden'||rect.width===0||rect.height===0)return false;"
         "return rect.left < -1 || rect.right > innerWidth + 1;"
         "}).map((element)=>element.getAttribute('aria-label')||element.textContent.trim().slice(0,40));"
-        "return {horizontalOverflow:root.scrollWidth>root.clientWidth+1,clipped,viewport:{width:innerWidth,height:innerHeight}};"
+        "const content=document.querySelector('.page-viewport');"
+        "return {horizontalOverflow:root.scrollWidth>root.clientWidth+1,verticalOverflow:content.scrollHeight>content.clientHeight+1,clipped,viewport:{width:innerWidth,height:innerHeight},content:{clientHeight:content.clientHeight,scrollHeight:content.scrollHeight}};"
         "}"
     )
     return page.evaluate(script)
@@ -72,7 +74,7 @@ channel = os.environ.get("ITIME_BROWSER_CHANNEL", "chrome")
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(channel=channel, headless=True)
     try:
-        wide = browser.new_context(viewport={"width": 1280, "height": 820}, locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
+        wide = browser.new_context(viewport={"width": 1180, "height": 760}, locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
         page = wide.new_page()
         for page_id in pages:
             page.goto(url(page_id))
@@ -82,9 +84,13 @@ with sync_playwright() as playwright:
 
         page.goto(url("ai"))
         wait_ready(page)
-        page.locator(".tools-table__row").first.click()
+        page.locator(".metric-info").focus()
+        page.wait_for_timeout(200)
+        report["interactions"]["agentInfoTooltip"] = page.locator('.metric-info [role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
+        page.locator(".tool-expand").first.click()
         page.wait_for_selector(".detail-drawer")
-        report["interactions"]["aiDetailDrawer"] = all(page.locator(".detail-drawer").get_by_text(label).count() for label in ["有效代理工时", "前台活动", "统计方式", "检测依据", "置信度"])
+        report["interactions"]["aiDetailDrawer"] = all(page.locator(".detail-drawer").get_by_text(label).count() for label in ["状态", "运行时长", "前台交互", "静默等待", "并行重叠", "检测依据", "置信度"])
+        report["interactions"]["removedAccuracyBadge"] = page.locator(".detail-drawer").get_by_text("精准统计", exact=True).count() == 0
         page.locator(".drawer-close").click()
 
         page.goto(url("timeline"))
@@ -99,15 +105,20 @@ with sync_playwright() as playwright:
         page.keyboard.press("Control+PageDown")
         page.wait_for_timeout(100)
         report["interactions"]["shortcutGuard"] = page.url == starting_url
-        page.locator("body").click(position={"x": 900, "y": 780})
+        page.locator("body").click(position={"x": 900, "y": 700})
         page.keyboard.press("Control+PageUp")
         page.wait_for_timeout(100)
         report["interactions"]["globalShortcut"] = "#/goals" in page.url
         page.goto(url("home"))
         wait_ready(page)
-        page.locator(".recording-state").click()
-        report["interactions"]["recordingStatus"] = page.locator(".recording-state").get_by_text("已暂停", exact=True).count() == 1
-        page.locator(".recording-state").click()
+        report["interactions"]["sidebarProfile"] = page.locator(".profile-card").count() == 1 and page.locator(".recording-state").count() == 0
+        before_rank = page.locator(".ranking-row .rank-value strong").first.inner_text()
+        page.get_by_role("button", name="按占比").click()
+        after_rank = page.locator(".ranking-row .rank-value strong").first.inner_text()
+        report["interactions"]["categoryModeToggle"] = before_rank != after_rank and after_rank.endswith("%")
+        semantic_classes = page.locator(".today-timeline .timeline-segment").evaluate_all("elements => [...new Set(elements.flatMap(element => [...element.classList]))]")
+        axis_labels = page.locator(".today-timeline .time-axis span").all_inner_texts()
+        report["interactions"]["timelineSemantics"] = all(value in semantic_classes for value in ["is-attention", "is-agent", "is-media", "is-other"]) and axis_labels == ["04:00", "08:00", "12:00", "16:00", "20:00"]
         page.locator(".window-controls .close").click()
         page.wait_for_selector(".close-dialog")
         report["interactions"]["closePrompt"] = page.locator(".close-dialog").get_by_text("继续在托盘中运行？", exact=True).count() == 1
@@ -116,6 +127,17 @@ with sync_playwright() as playwright:
         wait_ready(page)
         page.get_by_role("button", name="演示迁移").click()
         report["interactions"]["migrationDemo"] = page.get_by_text("迁移演示完成", exact=True).count() == 1
+
+        page.goto(url("weekly"))
+        wait_ready(page)
+        heatmap_cells = page.locator(".heatmap-cell")
+        heatmap_cells.first.focus()
+        page.wait_for_selector(".heatmap-tooltip")
+        first_label = heatmap_cells.first.get_attribute("aria-label")
+        page.keyboard.press("ArrowRight")
+        focused_label = page.locator(".heatmap-cell:focus").get_attribute("aria-label")
+        page.locator(".heatmap-cell:focus").click()
+        report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 49 and first_label != focused_label and page.locator(".heatmap-cell.locked").count() == 1 and page.locator(".heatmap-tooltip").count() == 1
         wide.close()
 
         compact = browser.new_context(viewport={"width": 560, "height": 900}, locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
@@ -126,7 +148,7 @@ with sync_playwright() as playwright:
             compact_page.screenshot(path=output / f"reference-{page_id}.png")
         compact.close()
 
-        dark = browser.new_context(viewport={"width": 1280, "height": 820}, color_scheme="dark", locale="zh-CN", reduced_motion="reduce")
+        dark = browser.new_context(viewport={"width": 1280, "height": 800}, color_scheme="dark", locale="zh-CN", reduced_motion="reduce")
         dark_page = dark.new_page()
         dark_page.goto(url("weekly", "theme=dark"))
         wait_ready(dark_page)
@@ -135,7 +157,7 @@ with sync_playwright() as playwright:
         dark.close()
 
         for scale in [1.25, 1.5, 2.0]:
-            context = browser.new_context(viewport={"width": 1280, "height": 820}, device_scale_factor=scale, locale="zh-CN", reduced_motion="reduce")
+            context = browser.new_context(viewport={"width": 1280, "height": 800}, device_scale_factor=scale, locale="zh-CN", reduced_motion="reduce")
             dpi_page = context.new_page()
             dpi_page.goto(url("home"))
             wait_ready(dpi_page)
@@ -156,6 +178,8 @@ with sync_playwright() as playwright:
                 result["pages"][page_id] = layout
                 if layout["horizontalOverflow"] or layout["clipped"]:
                     result["passed"] = False
+                if (width, height) in [(1180, 760), (1280, 800)] and page_id in fit_pages and layout["verticalOverflow"]:
+                    result["passed"] = False
             context.close()
             report["minimumMatrix"].append(result)
             if report["selectedMinimum"] is None and result["passed"]:
@@ -167,8 +191,8 @@ with (output / "layout-report.json").open("w", encoding="utf-8") as handle:
     json.dump(report, handle, ensure_ascii=False, indent=2)
 
 required_interactions = all(report["interactions"].values())
-wide_passed = all(not value["horizontalOverflow"] and not value["clipped"] for value in report["pages"].values())
-dpi_passed = all(not value["horizontalOverflow"] and not value["clipped"] for value in report["dpi"])
+wide_passed = all(not value["horizontalOverflow"] and not value["clipped"] and (page_id not in fit_pages or not value["verticalOverflow"]) for page_id, value in report["pages"].items())
+dpi_passed = all(not value["horizontalOverflow"] and not value["clipped"] and not value["verticalOverflow"] for value in report["dpi"])
 contrast_passed = report["darkContrast"]["passed"]
 passed = report["selectedMinimum"] is not None and required_interactions and wide_passed and dpi_passed and contrast_passed
 print(json.dumps({"selectedMinimum": report["selectedMinimum"], "interactions": report["interactions"], "widePassed": wide_passed, "dpiPassed": dpi_passed, "contrastPassed": contrast_passed, "passed": passed}, ensure_ascii=False, indent=2))

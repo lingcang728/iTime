@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import {
   PhBell, PhChartLineUp, PhClockCounterClockwise, PhGearSix, PhHouse,
@@ -28,6 +28,11 @@ const navItems = [
   { id: 'settings', label: '设置', icon: PhGearSix },
 ] as const
 const cleanups: Array<() => void> = []
+
+watch(() => route.fullPath, async () => {
+  await nextTick()
+  document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'auto' })
+})
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest('input, textarea, select, button, a, [role="dialog"], [data-shortcuts="ignore"], .detail-drawer, .timeline-board, .chart-card'))

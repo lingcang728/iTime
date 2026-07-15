@@ -195,6 +195,11 @@ button {
   letter-spacing: .2px;
 }
 
+html[data-theme="dark"] .pro-badge {
+  color: #d8d0ff;
+  background: #3a3359;
+}
+
 .goal-ring-card {
   display: grid;
   justify-items: center;
@@ -1631,6 +1636,10 @@ html[data-reference="compact"] .desktop-app:has(.home-page) {
 
 html[data-reference="compact"] .desktop-app:has(.ai-page) {
   grid-template-columns: 124px minmax(0, 1fr);
+}
+
+html[data-reference="compact"] .desktop-app:has(.ai-page) .sidebar {
+  border-right-color: color-mix(in srgb, var(--text-muted) 28%, transparent);
 }
 
 html[data-reference="compact"] .sidebar {
