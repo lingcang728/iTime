@@ -9,5 +9,7 @@
 | ChatGPT | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | OpenAI 帮助中心官方应用图标 `https://images.ctfassets.net/j22is2dtoxu1/intercom-img-d177d076c9a5453052925143/49d5d812b0a6fcc20a14faa8c629d9fb/icon-ios-1024_401x.png` |
 | Typeless | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | `https://www.typeless.com/logo_60.png` |
 | YouTube | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | `https://www.youtube.com/s/desktop/a0b72b65/img/favicon_96x96.png` |
+| Claude | `src/assets/apps/claude.svg` | Anthropic 官方 press kit 中的 `ClaudeIcon-Rounded.svg` |
+| Google Antigravity | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | `https://www.antigravity.google/assets/image/brand/antigravity-icon__full-color.png` |
 
 文件资源管理器与抽象分类没有稳定、可再分发的官方品牌资源，使用项目现有的 Phosphor 图标集作为语义图标。

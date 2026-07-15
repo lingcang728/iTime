@@ -163,3 +163,9 @@ export const mockDataset: TimeDataset = {
 
 export const mockDates = dayConfigs.map((config) => config.date)
 
+export const mockToolRuntime: Record<string, { status: 'running' | 'completed' | 'waiting'; silentWaitMinutes: number; iconKey: string }> = {
+  codex: { status: 'running', silentWaitMinutes: 12, iconKey: 'chatgpt' },
+  chatgpt: { status: 'completed', silentWaitMinutes: 9, iconKey: 'chatgpt' },
+  claude: { status: 'completed', silentWaitMinutes: 7, iconKey: 'claude' },
+  antigravity: { status: 'waiting', silentWaitMinutes: 5, iconKey: 'antigravity' },
+}

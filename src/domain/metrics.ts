@@ -89,7 +89,7 @@ export function aggregateCategories(apps: AppDuration[]): CategoryDuration[] {
     .sort((a, b) => b.duration - a.duration)
 }
 
-function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval[]): AiToolSummary[] {
+function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval[], foregroundRanges: TimeRange[]): AiToolSummary[] {
   const total = summedDuration(work)
   const ids = [...new Set(work.map((event) => event.toolId))]
   return ids.map((toolId) => {
@@ -100,8 +100,12 @@ function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval
     return {
       toolId,
       toolName: workIntervals[0].toolName,
+      status: 'completed' as const,
+      iconKey: toolId,
       foregroundDuration: durationOf(interactionIntervals),
       effectiveDuration,
+      silentWaitDuration: 0,
+      parallelOverlapDuration: durationOf(intersectRanges(workIntervals, foregroundRanges)),
       taskCount: new Set(workIntervals.map((event) => event.taskId)).size,
       contribution: total ? effectiveDuration / total : 0,
       accuracyLabel: evidence.accuracyLabel,
@@ -109,6 +113,7 @@ function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval
       reviewState: evidence.reviewState,
       workIntervals,
       interactionIntervals,
+      waitIntervals: [],
     }
   }).sort((a, b) => b.effectiveDuration - a.effectiveDuration)
 }
@@ -152,7 +157,7 @@ export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySna
     mediaDuration: metric(summedDuration(media), 'milliseconds', range, 'sum', media, '媒体播放数据不足'),
     inputKeyStrokes: metric(input.reduce((total, bucket) => total + bucket.keyStrokes, 0), 'count', range, 'sum', input, '输入活动数据不足'),
     apps: deriveApps(foreground, activeRanges),
-    aiTools: deriveTools(aiWork, aiInteractions),
+    aiTools: deriveTools(aiWork, aiInteractions, foregroundRanges),
     events: snapshotEvents,
   }
 }

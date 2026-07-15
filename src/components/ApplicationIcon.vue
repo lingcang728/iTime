@@ -5,6 +5,7 @@ import { embeddedAppIcons } from '../data/appIconAssets'
 
 const props = withDefaults(defineProps<{ iconKey: string; size?: number }>(), { size: 20 })
 const localIcons: Record<string, string> = {
+  claude: '/src/assets/apps/claude.svg',
   vscode: '/src/assets/apps/vscode.svg',
   chrome: '/src/assets/apps/chrome.svg',
 }

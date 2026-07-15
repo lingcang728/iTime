@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { PhKeyboard, PhSparkle } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BarChart from '../components/BarChart.vue'
+import FocusHeatmap from '../components/FocusHeatmap.vue'
 import SparkLine from '../components/SparkLine.vue'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatNumber } from '../utils/format'
+import { buildFocusHeatmap } from '../data/focusHeatmap'
 
 const store = useAppStore()
 const dayLabels = ['周四', '周五', '周六', '周日', '周一', '周二', '周三']
@@ -22,6 +24,7 @@ const topApps = computed(() => {
 })
 const focusValues = computed(() => store.week.value.map((day) => (day.foregroundActivity.value ?? 0) / 3_600_000))
 const inputValues = computed(() => store.week.value.map((day) => Number(day.inputKeyStrokes.value ?? 0)))
+const focusDays = computed(() => buildFocusHeatmap(store.state.selectedDate))
 </script>
 
 <template>
@@ -34,7 +37,7 @@ const inputValues = computed(() => store.week.value.map((day) => Number(day.inpu
     <div class="weekly-insights-grid">
       <article class="card focus-card">
         <div class="section-heading"><div><h2>专注热力图</h2><p>按小时活动强度</p></div></div>
-        <div class="heatmap"><span v-for="index in 49" :key="index" :style="{ opacity: 0.18 + ((index * 7) % 9) / 12 }"></span></div>
+        <FocusHeatmap :days="focusDays" />
         <div class="heatmap-scale"><span>低</span><i></i><span>高</span></div>
       </article>
       <article class="card top-apps-card"><div class="section-heading"><div><h2>Top 应用</h2><p>本周累计</p></div></div><ol><li v-for="(app, index) in topApps" :key="app.name"><span>{{ index + 1 }}</span><i :style="{ background: app.color }"></i><strong>{{ app.name }}</strong><em>{{ formatDuration(app.duration, true) }}</em></li></ol></article>

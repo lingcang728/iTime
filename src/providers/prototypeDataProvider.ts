@@ -1,6 +1,8 @@
 import type { AiToolSummary, DaySnapshot, TimeDataset, TimeEvent, TimeRange } from '../domain/events'
 import { deriveDaySnapshot } from '../domain/metrics'
-import { mockDataset } from '../data/mockEvents'
+import { mockDataset, mockToolRuntime } from '../data/mockEvents'
+
+const minute = 60_000
 
 export interface AiToolDetail extends AiToolSummary {
   detectionBasis: string[]
@@ -37,7 +39,26 @@ export class MockDataProvider implements PrototypeDataProvider {
   }
 
   getRange(range: TimeRange): DaySnapshot {
-    return deriveDaySnapshot(this.dataset.events, range)
+    const snapshot = deriveDaySnapshot(this.dataset.events, range)
+    return {
+      ...snapshot,
+      aiTools: snapshot.aiTools.map((tool) => {
+        const runtime = mockToolRuntime[tool.toolId]
+        if (!runtime) return tool
+        const requestedWait = runtime.silentWaitMinutes * minute
+        const lastWorkEnd = Math.max(...tool.workIntervals.map((event) => event.end))
+        const waitStart = Math.min(range.end, lastWorkEnd + 5 * minute)
+        const waitEnd = Math.min(range.end, waitStart + requestedWait)
+        const silentWaitDuration = Math.max(0, waitEnd - waitStart)
+        return {
+          ...tool,
+          status: runtime.status,
+          iconKey: runtime.iconKey,
+          silentWaitDuration,
+          waitIntervals: silentWaitDuration ? [{ start: waitStart, end: waitEnd }] : [],
+        }
+      }),
+    }
   }
 
   getWeek(endDate: string): DaySnapshot[] {
@@ -55,7 +76,10 @@ export class MockDataProvider implements PrototypeDataProvider {
     const intervals = [...summary.workIntervals, ...summary.interactionIntervals]
     return {
       ...summary,
-      detectionBasis: [...new Set(intervals.map((event) => event.basis))],
+      detectionBasis: [
+        ...new Set(intervals.map((event) => event.basis)),
+        ...(summary.silentWaitDuration ? ['静默等待来自独立状态演示数据，不计入有效代理工时'] : []),
+      ],
       pendingRecords: intervals.filter((event) => event.reviewState === 'needsReview'),
     }
   }
@@ -68,4 +92,3 @@ export class MockDataProvider implements PrototypeDataProvider {
 
 export const dataProvider = new MockDataProvider()
 export { dayRange }
-

@@ -1,5 +1,6 @@
 export type AccuracyLabel = 'precise' | 'estimated'
 export type ReviewState = 'confirmed' | 'needsReview'
+export type AiToolStatus = 'running' | 'completed' | 'waiting'
 export type CalculationType = 'sum' | 'union' | 'intersection' | 'peak' | 'ratio'
 export type StatUnit = 'milliseconds' | 'count' | 'ratio' | 'pixels' | 'scrollUnits'
 
@@ -118,8 +119,12 @@ export interface TimelineSegment extends TimeRange {
 export interface AiToolSummary {
   toolId: string
   toolName: string
+  status: AiToolStatus
+  iconKey: string
   foregroundDuration: number
   effectiveDuration: number
+  silentWaitDuration: number
+  parallelOverlapDuration: number
   taskCount: number
   contribution: number
   accuracyLabel: AccuracyLabel
@@ -127,6 +132,7 @@ export interface AiToolSummary {
   reviewState: ReviewState
   workIntervals: AiWorkInterval[]
   interactionIntervals: AiInteractionInterval[]
+  waitIntervals: TimeRange[]
 }
 
 export interface DaySnapshot {
