@@ -4,6 +4,7 @@ import type {
   AiToolSummary,
   AiWorkInterval,
   AppDuration,
+  CategoryDuration,
   CalculationType,
   DaySnapshot,
   EventEvidence,
@@ -67,6 +68,25 @@ function deriveApps(foreground: ForegroundAppInterval[], activeRanges: TimeRange
     else totals.set(event.appId, { appId: event.appId, appName: event.appName, category: event.category, color: event.color, duration })
   }
   return [...totals.values()].sort((a, b) => b.duration - a.duration)
+}
+
+export function aggregateCategories(apps: AppDuration[]): CategoryDuration[] {
+  const totalDuration = apps.reduce((total, app) => total + app.duration, 0)
+  const categories = new Map<string, Omit<CategoryDuration, 'share'>>()
+
+  for (const app of apps) {
+    const current = categories.get(app.category)
+    if (!current) {
+      categories.set(app.category, { category: app.category, duration: app.duration, representative: app })
+      continue
+    }
+    current.duration += app.duration
+    if (app.duration > current.representative.duration) current.representative = app
+  }
+
+  return [...categories.values()]
+    .map((category) => ({ ...category, share: totalDuration ? category.duration / totalDuration : 0 }))
+    .sort((a, b) => b.duration - a.duration)
 }
 
 function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval[]): AiToolSummary[] {

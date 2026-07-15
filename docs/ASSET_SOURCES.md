@@ -1,0 +1,13 @@
+# iTime 本地图标资产来源
+
+所有图标均在构建时随应用打包，运行期间不会访问网络。以下资源于 2026-07-15 获取：
+
+| 图标 | 本地位置 | 官方来源 |
+| --- | --- | --- |
+| Visual Studio Code | `src/assets/apps/vscode.svg` | `https://code.visualstudio.com/assets/branding/visual-studio-code-icons.zip` 中的 `vscode.svg` |
+| Google Chrome | `src/assets/apps/chrome.svg` | `https://www.google.com/chrome/static/images/chrome-logo-m100.svg` |
+| ChatGPT | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | OpenAI 帮助中心官方应用图标 `https://images.ctfassets.net/j22is2dtoxu1/intercom-img-d177d076c9a5453052925143/49d5d812b0a6fcc20a14faa8c629d9fb/icon-ios-1024_401x.png` |
+| Typeless | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | `https://www.typeless.com/logo_60.png` |
+| YouTube | `src/data/appIconAssets.ts`（原始 PNG 字节的 Base64） | `https://www.youtube.com/s/desktop/a0b72b65/img/favicon_96x96.png` |
+
+文件资源管理器与抽象分类没有稳定、可再分发的官方品牌资源，使用项目现有的 Phosphor 图标集作为语义图标。

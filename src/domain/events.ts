@@ -98,6 +98,23 @@ export interface AppDuration {
   duration: number
 }
 
+export interface CategoryDuration {
+  category: string
+  duration: number
+  share: number
+  representative: AppDuration
+}
+
+export type TimelineKind = 'attention' | 'agent' | 'media' | 'other' | 'interaction' | 'waiting' | 'overlap'
+export type TimelineVariant = 'solid' | 'outline' | 'hatched' | 'overlap'
+
+export interface TimelineSegment extends TimeRange {
+  kind?: TimelineKind
+  variant?: TimelineVariant
+  color?: string
+  muted?: boolean
+}
+
 export interface AiToolSummary {
   toolId: string
   toolName: string
@@ -135,4 +152,3 @@ export interface TimeDataset {
   version: string
   events: TimeEvent[]
 }
-
