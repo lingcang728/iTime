@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.codegraph
+src-tauri/target/
+src-tauri/gen/
+visual-output/
+artifacts/
+release/*.exe
+*.log
+*.tmp
