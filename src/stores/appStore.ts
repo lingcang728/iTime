@@ -11,50 +11,15 @@ import {
   type InputActivitySnapshot,
 } from '../providers/inputActivity'
 import { loadKeyStatsProvider } from '../providers/keyStatsAdapter'
+import { getAutostartEnabled, setDesktopAutostart } from '../platform/autostart'
 import { isTauriRuntime, setDesktopRecording } from '../platform/desktop'
+import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type MigrationState = 'notFound' | 'partial' | 'ready' | 'imported'
 export type ClosePreference = 'ask' | 'hide' | 'quit'
 
-interface PersistedState {
-  theme: ThemeMode
-  recording: boolean
-  reminders: boolean
-  hideToTray: boolean
-  closePreference: ClosePreference
-  showInputDensity: boolean
-  heatmapEnabled: boolean
-  shortcutsEnabled: boolean
-  goals: Record<string, number>
-  migrationState: MigrationState
-  deletedInputDates: string[]
-}
-
-const defaults: PersistedState = {
-  theme: 'light',
-  recording: true,
-  reminders: true,
-  hideToTray: true,
-  closePreference: 'ask',
-  showInputDensity: false,
-  heatmapEnabled: true,
-  shortcutsEnabled: true,
-  goals: { learning: 120, development: 180, ai: 180, continuous: 50 },
-  migrationState: 'partial',
-  deletedInputDates: [],
-}
-
-function loadPersisted(): PersistedState {
-  if (typeof localStorage === 'undefined') return defaults
-  try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}') }
-  } catch {
-    return defaults
-  }
-}
-
-const persisted = loadPersisted()
+const persisted = loadPersistedState()
 const desktopRuntime = isTauriRuntime()
 
 function localDate(value = new Date()): string {
@@ -68,6 +33,9 @@ const state = reactive({
   inputDataMessage: desktopRuntime ? '正在读取本机 KeyStats 聚合记录' : '浏览器预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
+  autostartEnabled: false,
+  autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
+  autostartMessage: desktopRuntime ? '正在读取 Windows 启动设置' : '仅桌面版可设置开机自启动',
   selectedToolId: null as string | null,
   detailDrawerOpen: false,
   closeDialogOpen: false,
@@ -117,14 +85,16 @@ function persist(): void {
     reminders: state.reminders,
     hideToTray: state.hideToTray,
     closePreference: state.closePreference,
-    showInputDensity: state.showInputDensity,
     heatmapEnabled: state.heatmapEnabled,
     shortcutsEnabled: state.shortcutsEnabled,
+    aiNotifications: state.aiNotifications,
+    quietStart: state.quietStart,
+    quietEnd: state.quietEnd,
     goals: state.goals,
     migrationState: state.migrationState,
     deletedInputDates: state.deletedInputDates,
   }
-  localStorage.setItem('itime-prototype-state', JSON.stringify(value))
+  savePersistedState(value)
 }
 
 watch(state, persist, { deep: true })
@@ -209,6 +179,35 @@ async function refreshActivityData(): Promise<void> {
   }
 }
 
+async function refreshAutostart(): Promise<void> {
+  if (!desktopRuntime) return
+  state.autostartStatus = 'loading'
+  try {
+    state.autostartEnabled = await getAutostartEnabled()
+    state.autostartStatus = 'ready'
+    state.autostartMessage = state.autostartEnabled ? '已由 Windows 注册开机启动' : '当前不会随 Windows 启动'
+  } catch (error) {
+    state.autostartStatus = 'error'
+    state.autostartMessage = error instanceof Error ? error.message : '无法读取 Windows 启动设置'
+  }
+}
+
+async function setAutostart(enabled: boolean): Promise<void> {
+  if (!desktopRuntime) return
+  state.autostartStatus = 'loading'
+  try {
+    const confirmed = await setDesktopAutostart(enabled)
+    state.autostartEnabled = confirmed
+    state.autostartStatus = confirmed === enabled ? 'ready' : 'error'
+    state.autostartMessage = confirmed === enabled
+      ? (confirmed ? '已开启；下次登录 Windows 时自动启动' : '已关闭开机自启动')
+      : 'Windows 返回的启动状态与请求不一致'
+  } catch (error) {
+    state.autostartStatus = 'error'
+    state.autostartMessage = error instanceof Error ? error.message : '无法修改 Windows 启动设置'
+  }
+}
+
 function showToast(message: string): void {
   state.toast = message
   window.setTimeout(() => {
@@ -231,6 +230,8 @@ export function useAppStore() {
     deleteInputDate,
     refreshInputData,
     refreshActivityData,
+    refreshAutostart,
+    setAutostart,
     showToast,
   }
 }
@@ -238,6 +239,7 @@ export function useAppStore() {
 if (desktopRuntime) {
   void refreshInputData()
   void refreshActivityData()
+  void refreshAutostart()
   watch(() => state.selectedDate, () => void refreshActivityData())
   window.setInterval(() => {
     void refreshInputData()

@@ -1,59 +1,135 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhDatabase, PhDesktop, PhDownloadSimple, PhKeyboard, PhMoon, PhPauseCircle, PhShieldCheck, PhSun, PhTrash, PhWarning } from '@phosphor-icons/vue'
+import { computed, onMounted } from 'vue'
+import {
+  PhArrowClockwise,
+  PhDatabase,
+  PhDesktop,
+  PhKeyboard,
+  PhMoon,
+  PhPauseCircle,
+  PhPower,
+  PhShieldCheck,
+  PhSun,
+} from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
-import { useAppStore, type MigrationState } from '../stores/appStore'
+import { useAppStore } from '../stores/appStore'
 
 const store = useAppStore()
-const migrationCopy = computed(() => ({
-  notFound: { title: '未发现 KeyStats 数据', body: '你可以继续使用 iTime 的模拟输入数据，不会读取或修改现有 KeyStats。' },
-  partial: { title: '发现部分 KeyStats 历史', body: '预览显示仅有累计快照，缺少分钟级历史。迁移仍不会执行。' },
-  ready: { title: '迁移预览已准备', body: '适配层已识别版本边界；确认按钮仅演示交互。' },
-  imported: { title: '迁移演示完成', body: '本原型没有读写任何真实 KeyStats 文件。' },
-}[store.state.migrationState]))
-const setMigration = (value: MigrationState) => { store.state.migrationState = value }
-const deleteToday = () => store.deleteInputDate(store.state.selectedDate)
+
+const inputStatusLabel = computed(() => ({
+  loading: '正在连接',
+  preview: '预览数据',
+  ready: '本机已连接',
+  unavailable: '暂时不可用',
+}[store.state.inputDataStatus]))
+
+const autostartStatusLabel = computed(() => ({
+  loading: '正在向 Windows 确认',
+  ready: store.state.autostartMessage || (store.state.autostartEnabled ? '系统启动项已启用' : '系统启动项未启用'),
+  error: store.state.autostartMessage || '无法读取系统启动项',
+}[store.state.autostartStatus]))
+
+const keyStatsFacts = computed(() => {
+  const capabilities = store.input.value.capabilities
+  const historyLabel = {
+    minute: '分钟级',
+    hour: '小时级',
+    day: '日级',
+    none: '无历史序列',
+  }[capabilities.historyGranularity]
+  return [
+    { label: '访问方式', value: capabilities.deleteByDate ? '由数据源授权读写' : '只读，不修改 KeyStats' },
+    { label: '历史粒度', value: historyLabel },
+    { label: '键位统计', value: capabilities.keyHeatmap ? '可用' : '数据源未提供' },
+    { label: '功能组合键', value: capabilities.functionalShortcuts ? '可用' : '数据源未提供' },
+    { label: '历史左右键', value: capabilities.splitHistoricalClicks ? '可分别统计' : '仅提供合计' },
+    { label: '日期口径', value: capabilities.timezoneSemantics === 'utc-date-bucket' ? 'KeyStats UTC 日期桶' : '本地自然日' },
+  ]
+})
+
+function checkedValue(event: Event): boolean {
+  return event.currentTarget instanceof HTMLInputElement && event.currentTarget.checked
+}
+
+async function updateAutostart(event: Event): Promise<void> {
+  await store.setAutostart(checkedValue(event))
+}
+
+onMounted(() => void store.refreshAutostart())
 </script>
 
 <template>
   <section class="page settings-page">
-    <PageHeader title="设置" subtitle="应用、记录、隐私与本地数据" />
+    <PageHeader title="设置" subtitle="管理启动方式、记录范围、提醒与本地数据" />
     <div class="settings-layout">
-      <div class="settings-main">
+      <main class="settings-main">
         <article class="card settings-section">
-          <div class="settings-heading"><PhSun :size="21" weight="duotone" /><div><h2>外观</h2><p>深色模式同步图表与文字对比度</p></div></div>
+          <header class="section-heading">
+            <span class="section-icon blue"><PhPower :size="22" weight="duotone" /></span>
+            <div><h2>启动与窗口</h2><p>这些选项会影响 iTime 在 Windows 中的实际运行方式。</p></div>
+          </header>
+          <label class="control-row">
+            <div><strong>开机自启动</strong><span>登录 Windows 后自动启动 iTime，不必手动打开。</span><small :class="['system-status', store.state.autostartStatus]">{{ autostartStatusLabel }}</small></div>
+            <span class="toggle"><input :checked="store.state.autostartEnabled" :disabled="store.state.autostartStatus === 'loading'" type="checkbox" @change="updateAutostart"><i></i></span>
+          </label>
+          <label class="control-row">
+            <div><strong>关闭窗口时隐藏到托盘</strong><span>保留本机记录进程，可从托盘再次打开。</span></div>
+            <span class="toggle"><input v-model="store.state.hideToTray" type="checkbox"><i></i></span>
+          </label>
+          <label class="control-row">
+            <div><strong>活动记录</strong><span>{{ store.state.recording ? '正在记录启用后的本机活动' : '当前已暂停记录' }}</span></div>
+            <span class="toggle"><input :checked="store.state.recording" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
+          </label>
+        </article>
+
+        <article class="card settings-section">
+          <header class="section-heading">
+            <span class="section-icon green"><PhKeyboard :size="22" weight="duotone" /></span>
+            <div><h2>输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
+          </header>
+          <label class="control-row"><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
+          <label class="control-row"><div><strong>功能组合键</strong><span>仅显示 Ctrl+C 等明确功能组合的累计次数。</span></div><span class="toggle"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
+          <div class="privacy-note"><PhShieldCheck :size="23" weight="duotone" /><p>iTime 不读取键盘文字、密码内容或剪贴板正文。KeyStats 数据通过本机文件只读接入，删除操作不会反向修改 KeyStats。</p></div>
+        </article>
+
+        <article class="card settings-section appearance-section">
+          <header class="section-heading">
+            <span class="section-icon violet"><PhDesktop :size="22" weight="duotone" /></span>
+            <div><h2>外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
+          </header>
           <div class="theme-options" role="radiogroup" aria-label="主题">
             <label :class="{ active: store.state.theme === 'light' }"><input v-model="store.state.theme" type="radio" value="light"><PhSun :size="20" /><span>浅色</span></label>
             <label :class="{ active: store.state.theme === 'dark' }"><input v-model="store.state.theme" type="radio" value="dark"><PhMoon :size="20" /><span>深色</span></label>
             <label :class="{ active: store.state.theme === 'system' }"><input v-model="store.state.theme" type="radio" value="system"><PhDesktop :size="20" /><span>跟随系统</span></label>
           </div>
         </article>
-        <article class="card settings-section">
-          <div class="settings-heading"><PhPauseCircle :size="21" weight="duotone" /><div><h2>桌面行为</h2><p>侧边栏与托盘共享记录状态</p></div></div>
-          <label class="setting-row"><div><strong>记录状态</strong><span>{{ store.state.recording ? '记录中' : '已暂停，模拟实时计数已冻结' }}</span></div><span class="switch"><input :checked="store.state.recording" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span></label>
-          <label class="setting-row"><div><strong>关闭窗口时隐藏到托盘</strong><span>首次关闭仍会显示说明，可记住选择</span></div><span class="switch"><input v-model="store.state.hideToTray" type="checkbox"><i></i></span></label>
-          <label class="setting-row"><div><strong>提醒开关</strong><span>控制托盘与页面中的主动提醒</span></div><span class="switch"><input v-model="store.state.reminders" type="checkbox"><i></i></span></label>
-        </article>
-        <article class="card settings-section">
-          <div class="settings-heading"><PhKeyboard :size="21" weight="duotone" /><div><h2>输入统计隐私</h2><p>所有数据默认保存在本地</p></div></div>
-          <label class="setting-row"><div><strong>键盘热力图</strong><span>仅保存单键累计次数</span></div><span class="switch"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
-          <label class="setting-row"><div><strong>功能组合键统计</strong><span>只保存 Ctrl+C 等明确功能组合累计</span></div><span class="switch"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
-          <div class="privacy-boundaries"><PhShieldCheck :size="23" weight="duotone" /><p>不保存文字内容、可还原文字的事件序列或原始键盘事件；未来采集器必须排除密码框、Windows 安全桌面与敏感凭据界面。</p></div>
-          <button class="danger-button" type="button" @click="deleteToday"><PhTrash :size="16" />删除 {{ store.state.selectedDate }} 的输入统计</button>
-        </article>
-      </div>
+      </main>
+
       <aside class="settings-side">
-        <article class="card migration-card">
-          <div class="settings-heading"><PhDatabase :size="21" weight="duotone" /><div><h2>KeyStats 迁移演示</h2><p>LegacyKeyStatsAdapter → 标准输入模型</p></div></div>
-          <div class="migration-state"><PhWarning v-if="store.state.migrationState === 'partial'" :size="22" weight="duotone" /><PhDownloadSimple v-else :size="22" weight="duotone" /><div><strong>{{ migrationCopy.title }}</strong><p>{{ migrationCopy.body }}</p></div></div>
-          <div class="migration-facts"><span><i>来源</i><strong>演示数据</strong></span><span><i>版本</i><strong>legacy-preview-v1</strong></span><span><i>能力</i><strong>累计快照 / 部分历史</strong></span></div>
-          <div class="migration-actions">
-            <button class="button secondary" type="button" @click="setMigration(store.state.migrationState === 'notFound' ? 'partial' : 'notFound')">切换发现状态</button>
-            <button class="button primary" type="button" @click="setMigration('imported')">演示迁移</button>
+        <article class="card source-card">
+          <header class="section-heading">
+            <span class="section-icon orange"><PhDatabase :size="22" weight="duotone" /></span>
+            <div><h2>KeyStats 本机数据</h2><p>展示当前实际连接状态与数据能力。</p></div>
+          </header>
+          <div :class="['source-status', store.state.inputDataStatus]">
+            <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
           </div>
+          <dl class="source-facts">
+            <div><dt>来源</dt><dd>{{ store.input.value.source }}</dd></div>
+            <div v-for="fact in keyStatsFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+          </dl>
+          <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
+            <PhArrowClockwise :size="17" />重新读取本机记录
+          </button>
         </article>
-        <article class="local-data-card"><PhShieldCheck :size="25" weight="duotone" /><div><span>本地优先</span><h2>原型不会访问真实 KeyStats</h2><p>当前仓库、安装、历史数据与启动状态均保持不变。</p></div></article>
+
+        <article class="card data-boundary-card">
+          <PhPauseCircle :size="26" weight="duotone" />
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>KeyStats 提供输入聚合；应用与 AI 活动仅从 iTime 采集器启用后开始记录。</p></div>
+        </article>
       </aside>
     </div>
   </section>
 </template>
+
+<style scoped src="./settings-page.css"></style>

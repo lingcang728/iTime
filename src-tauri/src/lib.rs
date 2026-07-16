@@ -116,6 +116,10 @@ pub fn run() {
         })
         .manage(ActivityCollector::start(recording, recording_generation))
         .manage(IconService::new())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
