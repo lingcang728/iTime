@@ -1,24 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhAppWindow, PhFolderOpen } from '@phosphor-icons/vue'
-import { embeddedAppIcons } from '../data/appIconAssets'
-import chromeIcon from '../assets/apps/chrome.svg'
-import claudeIcon from '../assets/apps/claude.svg'
-import vscodeIcon from '../assets/apps/vscode.svg'
+/**
+ * Back-compat wrapper. Prefer AppIcon for new call sites.
+ */
+import AppIcon from './AppIcon.vue'
 
-const props = withDefaults(defineProps<{ iconKey: string; size?: number }>(), { size: 20 })
-const localIcons: Record<string, string> = {
-  claude: claudeIcon,
-  vscode: vscodeIcon,
-  chrome: chromeIcon,
-}
-const imageSource = computed(() => localIcons[props.iconKey] ?? embeddedAppIcons[props.iconKey])
+withDefaults(
+  defineProps<{
+    iconKey?: string
+    appIdentity?: string
+    appName?: string
+    executablePath?: string
+    aumid?: string
+    size?: number
+  }>(),
+  { size: 20 },
+)
 </script>
 
 <template>
-  <span class="application-icon" :style="{ width: `${size}px`, height: `${size}px` }" aria-hidden="true">
-    <img v-if="imageSource" :src="imageSource" alt="" />
-    <PhFolderOpen v-else-if="iconKey === 'explorer'" :size="size" weight="duotone" />
-    <PhAppWindow v-else :size="size" weight="duotone" />
-  </span>
+  <AppIcon
+    :icon-key="iconKey"
+    :app-identity="appIdentity ?? iconKey"
+    :app-name="appName"
+    :executable-path="executablePath"
+    :aumid="aumid"
+    :size="size"
+  />
 </template>

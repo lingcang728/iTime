@@ -66,7 +66,7 @@ describe('required product scenarios', () => {
     const snapshot = new MockInputActivityProvider(scenarioFixtures.input).getSnapshot(scenarioRange)
     expect(snapshot.cumulative.keyStrokes).toBe(42)
     expect(snapshot.cumulative.leftClicks).toBe(7)
-    expect(snapshot.source).toBe('mock-input-minute-buckets')
+    expect(snapshot.source).toBe('预览数据 · 非本机记录')
     expect(snapshot.capabilities.sensitiveSurfaceExclusion).toBe(true)
   })
 })

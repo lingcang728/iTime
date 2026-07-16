@@ -23,7 +23,7 @@ interface BaseInterval extends TimeRange, EventEvidence {
 
 export interface DeviceStateInterval extends BaseInterval {
   type: 'device'
-  state: 'active' | 'idle' | 'locked' | 'sleep'
+  state: 'active' | 'idle' | 'locked' | 'sleep' | 'unknown'
 }
 
 export interface ForegroundAppInterval extends BaseInterval {
@@ -32,6 +32,7 @@ export interface ForegroundAppInterval extends BaseInterval {
   appName: string
   category: string
   color: string
+  executablePath?: string
   aiToolId?: string
 }
 

@@ -23,7 +23,7 @@ function overlaps(event: TimeRange, range: TimeRange): boolean {
 function evidenceFor(events: EventEvidence[], fallback: string): Pick<StatValue, 'sources' | 'accuracyLabel' | 'basis' | 'confidence' | 'reviewState'> {
   if (!events.length) {
     return {
-      sources: ['mock-provider'],
+      sources: ['unavailable'],
       accuracyLabel: 'estimated',
       basis: fallback,
       confidence: 0,
@@ -127,7 +127,7 @@ export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySna
   const media = clippedEvents(events, 'media', range)
   const input = clippedEvents(events, 'input', range)
   const activeDevice = device.filter((event) => event.state === 'active')
-  const availableDevice = device.filter((event) => event.state !== 'sleep')
+  const availableDevice = device.filter((event) => event.state === 'active' || event.state === 'idle')
   const activeRanges = mergeRanges(activeDevice)
   const foregroundRanges = intersectRanges(foreground, activeRanges)
   const aiRanges = aiWork.map(({ start, end }) => ({ start, end }))

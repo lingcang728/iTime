@@ -2,14 +2,16 @@
 
 记录你的屏幕时间，也记录 AI 替你工作的时间。
 
-iTime 是一个使用 Tauri 2、Vue 3、TypeScript 与 Vite 构建的本地优先桌面原型。当前交付包含首页、AI 代理、时间线、输入足迹、周报、提醒与目标、设置七个页面，以及可安装的 Windows NSIS 包。
+iTime 是一个使用 Tauri 2、Vue 3、TypeScript 与 Vite 构建的本地优先 Windows 桌面应用。当前交付包含首页、AI 代理、时间线、输入足迹、周报、提醒与目标、设置七个页面。
 
 ## 数据边界
 
-- 七页共用 `MockDataProvider` 中的统一时间事件仓库，页面不手填汇总指标。
-- `LegacyKeyStatsAdapter → InputActivityProvider → iTime 标准输入模型` 是输入数据的稳定边界。
-- 本轮只实现 `MockInputActivityProvider` 与迁移交互演示，不读取或修改真实 KeyStats 文件。
-- 输入模型不保存文字内容、可还原文字的事件序列或原始键盘事件；密度只按分钟聚合。
+- Tauri 桌面运行时只读 `%APPDATA%\keystats\keystats-data.json`，通过严格类型适配器提供真实日级键鼠累计、今日键位和功能组合键；不会修改 KeyStats 文件或启动项。
+- KeyStats 历史没有小时/分钟桶，历史点击也无法拆分左右键。iTime 会把这些能力如实标为不可用，不生成模拟曲线或伪造 0 值。
+- iTime 从启用后每 10 秒采样一次前台可执行程序与本会话输入活跃状态，写入 `%LOCALAPPDATA%\iTime\Data\activity-v1.jsonl`。接入前的应用与 AI 历史不会回填。
+- 活动记录不读取或保存窗口标题、文档名、对话内容、键入内容、PID、完整可执行路径或用户名；应用身份使用本机路径的截断 SHA-256 散列。
+- AI 工具前台时长来自真实进程采样，但只能作为估算，不能等同于后台代理执行时长。没有可靠证据的指标会标为估算或暂无数据。
+- 普通浏览器开发模式保留明确标记的预览数据，便于视觉回归；Tauri 桌面运行时不使用这些预览记录。
 
 ## 本地运行
 
@@ -18,10 +20,10 @@ npm install
 npm run dev
 npm test
 npm run build
-npm run tauri:build
+npm run tauri:dev
 ```
 
-Tauri 默认窗口为 1280×820。自动窗口矩阵选出的最小尺寸为 960×680；560×900 只用于三张历史参考页的视觉回归，不是受支持的产品窗口模式。
+最终验收前再运行 `npm run tauri:build` 生成安装包。Tauri 默认窗口为 1180×760，最小尺寸为 960×680。
 
 ## 视觉测试
 

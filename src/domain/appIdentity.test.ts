@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest'
+import { buildAppIdentity, identityAccent, identityGlyph, normalizeLogicalKey } from './appIdentity'
+
+describe('appIdentity', () => {
+  it('prefers aumid package identity', () => {
+    const result = buildAppIdentity({
+      appIdentity: 'chrome',
+      executablePath: 'C:\\Apps\\chrome.exe',
+      aumid: 'Chrome.App',
+    })
+    expect(result).toEqual({ identity: 'aumid:Chrome.App', kind: 'package' })
+  })
+
+  it('builds site identity with browser host', () => {
+    const result = buildAppIdentity({
+      iconKey: 'chrome',
+      siteHost: 'GitHub.com',
+    })
+    expect(result.kind).toBe('browser_site')
+    expect(result.identity).toBe('site:github.com@chrome')
+  })
+
+  it('normalizes logical keys and glyphs', () => {
+    expect(normalizeLogicalKey('VS Code')).toBe('vs-code')
+    expect(identityGlyph('VS Code')).toBe('V')
+    expect(identityGlyph('微信')).toBe('微')
+    expect(identityGlyph(undefined, 'app:explorer')).toBe('E')
+  })
+
+  it('returns stable accent colors for the same identity', () => {
+    document.documentElement.dataset.theme = 'light'
+    const a = identityAccent('app:vscode')
+    const b = identityAccent('app:vscode')
+    expect(a).toEqual(b)
+    expect(a.background).toMatch(/^hsl\(/)
+  })
+
+  it('uses a darker glyph palette under dark theme', () => {
+    document.documentElement.dataset.theme = 'light'
+    const light = identityAccent('app:vscode')
+    document.documentElement.dataset.theme = 'dark'
+    const dark = identityAccent('app:vscode')
+    expect(dark).not.toEqual(light)
+    expect(dark.background).toMatch(/^hsl\(/)
+    document.documentElement.dataset.theme = 'light'
+  })
+})

@@ -29,36 +29,17 @@ function formatDate(value: Date): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 }
 
-export class MockDataProvider implements PrototypeDataProvider {
+export class EventDataProvider implements PrototypeDataProvider {
   private listeners = new Set<() => void>()
 
-  constructor(private dataset: TimeDataset = mockDataset) {}
+  constructor(protected dataset: TimeDataset) {}
 
   getDay(date: string): DaySnapshot {
     return this.getRange(dayRange(date))
   }
 
   getRange(range: TimeRange): DaySnapshot {
-    const snapshot = deriveDaySnapshot(this.dataset.events, range)
-    return {
-      ...snapshot,
-      aiTools: snapshot.aiTools.map((tool) => {
-        const runtime = mockToolRuntime[tool.toolId]
-        if (!runtime) return tool
-        const requestedWait = runtime.silentWaitMinutes * minute
-        const lastWorkEnd = Math.max(...tool.workIntervals.map((event) => event.end))
-        const waitStart = Math.min(range.end, lastWorkEnd + 5 * minute)
-        const waitEnd = Math.min(range.end, waitStart + requestedWait)
-        const silentWaitDuration = Math.max(0, waitEnd - waitStart)
-        return {
-          ...tool,
-          status: runtime.status,
-          iconKey: runtime.iconKey,
-          silentWaitDuration,
-          waitIntervals: silentWaitDuration ? [{ start: waitStart, end: waitEnd }] : [],
-        }
-      }),
-    }
+    return deriveDaySnapshot(this.dataset.events, range)
   }
 
   getWeek(endDate: string): DaySnapshot[] {
@@ -78,7 +59,7 @@ export class MockDataProvider implements PrototypeDataProvider {
       ...summary,
       detectionBasis: [
         ...new Set(intervals.map((event) => event.basis)),
-        ...(summary.silentWaitDuration ? ['静默等待来自独立状态演示数据，不计入有效代理工时'] : []),
+        ...(summary.silentWaitDuration ? ['静默等待不计入有效代理工时'] : []),
       ],
       pendingRecords: intervals.filter((event) => event.reviewState === 'needsReview'),
     }
@@ -87,6 +68,35 @@ export class MockDataProvider implements PrototypeDataProvider {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+}
+
+export class MockDataProvider extends EventDataProvider {
+  constructor(dataset: TimeDataset = mockDataset) {
+    super(dataset)
+  }
+
+  override getRange(range: TimeRange): DaySnapshot {
+    const snapshot = super.getRange(range)
+    return {
+      ...snapshot,
+      aiTools: snapshot.aiTools.map((tool) => {
+        const runtime = mockToolRuntime[tool.toolId]
+        if (!runtime) return tool
+        const requestedWait = runtime.silentWaitMinutes * minute
+        const lastWorkEnd = Math.max(...tool.workIntervals.map((event) => event.end))
+        const waitStart = Math.min(range.end, lastWorkEnd + 5 * minute)
+        const waitEnd = Math.min(range.end, waitStart + requestedWait)
+        const silentWaitDuration = Math.max(0, waitEnd - waitStart)
+        return {
+          ...tool,
+          status: runtime.status,
+          iconKey: runtime.iconKey,
+          silentWaitDuration,
+          waitIntervals: silentWaitDuration ? [{ start: waitStart, end: waitEnd }] : [],
+        }
+      }),
+    }
   }
 }
 

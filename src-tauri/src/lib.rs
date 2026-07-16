@@ -1,4 +1,13 @@
-use std::sync::Mutex;
+mod activity;
+mod icons;
+mod keystats;
+
+use activity::ActivityCollector;
+use icons::IconService;
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc, Mutex,
+};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -13,7 +22,8 @@ const MIN_WINDOW_HEIGHT: f64 = 680.0;
 const WORK_AREA_MARGIN: f64 = 16.0;
 
 struct RuntimeState {
-    recording: Mutex<bool>,
+    recording: Arc<AtomicBool>,
+    recording_generation: Arc<AtomicU64>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
@@ -77,12 +87,15 @@ fn apply_recording_state(app: &AppHandle, recording: bool) {
 
 #[tauri::command]
 fn get_recording_state(state: State<'_, RuntimeState>) -> bool {
-    *state.recording.lock().expect("recording state poisoned")
+    state.recording.load(Ordering::Acquire)
 }
 
 #[tauri::command]
 fn set_recording_state(app: AppHandle, state: State<'_, RuntimeState>, recording: bool) {
-    *state.recording.lock().expect("recording state poisoned") = recording;
+    let previous = state.recording.swap(recording, Ordering::AcqRel);
+    if previous != recording {
+        state.recording_generation.fetch_add(1, Ordering::AcqRel);
+    }
     apply_recording_state(&app, recording);
 }
 
@@ -93,11 +106,16 @@ fn quit_app(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let recording = Arc::new(AtomicBool::new(true));
+    let recording_generation = Arc::new(AtomicU64::new(0));
     tauri::Builder::default()
         .manage(RuntimeState {
-            recording: Mutex::new(true),
+            recording: recording.clone(),
+            recording_generation: recording_generation.clone(),
             toggle_item: Mutex::new(None),
         })
+        .manage(ActivityCollector::start(recording, recording_generation))
+        .manage(IconService::new())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
@@ -134,10 +152,8 @@ pub fn run() {
                     "open" => show_main_window(app),
                     "toggle" => {
                         let state = app.state::<RuntimeState>();
-                        let mut current = state.recording.lock().expect("recording state poisoned");
-                        *current = !*current;
-                        let recording = *current;
-                        drop(current);
+                        let recording = !state.recording.fetch_xor(true, Ordering::AcqRel);
+                        state.recording_generation.fetch_add(1, Ordering::AcqRel);
                         apply_recording_state(app, recording);
                     }
                     "overview" => {
@@ -157,7 +173,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        show_main_window(&tray.app_handle());
+                        show_main_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
@@ -176,7 +192,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_recording_state,
             set_recording_state,
-            quit_app
+            quit_app,
+            activity::get_activity_snapshot,
+            icons::commands::resolve_app_icon,
+            icons::commands::get_icon_cache_dir,
+            keystats::get_key_stats_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running iTime");

@@ -59,7 +59,11 @@ const timeTicks = [4, 8, 12, 16, 20]
             <span class="rank">{{ index + 1 }}</span>
             <div class="ranking-identity">
               <span class="category-icon" :style="{ color: category.visual.iconTone }"><component :is="category.visual.icon" :size="16" weight="duotone" /></span>
-              <ApplicationIcon :icon-key="category.representative.appId" :size="20" />
+              <ApplicationIcon
+                :icon-key="category.representative.appId"
+                :app-name="category.representative.appName"
+                :size="20"
+              />
               <span><strong>{{ category.category }}</strong><small>{{ category.representative.appName }}</small></span>
             </div>
             <span class="rank-bar"><i :style="{ width: `${category.meter}%`, background: category.visual.gradient }"></i></span>

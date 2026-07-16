@@ -1,0 +1,183 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { PhAppWindow } from '@phosphor-icons/vue'
+import { buildAppIdentity, identityAccent, identityGlyph } from '../domain/appIdentity'
+import { embeddedAppIcons } from '../data/appIconAssets'
+import chromeIcon from '../assets/apps/chrome.svg'
+import claudeIcon from '../assets/apps/claude.svg'
+import vscodeIcon from '../assets/apps/vscode.svg'
+import {
+  peekAppIcon,
+  resolveAppIcon,
+  subscribeAppIcons,
+  type IconStatus,
+} from '../services/appIconService'
+
+const props = withDefaults(
+  defineProps<{
+    /** Preferred stable identity (or legacy icon key). */
+    appIdentity?: string
+    /** @deprecated Use appIdentity */
+    iconKey?: string
+    appName?: string
+    executablePath?: string
+    aumid?: string
+    packageFullName?: string
+    packageFamilyName?: string
+    siteHost?: string
+    size?: number
+  }>(),
+  { size: 20 },
+)
+
+const localIcons: Record<string, string> = {
+  claude: claudeIcon,
+  vscode: vscodeIcon,
+  chrome: chromeIcon,
+}
+
+const status = ref<IconStatus>('loading')
+const nativeUrl = ref<string | null>(null)
+const imageBroken = ref(false)
+
+const identityInfo = computed(() =>
+  buildAppIdentity({
+    appIdentity: props.appIdentity,
+    iconKey: props.iconKey,
+    executablePath: props.executablePath,
+    aumid: props.aumid,
+    packageFullName: props.packageFullName,
+    packageFamilyName: props.packageFamilyName,
+    siteHost: props.siteHost,
+    appName: props.appName,
+  }),
+)
+
+const logicalKey = computed(() => {
+  const raw = props.appIdentity ?? props.iconKey ?? ''
+  return raw.replace(/^app:/, '').toLowerCase()
+})
+
+const embeddedSource = computed(
+  () => localIcons[logicalKey.value] ?? embeddedAppIcons[logicalKey.value] ?? null,
+)
+
+const themeTick = ref(0)
+const accent = computed(() => {
+  themeTick.value
+  return identityAccent(identityInfo.value.identity)
+})
+const glyph = computed(() => identityGlyph(props.appName, identityInfo.value.identity))
+
+const displayUrl = computed(() => {
+  if (imageBroken.value) return null
+  return nativeUrl.value ?? embeddedSource.value
+})
+
+const showImage = computed(() => Boolean(displayUrl.value) && !imageBroken.value)
+const showGlyph = computed(() => !showImage.value)
+const ariaLabel = computed(() => props.appName || props.appIdentity || props.iconKey || 'app')
+
+let unsubscribe: (() => void) | undefined
+
+async function refresh(): Promise<void> {
+  imageBroken.value = false
+  const identity = identityInfo.value.identity
+  const peeked = peekAppIcon(identity)
+  if (peeked) {
+    status.value = peeked.status
+    nativeUrl.value = peeked.iconUrl ?? null
+  } else {
+    status.value = 'loading'
+    nativeUrl.value = null
+  }
+
+  const result = await resolveAppIcon({
+    appIdentity: props.appIdentity ?? props.iconKey,
+    iconKey: props.iconKey,
+    appName: props.appName,
+    executablePath: props.executablePath,
+    aumid: props.aumid,
+    packageFullName: props.packageFullName,
+    packageFamilyName: props.packageFamilyName,
+    siteHost: props.siteHost,
+    requestedSize: Math.max(32, Math.round(props.size * 2)),
+  })
+
+  if (result.appIdentity !== identityInfo.value.identity) return
+  status.value = result.status
+  nativeUrl.value = result.iconUrl ?? null
+  if (result.status === 'failed' || result.status === 'unknown') {
+    // Keep embedded icons as soft offline catalog; glyph only when nothing else works.
+    if (!embeddedSource.value) imageBroken.value = false
+  }
+}
+
+function onImageError(): void {
+  imageBroken.value = true
+  if (status.value === 'resolved') status.value = 'failed'
+}
+
+let themeObserver: MutationObserver | undefined
+
+onMounted(() => {
+  unsubscribe = subscribeAppIcons((result) => {
+    if (result.appIdentity !== identityInfo.value.identity) return
+    status.value = result.status
+    nativeUrl.value = result.iconUrl ?? null
+    if (result.status === 'resolved') imageBroken.value = false
+  })
+  themeObserver = new MutationObserver(() => {
+    themeTick.value += 1
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  void refresh()
+})
+
+onUnmounted(() => {
+  unsubscribe?.()
+  themeObserver?.disconnect()
+})
+
+watch(
+  () => [
+    props.appIdentity,
+    props.iconKey,
+    props.executablePath,
+    props.aumid,
+    props.packageFullName,
+    props.siteHost,
+    props.size,
+  ],
+  () => {
+    void refresh()
+  },
+)
+</script>
+
+<template>
+  <span
+    class="app-icon"
+    :class="[`is-${status}`, { 'is-fallback': showGlyph }]"
+    :style="{ width: `${size}px`, height: `${size}px` }"
+    :aria-label="ariaLabel"
+    role="img"
+  >
+    <img
+      v-if="showImage"
+      class="app-icon__image"
+      :src="displayUrl!"
+      alt=""
+      draggable="false"
+      @error="onImageError"
+    />
+    <span
+      v-else-if="appName || appIdentity || iconKey"
+      class="app-icon__glyph"
+      :style="{ background: accent.background, color: accent.color, fontSize: `${Math.max(10, size * 0.48)}px` }"
+    >
+      {{ glyph }}
+    </span>
+    <PhAppWindow v-else class="app-icon__generic" :size="Math.max(12, size - 2)" weight="duotone" />
+  </span>
+</template>

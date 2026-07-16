@@ -8,7 +8,7 @@ import { useAppStore } from '../stores/appStore'
 import { formatDuration } from '../utils/format'
 
 const store = useAppStore()
-const colors = { active: '#67b783', idle: '#d9b45d', locked: '#9aa3b2', sleep: '#c8ccd4' }
+const colors = { active: '#67b783', idle: '#d9b45d', locked: '#9aa3b2', sleep: '#c8ccd4', unknown: '#d7dbe2' }
 const byType = <T extends TimeEvent>(type: T['type']) => store.day.value.events.filter((event): event is T => event.type === type)
 const deviceSegments = computed(() => byType<DeviceStateInterval>('device').map((event) => ({ start: event.start, end: event.end, color: colors[event.state], muted: event.state !== 'active' })))
 const appSegments = computed(() => byType<ForegroundAppInterval>('foreground').map((event) => ({ start: event.start, end: event.end, color: event.color })))

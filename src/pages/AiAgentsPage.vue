@@ -48,7 +48,7 @@ const statusLabels = { running: '运行中', completed: '已完成', waiting: '�
       <div class="tools-table" role="table">
         <div class="tools-table__head" role="row"><span>工具</span><span>状态</span><span>运行时长</span><span>前台交互</span><span>静默等待</span><span>并行重叠</span><span>展开</span></div>
         <div v-for="tool in store.day.value.aiTools" :key="tool.toolId" class="tools-table__row" role="row">
-          <span class="tool-name-cell"><ApplicationIcon :icon-key="tool.iconKey" :size="22" /><strong>{{ tool.toolName }}</strong></span>
+          <span class="tool-name-cell"><ApplicationIcon :icon-key="tool.iconKey" :app-name="tool.toolName" :size="22" /><strong>{{ tool.toolName }}</strong></span>
           <span :class="['status-text', `is-${tool.status}`]">{{ statusLabels[tool.status] }}</span>
           <span>{{ formatDuration(tool.effectiveDuration, true) }}</span>
           <span>{{ formatDuration(tool.foregroundDuration, true) }}</span>

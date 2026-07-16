@@ -17,15 +17,16 @@ const rhythm = computed(() => store.input.value.history.map((point) => ({
 })))
 const maxKey = computed(() => Math.max(1, ...store.input.value.singleKeys.map((key) => key.count)))
 const visibleKeys = computed(() => store.state.heatmapEnabled ? store.input.value.singleKeys : [])
+const clickValue = (value: number | null) => value === null ? '—' : formatNumber(value)
 </script>
 
 <template>
   <section class="page input-page">
     <PageHeader title="输入足迹" subtitle="补充理解你的输入节奏；只保存聚合统计，不记录文字内容" />
     <div class="metrics-grid input-metrics">
-      <MetricCard label="键盘敲击" :value="formatNumber(store.input.value.cumulative.keyStrokes)" detail="分钟级聚合" :icon="PhKeyboard" tone="green" />
-      <MetricCard label="鼠标左键点击" :value="formatNumber(store.input.value.cumulative.leftClicks)" detail="累计快照" :icon="PhMouseLeftClick" tone="blue" />
-      <MetricCard label="鼠标右键点击" :value="formatNumber(store.input.value.cumulative.rightClicks)" detail="累计快照" :icon="PhMouseRightClick" tone="violet" />
+      <MetricCard label="键盘敲击" :value="formatNumber(store.input.value.cumulative.keyStrokes)" :detail="store.input.value.source" :icon="PhKeyboard" tone="green" />
+      <MetricCard label="鼠标左键点击" :value="clickValue(store.input.value.cumulative.leftClicks)" :detail="store.input.value.cumulative.leftClicks === null ? '该日期仅有合并点击' : '累计快照'" :icon="PhMouseLeftClick" tone="blue" />
+      <MetricCard label="鼠标右键点击" :value="clickValue(store.input.value.cumulative.rightClicks)" :detail="store.input.value.cumulative.rightClicks === null ? '该日期仅有合并点击' : '累计快照'" :icon="PhMouseRightClick" tone="violet" />
       <MetricCard label="鼠标移动" :value="formatDistance(store.input.value.cumulative.mouseDistance)" detail="聚合距离" :icon="PhMouse" tone="cyan" />
       <MetricCard label="滚动距离" :value="formatNumber(store.input.value.cumulative.scrollDistance)" detail="聚合滚动单位" :icon="PhArrowsDownUp" tone="orange" />
     </div>

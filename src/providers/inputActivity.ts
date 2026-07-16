@@ -4,19 +4,23 @@ import { mockDataset } from '../data/mockEvents'
 export type InputGranularity = 'minute' | 'hour' | 'day'
 
 export interface InputActivityCapabilities {
+  historyGranularity: InputGranularity | 'none'
   minuteDensity: boolean
   keyHeatmap: boolean
   functionalShortcuts: boolean
   sensitiveSurfaceExclusion: boolean
   deleteByDate: boolean
+  splitHistoricalClicks: boolean
+  timezoneSemantics: 'local-day' | 'utc-date-bucket'
 }
 
 export interface InputActivityPoint {
   start: number
   end: number
   keyStrokes: number
-  leftClicks: number
-  rightClicks: number
+  leftClicks: number | null
+  rightClicks: number | null
+  combinedClicks: number
   mouseDistance: number
   scrollDistance: number
 }
@@ -35,6 +39,7 @@ export interface InputActivitySnapshot {
   version: string
   range: TimeRange
   source: string
+  sourceUpdatedAt: number | null
   cumulative: InputActivityPoint
   history: InputActivityPoint[]
   singleKeys: InputKeyCount[]
@@ -56,11 +61,12 @@ function aggregate(points: InputActivityMinuteBucket[], start: number, end: numb
     start,
     end,
     keyStrokes: total.keyStrokes + point.keyStrokes,
-    leftClicks: total.leftClicks + point.leftClicks,
-    rightClicks: total.rightClicks + point.rightClicks,
+    leftClicks: (total.leftClicks ?? 0) + point.leftClicks,
+    rightClicks: (total.rightClicks ?? 0) + point.rightClicks,
+    combinedClicks: total.combinedClicks + point.leftClicks + point.rightClicks,
     mouseDistance: total.mouseDistance + point.mouseDistance,
     scrollDistance: total.scrollDistance + point.scrollDistance,
-  }), { start, end, keyStrokes: 0, leftClicks: 0, rightClicks: 0, mouseDistance: 0, scrollDistance: 0 })
+  }), { start, end, keyStrokes: 0, leftClicks: 0, rightClicks: 0, combinedClicks: 0, mouseDistance: 0, scrollDistance: 0 })
 }
 
 function bucketStart(value: number, granularity: InputGranularity): number {
@@ -93,7 +99,8 @@ export class MockInputActivityProvider implements InputActivityProvider {
     return {
       version: 'itime-input-v1',
       range,
-      source: 'mock-input-minute-buckets',
+      source: '预览数据 · 非本机记录',
+      sourceUpdatedAt: null,
       cumulative,
       history,
       singleKeys: keys.map((key, index) => ({ key, count: Math.round(cumulative.keyStrokes * weights[index]) })),
@@ -103,10 +110,50 @@ export class MockInputActivityProvider implements InputActivityProvider {
         { shortcut: 'Alt + Tab', count: Math.round(cumulative.keyStrokes * 0.009) },
         { shortcut: 'Ctrl + S', count: Math.round(cumulative.keyStrokes * 0.008) },
       ],
-      capabilities: { minuteDensity: true, keyHeatmap: true, functionalShortcuts: true, sensitiveSurfaceExclusion: true, deleteByDate: true },
+      capabilities: {
+        historyGranularity: 'minute',
+        minuteDensity: true,
+        keyHeatmap: true,
+        functionalShortcuts: true,
+        sensitiveSurfaceExclusion: true,
+        deleteByDate: true,
+        splitHistoricalClicks: true,
+        timezoneSemantics: 'local-day',
+      },
     }
   }
 }
 
-export const inputActivityProvider = new MockInputActivityProvider()
+export function emptyInputSnapshot(range: TimeRange, source = '等待本机数据'): InputActivitySnapshot {
+  const cumulative: InputActivityPoint = {
+    ...range,
+    keyStrokes: 0,
+    leftClicks: null,
+    rightClicks: null,
+    combinedClicks: 0,
+    mouseDistance: 0,
+    scrollDistance: 0,
+  }
+  return {
+    version: 'itime-input-empty-v1',
+    range,
+    source,
+    sourceUpdatedAt: null,
+    cumulative,
+    history: [],
+    singleKeys: [],
+    shortcuts: [],
+    capabilities: {
+      historyGranularity: 'none',
+      minuteDensity: false,
+      keyHeatmap: false,
+      functionalShortcuts: false,
+      sensitiveSurfaceExclusion: false,
+      deleteByDate: false,
+      splitHistoricalClicks: false,
+      timezoneSemantics: 'local-day',
+    },
+  }
+}
 
+export const inputActivityProvider = new MockInputActivityProvider()
