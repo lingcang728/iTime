@@ -42,6 +42,19 @@ const categoryStyles: Record<string, { category: string; color: string }> = {
   youtube: { category: '视频', color: '#e86f4f' },
 }
 
+const commonDisplayNames: Record<string, string> = {
+  chrome: 'Chrome',
+  code: 'VS Code',
+  itime: 'iTime',
+  typeless: 'Typeless',
+  codex: 'Codex',
+  chatgpt: 'ChatGPT',
+}
+
+function displayAppName(appName: string): string {
+  return commonDisplayNames[appName.trim().toLocaleLowerCase()] ?? appName
+}
+
 function appStyle(appName: string, aiTool: boolean): { category: string; color: string } {
   if (aiTool) return categoryStyles.ai
   return categoryStyles[appName.toLocaleLowerCase()] ?? { category: '其他', color: '#7f91a8' }
@@ -65,14 +78,15 @@ function eventsForInterval(
     reviewState: 'confirmed' as const,
   }
   if (!interval.appId || !interval.appName) return [device]
-  const style = appStyle(interval.appName, interval.aiTool)
+  const appName = displayAppName(interval.appName)
+  const style = appStyle(appName, interval.aiTool)
   const foreground = {
     id: `foreground:${interval.start}:${index}`,
     type: 'foreground' as const,
     start: interval.start,
     end: interval.end,
     appId: interval.appId,
-    appName: interval.appName,
+    appName,
     aiToolId: interval.aiTool ? interval.appId : undefined,
     ...style,
     source,
@@ -99,7 +113,7 @@ function eventsForInterval(
       end: interval.end,
       agentId: interval.appId,
       toolId: interval.appId,
-      toolName: interval.appName,
+      toolName: appName,
       taskId: `foreground-session:${interval.start}`,
       ...aiEvidence,
     },
@@ -109,7 +123,7 @@ function eventsForInterval(
       start: interval.start,
       end: interval.end,
       toolId: interval.appId,
-      toolName: interval.appName,
+      toolName: appName,
       ...aiEvidence,
     },
   ]

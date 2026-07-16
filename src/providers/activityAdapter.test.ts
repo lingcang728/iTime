@@ -43,6 +43,18 @@ describe('activity adapter', () => {
     expect(work?.reviewState).toBe('needsReview')
   })
 
+  it('normalizes display names in records written by older collectors', () => {
+    const dataset = activityDataset({
+      ...base,
+      intervals: [{
+        version: 1, start: 1000, end: 2000, deviceState: 'active',
+        appId: 'process:chrome', appName: 'chrome', aiTool: false,
+      }],
+    })
+    const foreground = dataset.events.find((event) => event.type === 'foreground')
+    expect(foreground).toMatchObject({ appName: 'Chrome', category: '浏览' })
+  })
+
   it('rejects a payload claiming that content was captured', () => {
     expect(() => parseActivitySnapshot({
       ...base,
