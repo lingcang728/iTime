@@ -1,0 +1,206 @@
+.home-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ranking-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ranking-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 16px 152px minmax(80px, 1fr) 64px;
+  align-items: center;
+  gap: 9px;
+  min-height: 27px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-identity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 26px 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.ranking-identity > span:last-child,
+.rank-value {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.ranking-identity strong,
+.rank-value strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-identity small,
+.rank-value small {
+  color: var(--text-muted);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.category-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.application-icon,
+.app-icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+}
+
+.application-icon img,
+.app-icon__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.app-icon__glyph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+.app-icon__generic {
+  opacity: 0.72;
+}
+
+.app-icon.is-loading:not(.is-fallback) {
+  opacity: 0.92;
+}
+
+.app-icon.is-fallback .app-icon__glyph {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 8%, transparent);
+}
+
+html[data-theme="dark"] .app-icon.is-fallback .app-icon__glyph {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .app-icon__generic {
+  opacity: 0.82;
+  color: var(--text-secondary);
+}
+
+.rank-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ranking-mode {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-soft);
+}
+
+.ranking-mode button {
+  min-height: 25px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ranking-mode button[aria-pressed="true"] {
+  color: var(--text-primary);
+  background: var(--bg-card);
+  box-shadow: 0 1px 4px rgba(69, 62, 52, .08);
+}
+
+.rank-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--bg-soft);
+}
+
+.rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.input-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.input-summary-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-soft);
+}
+
+.input-summary-card > div:last-child,
+.input-rhythm-card > div:nth-child(2) {
+  display: grid;
+  gap: 5px;
+}
+
+.input-summary-card span,
+.input-rhythm-card span,
+.ai-insight-card span,
+.best-day-card > span {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.input-summary-card strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.input-summary-card small {
+  color: var(--text-muted);
+  font-size: 9px;
+}

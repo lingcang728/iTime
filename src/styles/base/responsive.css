@@ -1,0 +1,234 @@
+@media (max-width: 1110px) {
+  .desktop-app { grid-template-columns: 158px minmax(0, 1fr); }
+  .sidebar { padding-inline: 10px; }
+  .page { padding-inline: 20px; }
+  .home-columns { grid-template-columns: minmax(0, 1fr) 230px; }
+  .metrics-grid--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .weekly-insights-grid { grid-template-columns: 1fr 1fr; }
+  .best-day-card { grid-column: span 2; min-height: 150px; }
+  .input-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .input-main-grid { grid-template-columns: 1fr 1fr; }
+  .factual-insight { grid-column: span 2; min-height: 120px; }
+  .input-bottom-grid { grid-template-columns: 1fr 1fr; }
+  .keyboard-card { grid-column: span 2; }
+  .settings-layout { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+html[data-reference="compact"] .desktop-app {
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+html[data-reference="compact"] .desktop-app:has(.home-page) {
+  grid-template-columns: 131px minmax(0, 1fr);
+}
+
+html[data-reference="compact"] .desktop-app:has(.ai-page) {
+  grid-template-columns: 124px minmax(0, 1fr);
+}
+
+html[data-reference="compact"] .desktop-app:has(.ai-page) .sidebar {
+  border-right-color: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+html[data-reference="compact"] .sidebar {
+  padding: 16px 8px 12px;
+}
+
+html[data-reference="compact"] .brand-block {
+  padding-inline: 5px;
+}
+
+html[data-reference="compact"] .brand-block img {
+  width: 25px;
+  height: 25px;
+}
+
+html[data-reference="compact"] .nav-item {
+  height: 40px;
+  padding-inline: 8px;
+  font-size: 11px;
+}
+
+html[data-reference="compact"] .profile-card,
+html[data-reference="compact"] .goal-ring-card {
+  display: none;
+}
+
+@media (max-height: 740px) {
+  .sidebar { padding-block: 14px 10px; }
+  .brand-block { min-height: 48px; padding-bottom: 7px; }
+  .sidebar nav { gap: 3px; margin-top: 8px; }
+  .nav-item { height: 36px; }
+  .profile-card { min-height: 48px; padding: 6px; }
+  .profile-card img { width: 34px; height: 34px; }
+  .goal-ring-card { grid-template-columns: 40px 1fr; justify-items: start; padding: 8px; text-align: left; }
+  .goal-ring { width: 40px; height: 40px; }
+}
+
+@media (max-height: 800px) {
+  .page { padding-top: 10px; padding-bottom: 16px; }
+  .page-header { min-height: 52px; margin-bottom: 8px; }
+  .page-header p { margin-top: 4px; }
+  .home-page .metrics-grid { gap: 8px; }
+  .home-page { padding-bottom: 8px; }
+  .home-page .metric-card { min-height: 82px; padding: 9px 13px; }
+  .home-page .metric-card__value { margin-top: 6px; font-size: 19px; }
+  .home-page .metric-card small { margin-top: 5px; }
+  .home-columns,
+  .today-timeline,
+  .wellbeing-card { margin-top: 8px; }
+  .ranking-card { padding: 12px 14px; }
+  .ranking-list { gap: 3px; margin-top: 7px; }
+  .ranking-row { min-height: 23px; }
+  .today-timeline { padding: 11px 14px; }
+  .today-timeline .time-axis { margin-top: 9px; }
+  .wellbeing-card { min-height: 70px; padding: 8px 14px; }
+  .wellbeing-card h2 { margin-top: 3px; font-size: 14px; }
+  .wellbeing-card p { margin-top: 4px; }
+  .ai-page .agent-metric-card { min-height: 112px; padding: 9px 12px; }
+  .ai-page .agent-metric-icon { width: 36px; height: 36px; margin-top: 3px; }
+  .ai-page .agent-metric-value { margin-top: 3px; font-size: 16px; }
+  .ai-page .agent-metric-value .number { font-size: 20px; }
+  .ai-page .agent-metric-card > small { margin-top: 4px; }
+  .ai-page .ai-timeline-card,
+  .ai-page .tools-card,
+  .ai-page .ai-insight-card { margin-top: 8px; }
+  .ai-page .ai-timeline-card,
+  .ai-page .tools-card { padding: 10px 13px; }
+  .ai-page .ai-timeline-card .time-axis { margin-top: 8px; }
+  .ai-page .timeline-lane__track { height: 26px; }
+  .ai-page .timeline-note { margin-top: 6px; }
+  .ai-page .tools-table { margin-top: 6px; }
+  .ai-page .tools-table__row { min-height: 33px; }
+  .ai-page .ai-insight-card { min-height: 70px; padding: 9px 14px; }
+  .ai-page .ai-insight-card h2 { margin-top: 3px; font-size: 14px; }
+  .ai-page .ai-insight-card p { margin-top: 4px; }
+  .ai-page .gain-visual { height: 48px; }
+  .weekly-page .chart-card { min-height: 195px; padding: 12px; }
+  .weekly-page .bar-chart { height: 145px; margin-top: 6px; padding-top: 4px; }
+  .weekly-page .heatmap-cell { height: 18px; aspect-ratio: auto; }
+  .weekly-page .focus-card,
+  .weekly-page .top-apps-card,
+  .weekly-page .best-day-card { min-height: 188px; padding: 12px; }
+  .weekly-page .heatmap-scale { margin-top: 6px; }
+  .weekly-page .top-apps-card ol { gap: 8px; margin-top: 10px; }
+  .weekly-page .best-day-card h2 { margin-top: 9px; }
+  .weekly-page .input-rhythm-card { min-height: 68px; margin-top: 8px; padding-block: 9px; }
+}
+
+html[data-reference="compact"] .page {
+  padding: 10px 15px 22px;
+}
+
+html[data-reference="compact"] .page-header h1 {
+  font-size: 19px;
+}
+
+html[data-reference="compact"] .page-header p {
+  font-size: 9px;
+}
+
+html[data-reference="compact"] .date-switcher strong {
+  min-width: 88px;
+  font-size: 9px;
+}
+
+html[data-reference="compact"] .metric-card {
+  min-height: 96px;
+  padding: 12px;
+}
+
+html[data-reference="compact"] .metric-card__value {
+  font-size: 17px;
+}
+
+html[data-reference="compact"] .home-columns,
+html[data-reference="compact"] .weekly-charts,
+html[data-reference="compact"] .weekly-insights-grid {
+  grid-template-columns: 1fr;
+}
+
+html[data-reference="compact"] .input-summary-card {
+  display: none;
+}
+
+html[data-reference="compact"] .metrics-grid--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+html[data-reference="compact"] .ai-page .metric-card {
+  min-height: 132px;
+  padding: 11px 9px;
+}
+
+html[data-reference="compact"] .ai-page .metric-card__header {
+  align-items: flex-start;
+  gap: 3px;
+  font-size: 9px;
+}
+
+html[data-reference="compact"] .ai-page .metric-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+html[data-reference="compact"] .ranking-card {
+  min-height: 221px;
+}
+
+html[data-reference="compact"] .today-timeline {
+  min-height: 135px;
+}
+
+html[data-reference="compact"] .wellbeing-card {
+  min-height: 145px;
+}
+
+html[data-reference="compact"] .weekly-page .chart-card {
+  min-height: 210px;
+}
+
+html[data-reference="compact"] .weekly-page .bar-chart {
+  height: 150px;
+}
+
+html[data-reference="compact"] .weekly-insights-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+html[data-reference="compact"] .weekly-insights-grid .best-day-card {
+  grid-column: auto;
+}
+
+html[data-reference="compact"] .weekly-insights-grid .card {
+  min-height: 210px;
+  padding: 10px;
+}
+
+html[data-reference="compact"] .weekly-insights-grid .heatmap {
+  gap: 3px;
+}
+
+html[data-reference="compact"] .weekly-insights-grid .top-apps-card ol {
+  gap: 8px;
+}
+
+html[data-reference="compact"] .input-rhythm-card {
+  min-height: 78px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 10px 12px;
+}
+
+html[data-reference="compact"] .input-rhythm-card .input-mini-chart {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,40 @@
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: var(--z-toast);
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  font-size: 11px;
+}
+
+.page-enter-active,
+.page-leave-active,
+.drawer-enter-active,
+.drawer-leave-active,
+.modal-enter-active,
+.modal-leave-active,
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 190ms var(--ease-out), transform 190ms var(--ease-out);
+}
+
+.page-enter-from { opacity: 0; transform: translateX(8px); }
+.page-leave-to { opacity: 0; transform: translateX(-5px); }
+.drawer-enter-from,
+.drawer-leave-to,
+.modal-enter-from,
+.modal-leave-to,
+.toast-enter-from,
+.toast-leave-to { opacity: 0; }
+.drawer-enter-from .detail-drawer,
+.drawer-leave-to .detail-drawer { transform: translateX(20px); }
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background-clip: content-box; background-color: color-mix(in srgb, var(--text-muted) 48%, transparent); }

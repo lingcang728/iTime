@@ -1,0 +1,119 @@
+.tools-table {
+  margin-top: 10px;
+  font-size: 10px;
+}
+
+.tools-table__head,
+.tools-table__row {
+  display: grid;
+  grid-template-columns: 1.3fr .65fr .85fr .85fr .85fr .85fr .58fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.tools-table__head {
+  padding: 0 9px 7px;
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.tools-table__row {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 9px;
+  border-top: 1px solid var(--border-soft);
+  background: transparent;
+  text-align: left;
+}
+
+.tools-table__row:hover {
+  background: color-mix(in srgb, var(--bg-hover) 64%, transparent);
+}
+
+.tools-table__row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-name-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tool-name-cell strong { min-width: 0; }
+
+.status-text {
+  color: var(--accent-green);
+}
+.status-text.is-completed { color: var(--accent-blue); }
+.status-text.is-waiting { color: var(--accent-orange); }
+
+.tool-expand {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.accuracy {
+  width: fit-content;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 8px;
+}
+
+.accuracy.precise { color: var(--accent-green); background: var(--accent-green-soft); }
+.accuracy.estimated { color: var(--accent-orange); background: var(--accent-orange-soft); }
+
+.ai-insight-card {
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 10px;
+  padding: 15px 18px;
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 20%, var(--border-soft));
+  border-radius: var(--radius-md);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent-orange-soft) 56%, var(--bg-card)), var(--bg-card));
+}
+
+.ai-insight-card h2 {
+  margin: 7px 0 0;
+  font-size: 16px;
+}
+
+.ai-insight-card p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.gain-visual {
+  width: 92px;
+  height: 58px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 14px;
+}
+
+.gain-visual span {
+  width: 24px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(to top, var(--accent-green), #78cf98);
+}
+
+.gain-visual span:last-child {
+  background: linear-gradient(to top, var(--accent-violet), #9a8cea);
+}
