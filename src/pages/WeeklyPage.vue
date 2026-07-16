@@ -4,49 +4,95 @@ import { PhKeyboard, PhSparkle } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BarChart from '../components/BarChart.vue'
 import FocusHeatmap from '../components/FocusHeatmap.vue'
-import SparkLine from '../components/SparkLine.vue'
+import WeeklyAchievements from '../components/weekly/WeeklyAchievements.vue'
+import WeeklyTopApps from '../components/weekly/WeeklyTopApps.vue'
+import WeeklyTrendChart from '../components/weekly/WeeklyTrendChart.vue'
+import { buildWeeklySummary } from '../components/weekly/weeklyModel'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatNumber } from '../utils/format'
 import { buildFocusHeatmap } from '../data/focusHeatmap'
 
 const store = useAppStore()
-const dayLabels = ['周四', '周五', '周六', '周日', '周一', '周二', '周三']
-const activityPoints = computed(() => store.week.value.map((day, index) => ({ label: dayLabels[index], value: (day.computerActivity.value ?? 0) / 3_600_000, note: `5/${14 + index}` })))
-const comparePoints = computed(() => store.week.value.map((day, index) => ({ label: dayLabels[index], value: (day.foregroundActivity.value ?? 0) / 3_600_000, secondary: (day.aiEffective.value ?? 0) / 3_600_000, note: `5/${14 + index}` })))
-const topApps = computed(() => {
-  const totals = new Map<string, { name: string; duration: number; color: string }>()
-  store.week.value.forEach((day) => day.apps.forEach((app) => {
-    const current = totals.get(app.appId)
-    if (current) current.duration += app.duration
-    else totals.set(app.appId, { name: app.appName, duration: app.duration, color: app.color })
-  }))
-  return [...totals.values()].sort((a, b) => b.duration - a.duration).slice(0, 5)
-})
-const focusValues = computed(() => store.week.value.map((day) => (day.foregroundActivity.value ?? 0) / 3_600_000))
-const inputValues = computed(() => store.week.value.map((day) => Number(day.inputKeyStrokes.value ?? 0)))
-const focusDays = computed(() => buildFocusHeatmap(store.state.selectedDate))
+const hour = 3_600_000
+const summary = computed(() => buildWeeklySummary(store.week.value))
+const activityPoints = computed(() => summary.value.days.map((day) => ({
+  label: day.label,
+  value: day.computer === null ? null : day.computer / hour,
+  note: day.note,
+})))
+const comparePoints = computed(() => summary.value.days.map((day) => ({
+  label: day.label,
+  value: day.foreground === null ? null : day.foreground / hour,
+  secondary: day.ai === null ? null : day.ai / hour,
+  note: day.note,
+})))
+const trendPoints = computed(() => summary.value.days.map((day) => ({
+  label: day.label,
+  note: day.note,
+  value: day.foreground === null ? null : day.foreground / hour,
+})))
+const focusDays = computed(() => buildFocusHeatmap(store.state.selectedDate, summary.value.focusSamples))
+
+function hourLabel(value: number | null | undefined): string {
+  return value === null || value === undefined ? '暂无数据' : `${(value / hour).toFixed(1)} 小时`
+}
+
+function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays' | null): string {
+  if (value === null) return '暂无上周基线'
+  const reference = basis === 'peerDays' ? '本周其余有记录日平均' : '上周'
+  return `较${reference}${value >= 0 ? '提升' : '下降'} ${Math.abs(value)}%`
+}
 </script>
 
 <template>
   <section class="page weekly-page">
-    <PageHeader title="本周回顾" subtitle="回顾一周，持续优化数字生活" range-label="5月14日 – 5月20日" />
-    <div class="weekly-charts">
-      <article class="card chart-card"><div class="section-heading"><div><h2>每日电脑活动</h2><p>小时</p></div></div><BarChart :points="activityPoints" /></article>
-      <article class="card chart-card"><div class="section-heading"><div><h2>前台活动 vs AI 代理工作</h2><p>绿色为前台，紫色为代理工时</p></div></div><BarChart :points="comparePoints" compact /></article>
-    </div>
-    <div class="weekly-insights-grid">
-      <article class="card focus-card">
-        <div class="section-heading"><div><h2>专注热力图</h2><p>按小时活动强度</p></div></div>
-        <FocusHeatmap :days="focusDays" />
-        <div class="heatmap-scale"><span>低</span><i></i><span>高</span></div>
+    <PageHeader title="本周回顾" subtitle="用可验证的本机记录回看专注、应用与 AI 协作" :range-label="summary.rangeLabel" />
+
+    <div class="weekly-chart-stack">
+      <article class="card weekly-card weekly-card--activity">
+        <header class="weekly-card__heading"><div><span>电脑活动</span><h2>每日电脑活动</h2><p>设备活跃与空闲区间的去重时长</p></div><em class="legend legend--blue"><i></i>电脑活动</em></header>
+        <BarChart :points="activityPoints" unit="小时" tone="blue" primary-label="电脑活动" />
       </article>
-      <article class="card top-apps-card"><div class="section-heading"><div><h2>Top 应用</h2><p>本周累计</p></div></div><ol><li v-for="(app, index) in topApps" :key="app.name"><span>{{ index + 1 }}</span><i :style="{ background: app.color }"></i><strong>{{ app.name }}</strong><em>{{ formatDuration(app.duration, true) }}</em></li></ol></article>
-      <article class="card best-day-card"><PhSparkle :size="20" weight="duotone" /><span>本周洞察</span><h2>最专注的一天是周六</h2><strong>{{ focusValues[2].toFixed(1) }} 小时</strong><p>前台活动比上周同日增加 18%。</p><SparkLine :values="focusValues" color="#6979df" /></article>
+      <article class="card weekly-card">
+        <header class="weekly-card__heading"><div><span>注意力构成</span><h2>主动注意力与 AI 代理工作</h2><p>两组时长独立统计，重叠区间不会被隐藏</p></div><div class="legend-group"><em class="legend legend--green"><i></i>主动注意力</em><em class="legend legend--violet"><i></i>AI 代理工作</em></div></header>
+        <BarChart :points="comparePoints" unit="小时" tone="green" primary-label="主动注意力" secondary-label="AI 代理工作" compact />
+      </article>
     </div>
-    <article class="input-rhythm-card">
-      <div class="input-summary-icon"><PhKeyboard :size="23" weight="duotone" /></div>
-      <div><span>输入节奏</span><h2>本周共有 {{ formatNumber(inputValues.reduce((total, value) => total + value, 0)) }} 次键盘敲击</h2><p>最高输入密度出现在周六上午，平均每 47 分钟出现一次明显休息间隔。</p></div>
-      <div class="input-mini-chart"><SparkLine :values="inputValues" color="#56ae83" /></div>
+
+    <div class="weekly-analysis-grid">
+      <article class="card weekly-card focus-panel">
+        <header class="weekly-card__heading"><div><span>专注分布</span><h2>专注热力图</h2><p>仅对已采集的前台活动着色，空白日期不会补造</p></div></header>
+        <FocusHeatmap :days="focusDays" />
+      </article>
+      <article class="card weekly-card insight-panel">
+        <header class="weekly-card__heading"><div><span>本周洞察</span><h2><PhSparkle :size="17" weight="duotone" /> 最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong></h2></div></header>
+        <div class="attention-summary">
+          <span><small>当日主动注意力</small><strong>{{ hourLabel(summary.bestDay?.foreground) }}</strong></span>
+          <span><small>本周主动注意力</small><strong>{{ hourLabel(summary.totalAttention) }}</strong></span>
+          <em :class="{ positive: (summary.improvementPercent ?? 0) > 0, negative: (summary.improvementPercent ?? 0) < 0 }">{{ comparisonLabel(summary.improvementPercent, summary.comparisonBasis) }}</em>
+        </div>
+        <WeeklyTrendChart :points="trendPoints" />
+      </article>
+    </div>
+
+    <article class="card weekly-card top-apps-panel">
+      <header class="weekly-card__heading"><div><span>应用排行</span><h2>Top 应用</h2><p>按本周前台活跃时长排序，最多显示 10 个真实应用</p></div><em>{{ summary.topApps.length }} 个有记录应用</em></header>
+      <WeeklyTopApps :apps="summary.topApps" />
+    </article>
+
+    <article class="card weekly-card achievements-panel">
+      <header class="weekly-card__heading"><div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div></header>
+      <WeeklyAchievements :achievements="summary.achievements" />
+    </article>
+
+    <article class="weekly-input-card">
+      <div class="weekly-input-card__icon"><PhKeyboard :size="21" weight="duotone" /></div>
+      <div><span>输入节奏</span><h2 v-if="summary.totalInput !== null">本周共有 {{ formatNumber(summary.totalInput) }} 次键盘敲击</h2><h2 v-else>本周尚无同源输入记录</h2><p v-if="summary.peakInputDay">输入最多的是 {{ summary.peakInputDay.label }}，共 {{ formatNumber(summary.peakInputDay.input ?? 0) }} 次。</p><p v-else>接入活动轨道后的输入统计会在这里形成周趋势。</p></div>
+      <strong v-if="summary.totalAttention !== null">专注累计 {{ formatDuration(summary.totalAttention, true) }}</strong>
     </article>
   </section>
 </template>
+
+<style scoped>
+@import './weekly-page.css';
+</style>

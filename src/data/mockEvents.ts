@@ -15,11 +15,11 @@ const minute = 60_000
 const dayConfigs = [
   { date: '2026-05-14', screen: 366, foreground: 228, ai: 96, voice: 31, media: 38 },
   { date: '2026-05-15', screen: 432, foreground: 264, ai: 132, voice: 42, media: 52 },
-  { date: '2026-05-16', screen: 516, foreground: 312, ai: 156, voice: 54, media: 63 },
+  { date: '2026-05-16', screen: 516, foreground: 288, ai: 156, voice: 54, media: 63 },
   { date: '2026-05-17', screen: 318, foreground: 186, ai: 84, voice: 27, media: 47 },
   { date: '2026-05-18', screen: 468, foreground: 276, ai: 144, voice: 51, media: 58 },
   { date: '2026-05-19', screen: 390, foreground: 240, ai: 126, voice: 39, media: 50 },
-  { date: '2026-05-20', screen: 408, foreground: 262, ai: 156, voice: 68, media: 43 },
+  { date: '2026-05-20', screen: 408, foreground: 312, ai: 156, voice: 68, media: 43 },
 ]
 
 const apps = [
@@ -32,10 +32,10 @@ const apps = [
 ]
 
 const aiTools = [
-  { id: 'codex', name: 'Codex', share: 0.46, source: 'codex-structured-events', precise: true },
-  { id: 'chatgpt', name: 'ChatGPT', share: 0.27, source: 'desktop-process-events', precise: false },
-  { id: 'claude', name: 'Claude Code', share: 0.18, source: 'terminal-task-events', precise: true },
-  { id: 'antigravity', name: 'AntiGravity', share: 0.09, source: 'window-activity-estimate', precise: false },
+  { id: 'codex', name: 'Codex', share: 0.46, source: 'preview:codex-events', precise: true },
+  { id: 'chatgpt', name: 'ChatGPT', share: 0.27, source: 'preview:desktop-events', precise: false },
+  { id: 'claude', name: 'Claude Code', share: 0.18, source: 'preview:terminal-events', precise: true },
+  { id: 'antigravity', name: 'AntiGravity', share: 0.09, source: 'preview:window-estimate', precise: false },
 ]
 
 function at(date: string, hours: number, minutes = 0): number {
@@ -73,9 +73,9 @@ function buildDay(config: typeof dayConfigs[number], dayIndex: number): TimeEven
   const tomorrow = at(nextDate(config.date), 0)
 
   result.push(
-    { id: `${config.date}-sleep-am`, type: 'device', state: 'sleep', start: midnight, end: start, ...precise('windows-power-events', 'Windows 睡眠与唤醒事件') } satisfies DeviceStateInterval,
-    { id: `${config.date}-device-active`, type: 'device', state: 'active', start, end: activeEnd, ...precise('windows-session-events', 'Windows 会话与空闲状态') } satisfies DeviceStateInterval,
-    { id: `${config.date}-sleep-pm`, type: 'device', state: 'sleep', start: activeEnd, end: tomorrow, ...precise('windows-power-events', 'Windows 睡眠与唤醒事件') } satisfies DeviceStateInterval,
+    { id: `${config.date}-sleep-am`, type: 'device', state: 'sleep', start: midnight, end: start, ...precise('preview:power-events', '浏览器预览的睡眠与唤醒事件') } satisfies DeviceStateInterval,
+    { id: `${config.date}-device-active`, type: 'device', state: 'active', start, end: activeEnd, ...precise('preview:session-events', '浏览器预览的会话与空闲状态') } satisfies DeviceStateInterval,
+    { id: `${config.date}-sleep-pm`, type: 'device', state: 'sleep', start: activeEnd, end: tomorrow, ...precise('preview:power-events', '浏览器预览的睡眠与唤醒事件') } satisfies DeviceStateInterval,
   )
 
   const appMinutes = distribute(config.foreground, apps.map((app) => app.share))
@@ -92,7 +92,7 @@ function buildDay(config: typeof dayConfigs[number], dayIndex: number): TimeEven
       aiToolId: app.aiToolId,
       start: appCursor,
       end,
-      ...precise('windows-foreground-events', '活动窗口与设备活跃区间交集'),
+      ...precise('preview:foreground-events', '浏览器预览的活动窗口区间'),
     } satisfies ForegroundAppInterval)
     appCursor = end + (5 + (index % 2) * 3) * minute
   })
@@ -122,7 +122,7 @@ function buildDay(config: typeof dayConfigs[number], dayIndex: number): TimeEven
       toolName: tool.name,
       start: aiStarts[index],
       end: aiStarts[index] + interactionMinutes * minute,
-      ...precise('windows-foreground-events', 'AI 工具前台活动区间'),
+      ...precise('preview:foreground-events', '浏览器预览的 AI 工具前台区间'),
     } satisfies AiInteractionInterval)
   })
 

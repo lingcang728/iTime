@@ -1,68 +1,94 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhArrowsDownUp, PhCoffee, PhCursorClick, PhKeyboard, PhMouse, PhMouseLeftClick, PhMouseRightClick, PhShieldCheck } from '@phosphor-icons/vue'
+import {
+  PhArrowsDownUp,
+  PhCursorClick,
+  PhDatabase,
+  PhKeyboard,
+  PhMouse,
+  PhMouseLeftClick,
+  PhMouseRightClick,
+  PhWarningCircle,
+} from '@phosphor-icons/vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
-import SparkLine from '../components/SparkLine.vue'
+import InputHistoryPanel from '../components/input/InputHistoryPanel.vue'
+import KeyboardInsights from '../components/input/KeyboardInsights.vue'
 import { useAppStore } from '../stores/appStore'
 import { formatDistance, formatNumber } from '../utils/format'
 
 const store = useAppStore()
-const hourlyKeys = computed(() => store.input.value.history.map((point) => point.keyStrokes))
-const maxHourly = computed(() => Math.max(1, ...hourlyKeys.value))
-const rhythm = computed(() => store.input.value.history.map((point) => ({
-  hour: new Date(point.start).getHours(),
-  value: point.keyStrokes,
-  height: Math.max(4, point.keyStrokes / maxHourly.value * 100),
-})))
-const maxKey = computed(() => Math.max(1, ...store.input.value.singleKeys.map((key) => key.count)))
-const visibleKeys = computed(() => store.state.heatmapEnabled ? store.input.value.singleKeys : [])
-const clickValue = (value: number | null) => value === null ? '—' : formatNumber(value)
+const snapshot = computed(() => store.input.value)
+const hasSplitClicks = computed(() => snapshot.value.cumulative.leftClicks !== null && snapshot.value.cumulative.rightClicks !== null)
+const pageSubtitle = computed(() => store.state.inputDataStatus === 'ready'
+  ? '读取本机 KeyStats 聚合记录；不记录输入内容'
+  : '展示输入数据能力与聚合结果；不记录输入内容')
+const sourceState = computed(() => store.state.inputDataStatus === 'ready' ? '本机只读' : '数据预览')
+const sourceUpdated = computed(() => snapshot.value.sourceUpdatedAt
+  ? new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(snapshot.value.sourceUpdatedAt)
+  : '暂无更新时间')
+const granularityText = computed(() => ({
+  minute: '分钟级历史',
+  hour: '小时级历史',
+  day: '日级历史',
+  none: '无历史明细',
+})[snapshot.value.capabilities.historyGranularity])
+const timezoneNote = computed(() => snapshot.value.capabilities.timezoneSemantics === 'utc-date-bucket'
+  ? 'KeyStats 按 UTC 日期归档，北京时间凌晨记录可能计入前一天。'
+  : '记录按本地日期归档。')
 </script>
 
 <template>
   <section class="page input-page">
-    <PageHeader title="输入足迹" subtitle="补充理解你的输入节奏；只保存聚合统计，不记录文字内容" />
+    <PageHeader title="输入足迹" :subtitle="pageSubtitle" />
+
     <div class="metrics-grid input-metrics">
-      <MetricCard label="键盘敲击" :value="formatNumber(store.input.value.cumulative.keyStrokes)" :detail="store.input.value.source" :icon="PhKeyboard" tone="green" />
-      <MetricCard label="鼠标左键点击" :value="clickValue(store.input.value.cumulative.leftClicks)" :detail="store.input.value.cumulative.leftClicks === null ? '该日期仅有合并点击' : '累计快照'" :icon="PhMouseLeftClick" tone="blue" />
-      <MetricCard label="鼠标右键点击" :value="clickValue(store.input.value.cumulative.rightClicks)" :detail="store.input.value.cumulative.rightClicks === null ? '该日期仅有合并点击' : '累计快照'" :icon="PhMouseRightClick" tone="violet" />
-      <MetricCard label="鼠标移动" :value="formatDistance(store.input.value.cumulative.mouseDistance)" detail="聚合距离" :icon="PhMouse" tone="cyan" />
-      <MetricCard label="滚动距离" :value="formatNumber(store.input.value.cumulative.scrollDistance)" detail="聚合滚动单位" :icon="PhArrowsDownUp" tone="orange" />
+      <MetricCard label="键盘敲击" :value="formatNumber(snapshot.cumulative.keyStrokes)" detail="所选日期总量" :icon="PhKeyboard" tone="green" />
+      <template v-if="hasSplitClicks">
+        <MetricCard label="鼠标左键点击" :value="formatNumber(snapshot.cumulative.leftClicks)" detail="所选日期总量" :icon="PhMouseLeftClick" tone="blue" />
+        <MetricCard label="鼠标右键点击" :value="formatNumber(snapshot.cumulative.rightClicks)" detail="所选日期总量" :icon="PhMouseRightClick" tone="violet" />
+      </template>
+      <MetricCard v-else label="鼠标点击" :value="formatNumber(snapshot.cumulative.combinedClicks)" detail="历史记录仅提供合计" :icon="PhCursorClick" tone="blue" />
+      <MetricCard label="鼠标移动" :value="formatDistance(snapshot.cumulative.mouseDistance)" detail="聚合距离" :icon="PhMouse" tone="cyan" />
+      <MetricCard label="滚动距离" :value="formatNumber(snapshot.cumulative.scrollDistance)" detail="数据源滚动单位" :icon="PhArrowsDownUp" tone="orange" />
     </div>
-    <div class="input-main-grid">
-      <article class="card input-trend-card">
-        <div class="section-heading"><div><h2>今日输入趋势</h2><p>按小时聚合，不保存原始键盘事件</p></div><span class="local-badge"><PhShieldCheck :size="15" />仅本地</span></div>
-        <div class="input-spark"><SparkLine :values="hourlyKeys" color="#54ae7e" /></div>
-        <div class="input-trend-foot"><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span></div>
-      </article>
-      <article class="card rhythm-card">
-        <div class="section-heading"><div><h2>今日输入节奏</h2><p>活跃时段与自然停顿</p></div></div>
-        <div class="rhythm-bars"><span v-for="point in rhythm" :key="point.hour" :style="{ height: `${point.height}%` }" :title="`${point.hour}:00 · ${point.value} 次敲击`"></span></div>
-        <div class="rhythm-labels"><span v-for="point in rhythm" :key="point.hour">{{ point.hour }}</span></div>
-      </article>
-      <article class="card factual-insight">
-        <PhCoffee :size="27" weight="duotone" />
-        <span>可观察事实</span><h2>最长连续输入 47 分钟</h2><p>10:00—11:00 输入最集中；午间出现 36 分钟无输入间隔。此处不作健康或风险判断。</p>
-      </article>
-    </div>
-    <div class="input-bottom-grid">
-      <article class="card keyboard-card">
-        <div class="section-heading"><div><h2>键盘热力图</h2><p>仅保存单键累计次数</p></div><span class="capability-state">{{ store.state.heatmapEnabled ? '已开启' : '已关闭' }}</span></div>
-        <div v-if="visibleKeys.length" class="keyboard-heatmap">
-          <span v-for="key in visibleKeys" :key="key.key" :style="{ '--heat': `${0.15 + key.count / maxKey * 0.85}` }"><strong>{{ key.key }}</strong><small>{{ formatNumber(key.count) }}</small></span>
-        </div>
-        <div v-else class="privacy-empty"><PhKeyboard :size="27" /><span>键盘热力图统计已关闭</span></div>
-      </article>
-      <article class="card key-ranking-card">
-        <div class="section-heading"><div><h2>Top 键位</h2><p>累计分布</p></div></div>
-        <ol><li v-for="(key, index) in store.input.value.singleKeys.slice(0, 6)" :key="key.key"><span>{{ index + 1 }}</span><kbd>{{ key.key }}</kbd><i><em :style="{ width: `${key.count / maxKey * 100}%` }"></em></i><strong>{{ formatNumber(key.count) }}</strong></li></ol>
-      </article>
-      <article class="card shortcut-card">
-        <div class="section-heading"><div><h2>功能组合键</h2><p>只统计明确功能组合</p></div></div>
-        <div v-if="store.state.shortcutsEnabled" class="shortcut-list"><div v-for="shortcut in store.input.value.shortcuts" :key="shortcut.shortcut"><kbd>{{ shortcut.shortcut }}</kbd><strong>{{ shortcut.count }}</strong></div></div>
-        <div v-else class="privacy-empty"><PhCursorClick :size="27" /><span>组合键统计已关闭</span></div>
+
+    <div class="input-story-grid">
+      <InputHistoryPanel :history="snapshot.history" :granularity="snapshot.capabilities.historyGranularity" />
+      <article class="card source-card">
+        <header><span><PhDatabase :size="18" weight="duotone" /></span><div><small>数据来源</small><h2>{{ snapshot.source }}</h2></div><b>{{ sourceState }}</b></header>
+        <dl>
+          <div><dt>最近更新</dt><dd>{{ sourceUpdated }}</dd></div>
+          <div><dt>历史范围</dt><dd>{{ granularityText }}</dd></div>
+          <div><dt>点击数据</dt><dd>{{ snapshot.capabilities.splitHistoricalClicks ? '左右键可拆分' : '历史仅合计' }}</dd></div>
+        </dl>
+        <p class="source-note"><PhWarningCircle :size="16" />{{ timezoneNote }}</p>
+        <p v-if="!snapshot.capabilities.sensitiveSurfaceExclusion" class="source-note">数据源未提供按敏感界面排除统计的能力。</p>
       </article>
     </div>
+
+    <KeyboardInsights
+      :snapshot="snapshot"
+      :heatmap-enabled="store.state.heatmapEnabled"
+      :shortcuts-enabled="store.state.shortcutsEnabled"
+    />
   </section>
 </template>
+
+<style scoped>
+.input-metrics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.input-story-grid { display: grid; grid-template-columns: minmax(0, 2.35fr) minmax(230px, .72fr); gap: 12px; margin-top: 12px; }
+.source-card { min-width: 0; padding: 19px; }
+.source-card header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--border-soft); }
+.source-card header > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--accent-blue); background: var(--accent-blue-soft); }
+.source-card small { color: var(--text-muted); font-size: 8px; }
+.source-card h2 { overflow: hidden; margin: 2px 0 0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.source-card header b { padding: 5px 7px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 8px; }
+.source-card dl { display: grid; gap: 9px; margin: 15px 0; }
+.source-card dl div { display: flex; justify-content: space-between; gap: 12px; }
+.source-card dt { color: var(--text-secondary); font-size: 9px; }
+.source-card dd { margin: 0; font-size: 9px; font-weight: 650; text-align: right; }
+.source-note { display: flex; align-items: flex-start; gap: 7px; margin: 9px 0 0; color: var(--text-secondary); font-size: 9px; line-height: 1.55; }
+.source-note svg { flex: 0 0 auto; color: var(--accent-orange); }
+@media (max-width: 980px) { .input-story-grid { grid-template-columns: 1fr; } }
+</style>
