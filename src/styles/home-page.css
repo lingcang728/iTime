@@ -1,0 +1,144 @@
+.home-page :deep(.metric-card) {
+  min-height: 112px;
+  padding: 14px 16px;
+}
+
+.home-page :deep(.metric-card__header) {
+  font-family: SimHei, "Microsoft YaHei UI", sans-serif;
+  font-size: 10px;
+}
+
+.home-page :deep(.metric-card > small) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-card {
+  min-width: 0;
+}
+
+.ranking-value-labels {
+  display: grid;
+  grid-template-columns: minmax(58px, auto) 34px;
+  gap: 8px;
+  padding-top: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+  text-align: right;
+}
+
+.ranking-row {
+  grid-template-columns: 16px 152px minmax(70px, 1fr) 112px;
+}
+
+.rank-value {
+  display: grid;
+  grid-template-columns: minmax(62px, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  text-align: right;
+}
+
+.rank-value strong,
+.rank-value b {
+  overflow: visible;
+  font-size: 9px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rank-value b {
+  color: var(--text-secondary);
+}
+
+.home-empty,
+.timeline-empty {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.home-empty {
+  display: grid;
+  min-height: 90px;
+  place-items: center;
+  border: 1px dashed var(--border-soft);
+  border-radius: 10px;
+}
+
+.input-summary-card {
+  min-width: 0;
+}
+
+.input-summary-card > div:last-child {
+  min-width: 0;
+}
+
+.input-summary-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-timeline {
+  position: relative;
+  padding-bottom: 18px;
+}
+
+.today-timeline .legend {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.today-timeline .time-axis span:first-child {
+  transform: none;
+}
+
+.today-timeline .time-axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.today-timeline :deep(.timeline-lane__track) {
+  height: 26px;
+  border-color: color-mix(in srgb, var(--border-soft) 72%, transparent);
+}
+
+.today-timeline :deep(.timeline-segment) {
+  top: 4px;
+  bottom: 4px;
+}
+
+.timeline-empty {
+  display: grid;
+  min-height: 26px;
+  place-items: center;
+  border: 1px dashed var(--border-soft);
+  border-radius: 7px;
+}
+
+.wellbeing-card {
+  border-color: color-mix(in srgb, var(--accent-green) 20%, var(--border-soft));
+  background:
+    linear-gradient(105deg, color-mix(in srgb, var(--accent-green-soft) 35%, transparent), transparent 38%),
+    var(--bg-card);
+}
+
+.wellbeing-card .button {
+  min-width: 62px;
+}
+
+@media (max-width: 980px) {
+  .ranking-row {
+    grid-template-columns: 16px 135px minmax(50px, 1fr) 104px;
+    gap: 7px;
+  }
+
+  .rank-value {
+    grid-template-columns: minmax(58px, 1fr) 32px;
+    gap: 6px;
+  }
+}

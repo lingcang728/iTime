@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import {
   PhBell, PhChartLineUp, PhClockCounterClockwise, PhGearSix, PhHouse,
@@ -28,6 +28,26 @@ const navItems = [
   { id: 'settings', label: '设置', icon: PhGearSix },
 ] as const
 const cleanups: Array<() => void> = []
+const learningDuration = computed(() => store.day.value.apps
+  .filter((app) => app.category === '学习')
+  .reduce((total, app) => total + app.duration, 0))
+const developmentDuration = computed(() => store.day.value.apps
+  .filter((app) => app.category === '开发')
+  .reduce((total, app) => total + app.duration, 0))
+const focusDuration = computed(() => learningDuration.value + developmentDuration.value)
+const focusTarget = computed(() => (store.state.goals.learning + store.state.goals.development) * 60_000)
+const agentDuration = computed(() => store.day.value.aiEffective.value ?? 0)
+const agentTarget = computed(() => store.state.goals.ai * 60_000)
+const goalProgress = computed(() => {
+  const target = focusTarget.value + agentTarget.value
+  return target ? Math.min(100, Math.round((focusDuration.value + agentDuration.value) / target * 100)) : 0
+})
+
+function formatGoalHours(value: number, target: number): string {
+  const hours = (value / 3_600_000).toFixed(1)
+  const targetHours = (target / 3_600_000).toFixed(1)
+  return `${hours} / ${targetHours} 小时`
+}
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -40,6 +60,7 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
 
 function navigateRelative(delta: number): void {
   const current = pageIds.indexOf(route.name as PageId)
+  if (current < 0) return
   const next = Math.max(0, Math.min(pageIds.length - 1, current + delta))
   if (next !== current) router.push({ name: pageIds[next] })
 }
@@ -97,7 +118,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  cleanups.forEach((cleanup) => cleanup())
+  cleanups.forEach((cleanup) => {
+    cleanup()
+  })
 })
 </script>
 
@@ -114,15 +137,19 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
-      <div class="profile-card" aria-label="账户与 Pro 入口">
+      <button class="profile-card" type="button" aria-label="打开林小北的账户信息" @click="router.push({ name: 'account' })">
         <img src="/src/assets/avatar-lin.svg" alt="林小北的头像" />
-        <div><strong>林小北</strong><small>个人空间</small></div>
-        <span class="pro-badge">Pro</span>
-      </div>
-      <div class="goal-ring-card">
-        <div class="goal-ring"><span>75%</span></div>
-        <div class="goal-copy"><strong>今日目标</strong><small><span>专注</span><b>6.5 / 8 小时</b></small><small><span>代理</span><b>3.0 / 4 小时</b></small></div>
-      </div>
+        <div><strong>林小北</strong><small>本机个人空间</small></div>
+        <span class="pro-badge">Free</span>
+      </button>
+      <button class="goal-ring-card" type="button" aria-label="查看提醒与目标" @click="router.push({ name: 'goals' })">
+        <div class="goal-ring" :style="{ '--goal-progress': goalProgress }"><span>{{ goalProgress }}%</span></div>
+        <div class="goal-copy">
+          <strong>今日目标</strong>
+          <small><span>专注</span><b>{{ formatGoalHours(focusDuration, focusTarget) }}</b></small>
+          <small><span>代理</span><b>{{ formatGoalHours(agentDuration, agentTarget) }}</b></small>
+        </div>
+      </button>
     </aside>
     <section class="app-surface">
       <div class="window-bar" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
@@ -147,3 +174,5 @@ onBeforeUnmount(() => {
     <Transition name="toast"><div v-if="store.state.toast" class="toast">{{ store.state.toast }}</div></Transition>
   </div>
 </template>
+
+<style scoped src="./styles/sidebar-account.css"></style>
