@@ -7,7 +7,9 @@ src-tauri/target/
 src-tauri/gen/
 visual-output/
 artifacts/
-release/*.exe
+release/*
+!release/iTime.exe
+!release/iTime_*_x64-setup.exe
 *.log
 *.tmp
 

@@ -23,7 +23,7 @@
 - [x] 49 个前端单测、类型检查、Vite 构建、21 个 Rust 测试、fmt 与 clippy 全绿。
 - [x] 共享 Playwright 七页交互、960×680 最小窗口、DPI、深色对比度、原型结构与认可基线回归通过。
 - [x] Tauri 开发版用真实 KeyStats、新活动记录、原生图标和自启动往返完成桌面验收。
-- [ ] 所有功能 commits 完成后再打包 EXE；当前阶段禁止提前打包。
+- [x] 所有功能 commits 完成后，从同一次构建同步更新并版本化 `release/iTime.exe` 与 NSIS Setup。
 
 ## 验收记录
 

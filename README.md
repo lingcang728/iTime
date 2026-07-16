@@ -24,7 +24,7 @@ npm run build
 npm run tauri:dev
 ```
 
-最终验收前再运行 `npm run tauri:build` 生成安装包。Tauri 默认窗口为 1180×760，最小尺寸为 960×680。
+正式发布统一运行 `npm run package:release`。该命令会强制重新构建，并将同一批次的可直接运行版 `release/iTime.exe` 与 NSIS 安装包 `release/iTime_<version>_x64-setup.exe` 同步更新；两个文件都需要提交和推送。`npm run tauri:build` 仅作为底层构建命令使用。Tauri 默认窗口为 1180×760，最小尺寸为 960×680。
 
 ## 视觉测试
 
