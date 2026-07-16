@@ -10,3 +10,9 @@ artifacts/
 release/*.exe
 *.log
 *.tmp
+
+# Local product docs / design sources (keep on disk, do not publish)
+iTime蓝图_实施版.md
+iTime原型图.png
+.agents/
+.codex/
