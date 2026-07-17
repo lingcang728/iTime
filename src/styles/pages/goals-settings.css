@@ -23,7 +23,16 @@ html[data-theme="dark"] .goal-hero {
 .goal-card > small { display: block; margin-top: 7px; color: var(--text-muted); font-size: 9px; }
 .reminder-grid { display: grid; gap: 10px; }
 .reminder-card { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 16px 18px; }
-.reminder-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; }.reminder-icon.green { color: var(--accent-green); background: var(--accent-green-soft); }.reminder-icon.violet { color: var(--accent-violet); background: var(--accent-violet-soft); }.reminder-icon.orange { color: var(--accent-orange); background: var(--accent-orange-soft); }
+.reminder-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; }
+.reminder-icon.green { color: var(--accent-green); background: var(--accent-green-soft); }
+.reminder-icon.violet { color: var(--accent-violet); background: var(--accent-violet-soft); }
+.reminder-icon.orange { color: var(--accent-orange); background: var(--accent-orange-soft); }
+.reminder-icon.reminder-icon--art.green,
+.reminder-icon.reminder-icon--art.violet,
+.reminder-icon.reminder-icon--art.orange {
+  background: color-mix(in srgb, var(--bg-soft) 86%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 65%, transparent);
+}
 .reminder-card span { color: var(--text-secondary); font-size: 9px; }.reminder-card h2 { margin: 3px 0; font-size: 13px; }.reminder-card p { margin: 0; color: var(--text-muted); font-size: 9px; }
 .switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; pointer-events: none; }

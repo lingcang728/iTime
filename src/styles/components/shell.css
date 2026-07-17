@@ -27,8 +27,18 @@
 }
 
 .brand-block img {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.12));
+}
+
+.nav-item img.nav-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.1));
 }
 
 .brand-block div {

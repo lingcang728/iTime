@@ -2,16 +2,14 @@
 import { computed, onMounted } from 'vue'
 import {
   PhArrowClockwise,
-  PhDatabase,
   PhDesktop,
-  PhKeyboard,
   PhMoon,
   PhPauseCircle,
-  PhPower,
   PhShieldCheck,
   PhSun,
 } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
+import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
 
 const store = useAppStore()
@@ -65,7 +63,7 @@ onMounted(() => void store.refreshAutostart())
       <main class="settings-main">
         <article class="card settings-section">
           <header class="section-heading">
-            <span class="section-icon blue"><PhPower :size="22" weight="duotone" /></span>
+            <span class="section-icon blue section-icon--art"><img :src="uiIcons.pageSettings" alt="" draggable="false" /></span>
             <div><h2>启动与窗口</h2><p>这些选项会影响 iTime 在 Windows 中的实际运行方式。</p></div>
           </header>
           <label class="control-row">
@@ -84,7 +82,7 @@ onMounted(() => void store.refreshAutostart())
 
         <article class="card settings-section">
           <header class="section-heading">
-            <span class="section-icon green"><PhKeyboard :size="22" weight="duotone" /></span>
+            <span class="section-icon green section-icon--art"><img :src="uiIcons.inputKeystrokes" alt="" draggable="false" /></span>
             <div><h2>输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
           </header>
           <label class="control-row"><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
@@ -94,7 +92,7 @@ onMounted(() => void store.refreshAutostart())
 
         <article class="card settings-section appearance-section">
           <header class="section-heading">
-            <span class="section-icon violet"><PhDesktop :size="22" weight="duotone" /></span>
+            <span class="section-icon violet section-icon--art"><img :src="uiIcons.metricComputer" alt="" draggable="false" /></span>
             <div><h2>外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
           </header>
           <div class="theme-options" role="radiogroup" aria-label="主题">
@@ -108,7 +106,7 @@ onMounted(() => void store.refreshAutostart())
       <aside class="settings-side">
         <article class="card source-card">
           <header class="section-heading">
-            <span class="section-icon orange"><PhDatabase :size="22" weight="duotone" /></span>
+            <span class="section-icon orange section-icon--art"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span>
             <div><h2>KeyStats 本机数据</h2><p>展示当前实际连接状态与数据能力。</p></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">

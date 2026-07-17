@@ -137,6 +137,11 @@
 .metric-icon[data-tone="cyan"] { color: var(--accent-cyan); background: var(--accent-cyan-soft); }
 .metric-icon[data-tone="orange"] { color: var(--accent-orange); background: var(--accent-orange-soft); }
 
+.metric-icon[data-art="true"] {
+  color: inherit;
+  background: color-mix(in srgb, var(--bg-soft) 82%, transparent);
+}
+
 .metric-card__value {
   display: block;
   margin-top: 9px;

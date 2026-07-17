@@ -1,19 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  PhArrowsDownUp,
-  PhCursorClick,
-  PhDatabase,
-  PhKeyboard,
-  PhMouse,
-  PhMouseLeftClick,
-  PhMouseRightClick,
-  PhWarningCircle,
-} from '@phosphor-icons/vue'
+import { PhWarningCircle } from '@phosphor-icons/vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import InputHistoryPanel from '../components/input/InputHistoryPanel.vue'
 import KeyboardInsights from '../components/input/KeyboardInsights.vue'
+import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
 import { formatDistance, formatNumber } from '../utils/format'
 
@@ -43,20 +35,20 @@ const timezoneNote = computed(() => snapshot.value.capabilities.timezoneSemantic
     <PageHeader title="输入足迹" :subtitle="pageSubtitle" />
 
     <div class="metrics-grid input-metrics">
-      <MetricCard label="键盘敲击" :value="formatNumber(snapshot.cumulative.keyStrokes)" detail="所选日期总量" :icon="PhKeyboard" tone="green" />
+      <MetricCard label="键盘敲击" :value="formatNumber(snapshot.cumulative.keyStrokes)" detail="所选日期总量" :icon-src="uiIcons.inputKeystrokes" tone="green" />
       <template v-if="hasSplitClicks">
-        <MetricCard label="鼠标左键点击" :value="formatNumber(snapshot.cumulative.leftClicks)" detail="所选日期总量" :icon="PhMouseLeftClick" tone="blue" />
-        <MetricCard label="鼠标右键点击" :value="formatNumber(snapshot.cumulative.rightClicks)" detail="所选日期总量" :icon="PhMouseRightClick" tone="violet" />
+        <MetricCard label="鼠标左键点击" :value="formatNumber(snapshot.cumulative.leftClicks)" detail="所选日期总量" :icon-src="uiIcons.inputLeftClick" tone="blue" />
+        <MetricCard label="鼠标右键点击" :value="formatNumber(snapshot.cumulative.rightClicks)" detail="所选日期总量" :icon-src="uiIcons.inputRightClick" tone="violet" />
       </template>
-      <MetricCard v-else label="鼠标点击" :value="formatNumber(snapshot.cumulative.combinedClicks)" detail="历史记录仅提供合计" :icon="PhCursorClick" tone="blue" />
-      <MetricCard label="鼠标移动" :value="formatDistance(snapshot.cumulative.mouseDistance)" detail="聚合距离" :icon="PhMouse" tone="cyan" />
-      <MetricCard label="滚动距离" :value="formatNumber(snapshot.cumulative.scrollDistance)" detail="数据源滚动单位" :icon="PhArrowsDownUp" tone="orange" />
+      <MetricCard v-else label="鼠标点击" :value="formatNumber(snapshot.cumulative.combinedClicks)" detail="历史记录仅提供合计" :icon-src="uiIcons.inputLeftClick" tone="blue" />
+      <MetricCard label="鼠标移动" :value="formatDistance(snapshot.cumulative.mouseDistance)" detail="聚合距离" :icon-src="uiIcons.inputMouseMove" tone="cyan" />
+      <MetricCard label="滚动距离" :value="formatNumber(snapshot.cumulative.scrollDistance)" detail="数据源滚动单位" :icon-src="uiIcons.inputScroll" tone="orange" />
     </div>
 
     <div class="input-story-grid">
       <InputHistoryPanel :history="snapshot.history" :granularity="snapshot.capabilities.historyGranularity" />
       <article class="card source-card">
-        <header><span><PhDatabase :size="18" weight="duotone" /></span><div><small>数据来源</small><h2>{{ snapshot.source }}</h2></div><b>{{ sourceState }}</b></header>
+        <header><span class="source-card__icon"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span><div><small>数据来源</small><h2>{{ snapshot.source }}</h2></div><b>{{ sourceState }}</b></header>
         <dl>
           <div><dt>最近更新</dt><dd>{{ sourceUpdated }}</dd></div>
           <div><dt>历史范围</dt><dd>{{ granularityText }}</dd></div>
@@ -80,7 +72,9 @@ const timezoneNote = computed(() => snapshot.value.capabilities.timezoneSemantic
 .input-story-grid { display: grid; grid-template-columns: minmax(0, 2.35fr) minmax(230px, .72fr); gap: 12px; margin-top: 12px; }
 .source-card { min-width: 0; padding: 19px; }
 .source-card header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--border-soft); }
-.source-card header > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--accent-blue); background: var(--accent-blue-soft); }
+.source-card header > span,
+.source-card__icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--accent-blue); background: color-mix(in srgb, var(--bg-soft) 88%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent); }
+.source-card__icon img { width: 26px; height: 26px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1)); }
 .source-card small { color: var(--text-muted); font-size: 8px; }
 .source-card h2 { overflow: hidden; margin: 2px 0 0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .source-card header b { padding: 5px 7px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 8px; }

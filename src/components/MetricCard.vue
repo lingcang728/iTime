@@ -11,7 +11,8 @@ defineProps<{
   value?: string
   valueParts?: readonly MetricValuePart[]
   detail: string
-  icon: Component
+  icon?: Component
+  iconSrc?: string
   tone: 'blue' | 'green' | 'violet' | 'cyan' | 'orange'
 }>()
 </script>
@@ -20,7 +21,10 @@ defineProps<{
   <article class="metric-card">
     <div class="metric-card__header">
       <span>{{ label }}</span>
-      <span class="metric-icon" :data-tone="tone"><component :is="icon" :size="19" weight="duotone" /></span>
+      <span class="metric-icon" :data-tone="tone" :data-art="iconSrc ? 'true' : undefined">
+        <img v-if="iconSrc" :src="iconSrc" alt="" draggable="false" />
+        <component :is="icon" v-else :size="19" weight="duotone" />
+      </span>
     </div>
     <strong class="metric-card__value">
       <template v-if="valueParts?.length">
@@ -64,5 +68,20 @@ defineProps<{
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0;
+}
+
+.metric-icon[data-art="true"] {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-soft) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent);
+}
+
+.metric-icon[data-art="true"] img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgba(34, 38, 45, 0.1));
 }
 </style>

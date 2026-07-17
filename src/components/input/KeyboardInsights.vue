@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhCommand, PhKeyboard } from '@phosphor-icons/vue'
 import type { InputActivitySnapshot, InputKeyCount } from '../../providers/inputActivity'
+import { uiIcons } from '../../data/uiIcons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps<{
@@ -37,7 +37,10 @@ function shortcutParts(shortcut: string): string[] {
   <section class="keyboard-layout">
     <article class="card heatmap-card">
       <header>
-        <div><h2>键盘热力图</h2><p>按单键累计次数着色，不保存输入内容</p></div>
+        <div class="card-title-with-icon">
+          <img class="card-title-icon" :src="uiIcons.inputHeatmap" alt="" draggable="false" />
+          <div><h2>键盘热力图</h2><p>按单键累计次数着色，不保存输入内容</p></div>
+        </div>
         <span>{{ canShowKeys ? '今日键位' : '无明细' }}</span>
       </header>
       <div v-if="canShowKeys" class="key-grid" role="list" aria-label="今日键位热力图">
@@ -54,13 +57,18 @@ function shortcutParts(shortcut: string): string[] {
         </div>
       </div>
       <div v-else class="detail-empty">
-        <PhKeyboard :size="28" weight="duotone" />
+        <img class="detail-empty__art" :src="uiIcons.inputHeatmap" alt="" draggable="false" />
         <div><strong>{{ heatmapEnabled ? '此日期没有键位明细' : '键盘热力图已关闭' }}</strong><p>{{ heatmapEnabled ? unavailableMessage : '可在设置中重新开启本地键位聚合。' }}</p></div>
       </div>
     </article>
 
     <article class="card ranking-card">
-      <header><div><h2>Top 键位</h2><p>最多展示 10 个今日键位</p></div></header>
+      <header>
+        <div class="card-title-with-icon">
+          <img class="card-title-icon" :src="uiIcons.inputTopKeys" alt="" draggable="false" />
+          <div><h2>Top 键位</h2><p>最多展示 10 个今日键位</p></div>
+        </div>
+      </header>
       <ol v-if="canShowKeys">
         <li v-for="(key, index) in rankedKeys" :key="key.key">
           <span>{{ String(index + 1).padStart(2, '0') }}</span>
@@ -73,7 +81,12 @@ function shortcutParts(shortcut: string): string[] {
     </article>
 
     <article class="card shortcut-card">
-      <header><div><h2>功能组合键</h2><p>明确组合键的本地累计</p></div></header>
+      <header>
+        <div class="card-title-with-icon">
+          <img class="card-title-icon" :src="uiIcons.inputShortcuts" alt="" draggable="false" />
+          <div><h2>功能组合键</h2><p>明确组合键的本地累计</p></div>
+        </div>
+      </header>
       <div v-if="canShowShortcuts" class="shortcut-list">
         <div v-for="shortcut in visibleShortcuts" :key="shortcut.shortcut">
           <span class="shortcut-keys">
@@ -85,7 +98,7 @@ function shortcutParts(shortcut: string): string[] {
         </div>
       </div>
       <div v-else class="detail-empty detail-empty--small">
-        <PhCommand :size="25" weight="duotone" />
+        <img class="detail-empty__art" :src="uiIcons.inputShortcuts" alt="" draggable="false" />
         <div><strong>{{ shortcutsEnabled ? '此日期没有组合键明细' : '组合键统计已关闭' }}</strong><p>{{ shortcutsEnabled ? unavailableMessage : '可在设置中重新开启。' }}</p></div>
       </div>
     </article>
@@ -119,6 +132,9 @@ kbd { overflow: hidden; color: var(--text-primary); font: 650 10px/1.2 var(--fon
 .shortcut-keys kbd { min-width: 28px; padding: 6px 7px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--bg-soft); text-align: center; }
 .shortcut-keys i { color: var(--text-muted); font-size: 9px; font-style: normal; }
 .shortcut-list strong { font: 700 10px/1 var(--font-data); font-variant-numeric: tabular-nums; }
+.card-title-with-icon { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
+.card-title-icon { width: 26px; height: 26px; flex: 0 0 26px; margin-top: 1px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.1)); }
+.detail-empty__art { width: 36px; height: 36px; flex: 0 0 36px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1)); opacity: 0.92; }
 .detail-empty { min-height: 146px; display: flex; align-items: center; justify-content: center; gap: 11px; padding: 14px; border: 1px dashed var(--border-strong); border-radius: 11px; color: var(--text-muted); background: var(--bg-soft); }
 .detail-empty strong { display: block; color: var(--text-primary); font-size: 11px; }
 .detail-empty p { max-width: 250px; }

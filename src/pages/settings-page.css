@@ -49,6 +49,18 @@
 .section-icon.violet { color: var(--accent-violet); background: var(--accent-violet-soft); }
 .section-icon.orange { color: var(--accent-orange); background: var(--accent-orange-soft); }
 
+.section-icon--art {
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-soft) 88%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 65%, transparent);
+}
+.section-icon--art img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1));
+}
+
 .control-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

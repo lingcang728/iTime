@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhKeyboard, PhSparkle } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BarChart from '../components/BarChart.vue'
 import FocusHeatmap from '../components/FocusHeatmap.vue'
@@ -8,6 +7,7 @@ import WeeklyAchievements from '../components/weekly/WeeklyAchievements.vue'
 import WeeklyTopApps from '../components/weekly/WeeklyTopApps.vue'
 import WeeklyTrendChart from '../components/weekly/WeeklyTrendChart.vue'
 import { buildWeeklySummary } from '../components/weekly/weeklyModel'
+import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatNumber } from '../utils/format'
 import { buildFocusHeatmap } from '../data/focusHeatmap'
@@ -65,7 +65,15 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
         <FocusHeatmap :days="focusDays" />
       </article>
       <article class="card weekly-card insight-panel">
-        <header class="weekly-card__heading"><div><span>本周洞察</span><h2><PhSparkle :size="17" weight="duotone" /> 最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong></h2></div></header>
+        <header class="weekly-card__heading">
+          <div>
+            <span>本周洞察</span>
+            <h2 class="weekly-insight-title">
+              <img class="weekly-inline-icon" :src="uiIcons.weeklyBestDay" alt="" draggable="false" />
+              最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong>
+            </h2>
+          </div>
+        </header>
         <div class="attention-summary">
           <span><small>当日主动注意力</small><strong>{{ hourLabel(summary.bestDay?.foreground) }}</strong></span>
           <span><small>本周主动注意力</small><strong>{{ hourLabel(summary.totalAttention) }}</strong></span>
@@ -81,12 +89,17 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
     </article>
 
     <article class="card weekly-card achievements-panel">
-      <header class="weekly-card__heading"><div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div></header>
+      <header class="weekly-card__heading">
+        <div class="weekly-heading-with-icon">
+          <img class="weekly-section-icon" :src="uiIcons.weeklyAchievements" alt="" draggable="false" />
+          <div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div>
+        </div>
+      </header>
       <WeeklyAchievements :achievements="summary.achievements" />
     </article>
 
     <article class="weekly-input-card">
-      <div class="weekly-input-card__icon"><PhKeyboard :size="21" weight="duotone" /></div>
+      <div class="weekly-input-card__icon weekly-input-card__icon--art"><img :src="uiIcons.inputKeystrokes" alt="" draggable="false" /></div>
       <div><span>输入节奏</span><h2 v-if="summary.totalInput !== null">本周共有 {{ formatNumber(summary.totalInput) }} 次键盘敲击</h2><h2 v-else>本周尚无同源输入记录</h2><p v-if="summary.peakInputDay">输入最多的是 {{ summary.peakInputDay.label }}，共 {{ formatNumber(summary.peakInputDay.input ?? 0) }} 次。</p><p v-else>接入活动轨道后的输入统计会在这里形成周趋势。</p></div>
       <strong v-if="summary.totalAttention !== null">专注累计 {{ formatDuration(summary.totalAttention, true) }}</strong>
     </article>
@@ -95,4 +108,45 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
 
 <style scoped>
 @import './weekly-page.css';
+
+.weekly-insight-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weekly-inline-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.12));
+}
+
+.weekly-heading-with-icon {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.weekly-section-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-top: 2px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1));
+}
+
+.weekly-input-card__icon--art {
+  background: color-mix(in srgb, var(--bg-soft) 88%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 65%, transparent);
+}
+
+.weekly-input-card__icon--art img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1));
+}
 </style>

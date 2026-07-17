@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
-import {
-  PhBell, PhChartLineUp, PhClockCounterClockwise, PhGearSix, PhHouse,
-  PhCopy, PhKeyboard, PhMinus, PhRobot, PhSquare, PhX,
-} from '@phosphor-icons/vue'
+import { PhCopy, PhMinus, PhSquare, PhX } from '@phosphor-icons/vue'
 import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
 import {
@@ -13,19 +10,20 @@ import {
 } from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import CloseDialog from './components/CloseDialog.vue'
+import { uiIcons } from './data/uiIcons'
 
 const store = useAppStore()
 const route = useRoute()
 const requestedTheme = new URLSearchParams(window.location.search).get('theme')
 const maximized = ref(false)
 const navItems = [
-  { id: 'home', label: '首页', icon: PhHouse },
-  { id: 'ai', label: 'AI 代理', icon: PhRobot },
-  { id: 'timeline', label: '时间线', icon: PhClockCounterClockwise },
-  { id: 'input', label: '输入足迹', icon: PhKeyboard },
-  { id: 'weekly', label: '周报', icon: PhChartLineUp },
-  { id: 'goals', label: '提醒与目标', icon: PhBell },
-  { id: 'settings', label: '设置', icon: PhGearSix },
+  { id: 'home', label: '首页', icon: uiIcons.pageHome },
+  { id: 'ai', label: 'AI 代理', icon: uiIcons.pageAi },
+  { id: 'timeline', label: '时间线', icon: uiIcons.pageTimeline },
+  { id: 'input', label: '输入足迹', icon: uiIcons.pageInput },
+  { id: 'weekly', label: '周报', icon: uiIcons.pageWeekly },
+  { id: 'goals', label: '提醒与目标', icon: uiIcons.pageGoals },
+  { id: 'settings', label: '设置', icon: uiIcons.pageSettings },
 ] as const
 const cleanups: Array<() => void> = []
 const learningDuration = computed(() => store.day.value.apps
@@ -128,12 +126,12 @@ onBeforeUnmount(() => {
   <div class="desktop-app">
     <aside class="sidebar">
       <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
-        <img src="/src/assets/logo.svg" alt="iTime" />
+        <img :src="uiIcons.brandItime" alt="iTime" />
         <div><strong>iTime</strong><span>v0.1.0</span></div>
       </div>
       <nav aria-label="主导航">
         <RouterLink v-for="item in navItems" :key="item.id" :to="`/${item.id}`" class="nav-item">
-          <component :is="item.icon" :size="19" /><span>{{ item.label }}</span>
+          <img class="nav-icon" :src="item.icon" alt="" draggable="false" /><span>{{ item.label }}</span>
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>

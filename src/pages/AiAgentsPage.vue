@@ -5,10 +5,7 @@ import AgentMetricCard from '../components/AgentMetricCard.vue'
 import AiActivityTimeline from '../components/AiActivityTimeline.vue'
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import PageHeader from '../components/PageHeader.vue'
-import effectiveIcon from '../assets/ai-metrics/effective.png'
-import coverageIcon from '../assets/ai-metrics/coverage.png'
-import leverageIcon from '../assets/ai-metrics/leverage.png'
-import concurrencyIcon from '../assets/ai-metrics/concurrency.png'
+import { uiIcons } from '../data/uiIcons'
 import type { AiToolStatus, ForegroundAppInterval } from '../domain/events'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatRatio } from '../utils/format'
@@ -39,7 +36,7 @@ const insight = computed(() => {
         label="有效执行"
         :value="formatDuration(store.day.value.aiEffective.value, true)"
         detail="各工具执行区间分别累计"
-        :icon-src="effectiveIcon"
+        :icon-src="uiIcons.aiEffective"
         tone="violet"
         info="当前数据源归为 AI 工作的区间总和；前台采样来源仍属于估算。"
       />
@@ -47,7 +44,7 @@ const insight = computed(() => {
         label="工作覆盖"
         :value="formatDuration(store.day.value.aiCoverage.value, true)"
         detail="至少一个工具在工作的自然时长"
-        :icon-src="coverageIcon"
+        :icon-src="uiIcons.aiCoverage"
         tone="blue"
         info="把重叠的工具执行区间合并后得到的自然经过时间。"
       />
@@ -55,7 +52,7 @@ const insight = computed(() => {
         label="AI 杠杆率"
         :value="formatRatio(store.day.value.aiLeverage.value)"
         detail="有效执行 ÷ 前台交互（估算）"
-        :icon-src="leverageIcon"
+        :icon-src="uiIcons.aiLeverage"
         tone="orange"
         info="只表示执行时间与估算交互时间的比值，不等于生产力或产出质量。"
       />
@@ -63,7 +60,7 @@ const insight = computed(() => {
         label="最高并发"
         :value="`${store.day.value.maxConcurrency.value ?? 0} 个`"
         detail="同一时刻有效执行的工具数"
-        :icon-src="concurrencyIcon"
+        :icon-src="uiIcons.aiConcurrency"
         tone="cyan"
         info="当天任一时刻同时处于有效执行状态的工具峰值。"
       />
