@@ -68,7 +68,7 @@ def inspect_contrast(page):
     return page.evaluate(script)
 
 
-report = {"pages": {}, "minimumMatrix": [], "selectedMinimum": None, "interactions": {}, "dpi": [], "darkContrast": None}
+report = {"pages": {}, "scroll": {}, "minimumMatrix": [], "selectedMinimum": None, "interactions": {}, "dpi": [], "darkContrast": {}}
 channel = os.environ.get("ITIME_BROWSER_CHANNEL", "chrome")
 
 with sync_playwright() as playwright:
@@ -81,6 +81,14 @@ with sync_playwright() as playwright:
             wait_ready(page)
             page.screenshot(path=output / f"wide-{page_id}.png")
             report["pages"][page_id] = inspect_layout(page)
+            scroll_checks = []
+            for ratio in [0.5, 1.0]:
+                reached = page.evaluate("ratio => { const content=document.querySelector('.page-viewport'); const target=(content.scrollHeight-content.clientHeight)*ratio; content.scrollTo(0,target); return {top:content.scrollTop,max:content.scrollHeight-content.clientHeight}; }", ratio)
+                page.wait_for_timeout(80)
+                page.screenshot(path=output / f"wide-{page_id}-scroll-{int(ratio * 100)}.png")
+                scroll_checks.append({"ratio": ratio, "reached": reached, "layout": inspect_layout(page)})
+            report["scroll"][page_id] = scroll_checks
+            page.evaluate("document.querySelector('.page-viewport').scrollTo(0, 0)")
 
         page.goto(url("ai"))
         wait_ready(page)
@@ -89,7 +97,7 @@ with sync_playwright() as playwright:
         report["interactions"]["agentInfoTooltip"] = page.locator('.metric__info [role="tooltip"]').first.evaluate("element => getComputedStyle(element).opacity === '1'")
         page.locator(".ai-tool-table__row button").first.click()
         page.wait_for_selector(".ai-drawer")
-        report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["有效执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
+        report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["Provider 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
         report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("不是工具的“知性度”", exact=False).count() == 1
         page.locator(".ai-drawer__close").click()
 
@@ -142,31 +150,28 @@ with sync_playwright() as playwright:
         )
         semantic_classes = page.locator(".today-timeline .timeline-segment").evaluate_all("elements => [...new Set(elements.flatMap(element => [...element.classList]))]")
         axis_labels = page.locator(".today-timeline .time-axis span").all_inner_texts()
-        report["interactions"]["homeTimelineSemantics"] = all(value in semantic_classes for value in ["is-attention", "is-agent", "is-media"]) and axis_labels == ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
+        report["interactions"]["homeTimelineSemantics"] = all(value in semantic_classes for value in ["is-attention", "is-interaction", "is-media"]) and axis_labels == ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
         reminder = page.get_by_role("button", name="知道了")
         reminder_visible = reminder.count() == 1
         if reminder_visible:
             reminder.click()
-        report["interactions"]["reminderDismiss"] = reminder_visible and reminder.count() == 0
+        report["interactions"]["staleReminderSuppressed"] = not reminder_visible
 
         page.locator(".profile-card").focus()
         page.keyboard.press("Enter")
-        page.wait_for_url("**#/account")
-        account_free = page.locator(".account-plan-badge").inner_text() == "Free"
-        page.locator(".plan-entry-card").click()
-        page.wait_for_url("**#/pro")
-        report["interactions"]["accountAndPro"] = (
-            account_free
-            and page.get_by_role("heading", name="敬请期待", exact=True).count() == 1
-            and page.locator(".pro-cta").is_disabled()
-        )
+        page.wait_for_url("**#/settings")
+        page.goto(f"{base_url}/#/account")
+        page.wait_for_url("**#/home")
+        report["interactions"]["localProfileOnly"] = page.get_by_text("本机数据", exact=True).count() == 1 and "#/home" in page.url
 
         page.goto(url("home"))
         wait_ready(page)
         page.locator(".window-controls .close").click()
         page.wait_for_selector(".close-dialog")
-        report["interactions"]["closePrompt"] = page.locator(".close-dialog").get_by_text("继续在托盘中运行？", exact=True).count() == 1
-        page.locator(".close-dialog .secondary").click()
+        close_focused = page.locator(".close-dialog").evaluate("dialog => dialog.contains(document.activeElement)")
+        page.keyboard.press("Escape")
+        page.wait_for_selector(".close-dialog", state="detached")
+        report["interactions"]["closePrompt"] = close_focused and page.locator(".close-dialog").count() == 0 and page.locator(".window-controls .close").evaluate("button => document.activeElement === button")
 
         page.goto(url("goals"))
         wait_ready(page)
@@ -193,7 +198,7 @@ with sync_playwright() as playwright:
         focused_label = page.locator(".heatmap-cell:focus").get_attribute("aria-label")
         page.locator(".heatmap-cell:focus").click()
         report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 49 and first_label != focused_label and page.locator(".heatmap-cell.locked").count() == 1 and page.locator(".heatmap-tooltip").count() == 1
-        trend_points = page.locator('.insight-panel .trend g[role="button"]')
+        trend_points = page.locator('.insight-panel .trend g[role="img"]')
         trend_points.first.focus()
         report["interactions"]["weeklyTrendInteraction"] = trend_points.count() == 7 and page.locator(".insight-panel .trend__tooltip").count() == 1
         wide.close()
@@ -208,10 +213,11 @@ with sync_playwright() as playwright:
 
         dark = browser.new_context(viewport={"width": 1280, "height": 800}, color_scheme="dark", locale="zh-CN", reduced_motion="reduce")
         dark_page = dark.new_page()
-        dark_page.goto(url("weekly", "theme=dark"))
-        wait_ready(dark_page)
-        dark_page.screenshot(path=output / "dark-weekly.png")
-        report["darkContrast"] = inspect_contrast(dark_page)
+        for page_id in pages:
+            dark_page.goto(url(page_id, "theme=dark"))
+            wait_ready(dark_page)
+            dark_page.screenshot(path=output / f"dark-{page_id}.png")
+            report["darkContrast"][page_id] = inspect_contrast(dark_page)
         dark.close()
 
         for scale in [1.25, 1.5, 2.0]:
@@ -251,7 +257,11 @@ with (output / "layout-report.json").open("w", encoding="utf-8") as handle:
 required_interactions = all(report["interactions"].values())
 wide_passed = all(not value["horizontalOverflow"] and not value["clipped"] and (page_id not in fit_pages or not value["verticalOverflow"]) for page_id, value in report["pages"].items())
 dpi_passed = all(not value["horizontalOverflow"] and not value["clipped"] for value in report["dpi"])
-contrast_passed = report["darkContrast"]["passed"]
-passed = report["selectedMinimum"] is not None and required_interactions and wide_passed and dpi_passed and contrast_passed
-print(json.dumps({"selectedMinimum": report["selectedMinimum"], "interactions": report["interactions"], "widePassed": wide_passed, "dpiPassed": dpi_passed, "contrastPassed": contrast_passed, "passed": passed}, ensure_ascii=False, indent=2))
+scroll_passed = all(
+    all(not check["layout"]["horizontalOverflow"] and not check["layout"]["clipped"] and (check["ratio"] < 1 or abs(check["reached"]["top"] - check["reached"]["max"]) <= 1) for check in checks)
+    for checks in report["scroll"].values()
+)
+contrast_passed = all(value["passed"] for value in report["darkContrast"].values())
+passed = report["selectedMinimum"] is not None and required_interactions and wide_passed and scroll_passed and dpi_passed and contrast_passed
+print(json.dumps({"selectedMinimum": report["selectedMinimum"], "interactions": report["interactions"], "widePassed": wide_passed, "scrollPassed": scroll_passed, "dpiPassed": dpi_passed, "contrastPassed": contrast_passed, "passed": passed}, ensure_ascii=False, indent=2))
 sys.exit(0 if passed else 1)

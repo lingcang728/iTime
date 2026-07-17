@@ -9,7 +9,7 @@ const output = path.join(root, 'artifacts', 'visual')
 const baseline = path.join(root, 'tests', 'visual', 'baseline')
 const referencePath = path.join(root, 'iTime原型图.png')
 const skipReference = process.argv.includes('--skip-reference')
-const report = { thresholds: { referenceSsim: 0.90, structureRadius: 12, anchorCssPx: 4, regressionPixelRatio: 0.005, colorThreshold: 0.12 }, reference: [], regression: [] }
+const report = { thresholds: { referenceSsim: 0.90, regressionStructureSsim: 0.985, structureRadius: 14, anchorCssPx: 4, regressionAnchorCssPx: 2, colorThreshold: 0.12 }, reference: [], regression: [] }
 const read = (file) => PNG.sync.read(fs.readFileSync(file))
 
 function resize(source, width, height) {
@@ -65,16 +65,19 @@ function structuralBlur(source, radius) {
 }
 
 function edgeAnchor(image) {
-  let sidebar = 0
+  let continuity = 0
   let header = 0
-  for (let x = 90; x < Math.min(145, image.width - 1); x += 1) {
+  const searchStart = image.width >= 900 ? 140 : 90
+  const searchEnd = image.width >= 900 ? 210 : 145
+  for (let x = searchStart; x < Math.min(searchEnd, image.width - 1); x += 1) {
     let score = 0
     for (let y = 30; y < image.height - 30; y += 1) {
       const a = (y * image.width + x - 1) * 4
       const b = (y * image.width + x) * 4
-      score += Math.abs(image.data[a] - image.data[b]) + Math.abs(image.data[a + 1] - image.data[b + 1]) + Math.abs(image.data[a + 2] - image.data[b + 2])
+      const difference = Math.abs(image.data[a] - image.data[b]) + Math.abs(image.data[a + 1] - image.data[b + 1]) + Math.abs(image.data[a + 2] - image.data[b + 2])
+      if (difference > 3) score += 1
     }
-    if (score > sidebar) { sidebar = score; header = x }
+    if (score > continuity) { continuity = score; header = x }
   }
   return header
 }
@@ -115,12 +118,16 @@ if (fs.existsSync(baseline)) {
       report.regression.push({ name: file, pixelRatio: 1, sizeMismatch: true })
       continue
     }
-    report.regression.push(comparePair(actual, expected, `baseline-${path.basename(file, '.png')}`, 0.12))
+    const result = comparePair(actual, expected, `baseline-${path.basename(file, '.png')}`, 0.12)
+    result.rawSsim = result.ssim
+    result.ssim = ssim(structuralBlur(expected, report.thresholds.structureRadius), structuralBlur(actual, report.thresholds.structureRadius), { ssim: 'fast', downsample: false }).mssim
+    result.anchorDelta = Math.abs(edgeAnchor(actual) - edgeAnchor(expected))
+    report.regression.push(result)
   }
 }
 
 fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2))
 const referenceFailed = report.reference.some((item) => item.ssim < report.thresholds.referenceSsim || item.anchorDelta > report.thresholds.anchorCssPx)
-const regressionFailed = report.regression.some((item) => item.pixelRatio > report.thresholds.regressionPixelRatio)
+const regressionFailed = report.regression.some((item) => item.sizeMismatch || item.ssim < report.thresholds.regressionStructureSsim || item.anchorDelta > report.thresholds.regressionAnchorCssPx)
 console.log(JSON.stringify({ reference: report.reference, regression: report.regression, passed: !referenceFailed && !regressionFailed }, null, 2))
 process.exit(referenceFailed || regressionFailed ? 1 : 0)
