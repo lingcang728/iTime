@@ -23,7 +23,7 @@ defineProps<{
       <span>{{ label }}</span>
       <span class="metric-icon" :data-tone="tone" :data-art="iconSrc ? 'true' : undefined">
         <img v-if="iconSrc" :src="iconSrc" alt="" draggable="false" />
-        <component :is="icon" v-else :size="19" weight="duotone" />
+        <component :is="icon" v-else :size="19" weight="regular" />
       </span>
     </div>
     <strong class="metric-card__value">
@@ -43,6 +43,7 @@ defineProps<{
 .metric-card__value {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 7px;
   min-height: 28px;
 }
@@ -57,7 +58,7 @@ defineProps<{
   color: var(--text-primary);
   font-family: var(--font-data);
   font-size: 25px;
-  font-weight: 800;
+  font-weight: 650;
   line-height: 1;
   letter-spacing: -0.8px;
 }

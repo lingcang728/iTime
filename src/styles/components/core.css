@@ -13,7 +13,7 @@
   width: min(100%, 1160px);
   min-height: 100%;
   margin: 0 auto;
-  padding: 16px 28px 30px;
+  padding: 18px 28px 32px;
 }
 
 .page-header {
@@ -30,7 +30,7 @@
   font-size: 24px;
   line-height: 1.25;
   letter-spacing: -0.65px;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .page-header p {
@@ -40,15 +40,15 @@
 }
 
 .date-switcher {
-  height: 34px;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 3px;
   padding: 2px;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--bg-card);
-  box-shadow: 0 2px 8px rgba(89, 78, 65, 0.035);
+  box-shadow: var(--shadow-card);
 }
 
 .date-switcher strong {
@@ -61,8 +61,8 @@
 }
 
 .icon-button {
-  width: 29px;
-  height: 29px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border: 0;
@@ -84,15 +84,7 @@
 }
 
 .metrics-grid--home {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-.metrics-grid--home .metric-card:nth-child(-n + 3) {
-  grid-column: span 2;
-}
-
-.metrics-grid--home .metric-card:nth-child(n + 4) {
-  grid-column: span 3;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .metrics-grid--four {
@@ -110,12 +102,6 @@
   min-height: 108px;
   padding: 14px 15px 13px;
   border-radius: var(--radius-md);
-  transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
-}
-
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 34px rgba(89, 78, 65, 0.075);
 }
 
 .metric-card__header {

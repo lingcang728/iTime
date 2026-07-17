@@ -69,16 +69,16 @@ function valueLabel(value: number | null): string {
 <style scoped>
 .trend { min-width: 0; margin-top: 14px; }
 .trend__legend { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 10px; }
-.trend__legend i { width: 8px; height: 8px; border-radius: 50%; background: #4f7fe7; box-shadow: 0 0 0 3px color-mix(in srgb, #4f7fe7 12%, transparent); }
+.trend__legend i { width: 7px; height: 7px; border-radius: 2px; background: var(--accent-blue); }
 .trend__legend small { margin-left: auto; color: var(--text-muted); font-size: 10px; }
 .trend__plot { position: relative; height: 100px; margin-top: 4px; }
 .trend__plot svg { width: 100%; height: 100%; overflow: visible; }
 .trend__grid { stroke: color-mix(in srgb, var(--border-soft) 76%, transparent); stroke-width: .4; vector-effect: non-scaling-stroke; }
-.trend__line { fill: none; stroke: #4f7fe7; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.trend circle { fill: var(--bg-card); stroke: #4f7fe7; stroke-width: 1.7; vector-effect: non-scaling-stroke; cursor: pointer; transition: r 120ms ease, fill 120ms ease; }
-.trend circle.endpoint { fill: #4f7fe7; }
+.trend__line { fill: none; stroke: var(--accent-blue); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trend circle { fill: var(--bg-card); stroke: var(--accent-blue); stroke-width: 1.7; vector-effect: non-scaling-stroke; cursor: pointer; transition: r 120ms ease, fill 120ms ease; }
+.trend circle.endpoint { fill: var(--accent-blue); }
 .trend g:hover circle,
-.trend g:focus-visible circle { r: 2.6; fill: #4f7fe7; outline: none; }
+.trend g:focus-visible circle { r: 2.6; fill: var(--accent-blue); outline: none; }
 .trend g:focus-visible { outline: none; }
 .trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 1px; transform: translate(-50%, -110%); padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-card); font-size: 10px; pointer-events: none; white-space: nowrap; }
 .trend__tooltip span { color: var(--text-secondary); }

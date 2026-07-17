@@ -156,6 +156,7 @@ with sync_playwright() as playwright:
         wait_ready(page)
         timeline_segments = page.locator(".activity-lane .lane-segment")
         timeline_segments.first.focus()
+        page.wait_for_timeout(140)
         report["interactions"]["timelineInteraction"] = (
             timeline_segments.count() > 0
             and timeline_segments.first.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
@@ -187,6 +188,14 @@ with sync_playwright() as playwright:
         semantic_classes = page.locator(".today-timeline .timeline-segment").evaluate_all("elements => [...new Set(elements.flatMap(element => [...element.classList]))]")
         axis_labels = page.locator(".today-timeline .time-axis span").all_inner_texts()
         report["interactions"]["homeTimelineSemantics"] = all(value in semantic_classes for value in ["is-attention", "is-interaction", "is-media"]) and axis_labels == ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
+        home_metric_columns = page.locator(".metrics-grid--home").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        home_data_columns = page.locator(".home-data-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        report["interactions"]["homeSelectedFormat"] = (
+            page.locator(".metrics-grid--home .metric-card").count() == 5
+            and page.locator(".metrics-grid--home .metric-icon[data-art]").count() == 0
+            and home_metric_columns == 5
+            and home_data_columns == 2
+        )
         reminder = page.get_by_role("button", name="知道了")
         reminder_visible = reminder.count() == 1
         if reminder_visible:
@@ -226,6 +235,12 @@ with sync_playwright() as playwright:
 
         page.goto(url("weekly"))
         wait_ready(page)
+        weekly_chart_columns = page.locator(".weekly-chart-stack").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        weekly_analysis_order = page.locator(".weekly-analysis-grid > article").evaluate_all("elements => elements.map(element => [...element.classList].find(value => value.endsWith('-panel')))")
+        report["interactions"]["weeklySelectedFormat"] = (
+            weekly_chart_columns == 2
+            and weekly_analysis_order == ["focus-panel", "top-apps-panel", "insight-panel"]
+        )
         heatmap_cells = page.locator(".heatmap-cell")
         heatmap_cells.first.focus()
         page.wait_for_selector(".heatmap-tooltip")

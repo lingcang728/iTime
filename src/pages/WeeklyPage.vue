@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { PhKeyboard, PhStar, PhTrophy } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BarChart from '../components/BarChart.vue'
 import FocusHeatmap from '../components/FocusHeatmap.vue'
@@ -7,7 +8,6 @@ import WeeklyAchievements from '../components/weekly/WeeklyAchievements.vue'
 import WeeklyTopApps from '../components/weekly/WeeklyTopApps.vue'
 import WeeklyTrendChart from '../components/weekly/WeeklyTrendChart.vue'
 import { buildWeeklySummary } from '../components/weekly/weeklyModel'
-import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatNumber } from '../utils/format'
 import { buildFocusHeatmap } from '../data/focusHeatmap'
@@ -64,12 +64,16 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
         <header class="weekly-card__heading"><div><span>专注分布</span><h2>专注热力图</h2><p>仅对已采集的前台活动着色，空白日期不会补造</p></div></header>
         <FocusHeatmap :days="focusDays" />
       </article>
+      <article class="card weekly-card top-apps-panel">
+        <header class="weekly-card__heading"><div><span>应用排行</span><h2>Top 应用</h2><p>按本周前台活跃时长排序，最多显示 10 个真实应用</p></div><em>{{ summary.topApps.length }} 个有记录应用</em></header>
+        <WeeklyTopApps :apps="summary.topApps" />
+      </article>
       <article class="card weekly-card insight-panel">
         <header class="weekly-card__heading">
           <div>
             <span>本周洞察</span>
             <h2 class="weekly-insight-title">
-              <img class="weekly-inline-icon" :src="uiIcons.weeklyBestDay" alt="" draggable="false" />
+              <span class="weekly-inline-glyph"><PhStar :size="16" weight="regular" /></span>
               最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong>
             </h2>
           </div>
@@ -83,15 +87,10 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
       </article>
     </div>
 
-    <article class="card weekly-card top-apps-panel">
-      <header class="weekly-card__heading"><div><span>应用排行</span><h2>Top 应用</h2><p>按本周前台活跃时长排序，最多显示 10 个真实应用</p></div><em>{{ summary.topApps.length }} 个有记录应用</em></header>
-      <WeeklyTopApps :apps="summary.topApps" />
-    </article>
-
     <article class="card weekly-card achievements-panel">
       <header class="weekly-card__heading">
         <div class="weekly-heading-with-icon">
-          <img class="weekly-section-icon" :src="uiIcons.weeklyAchievements" alt="" draggable="false" />
+          <span class="weekly-section-glyph"><PhTrophy :size="18" weight="regular" /></span>
           <div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div>
         </div>
       </header>
@@ -99,7 +98,7 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
     </article>
 
     <article class="weekly-input-card">
-      <div class="weekly-input-card__icon weekly-input-card__icon--art"><img :src="uiIcons.inputKeystrokes" alt="" draggable="false" /></div>
+      <div class="weekly-input-card__icon"><PhKeyboard :size="20" weight="regular" /></div>
       <div><span>输入节奏</span><h2 v-if="summary.totalInput !== null">本周共有 {{ formatNumber(summary.totalInput) }} 次键盘敲击</h2><h2 v-else>本周尚无同源输入记录</h2><p v-if="summary.peakInputDay">输入最多的是 {{ summary.peakInputDay.label }}，共 {{ formatNumber(summary.peakInputDay.input ?? 0) }} 次。</p><p v-else>接入活动轨道后的输入统计会在这里形成周趋势。</p></div>
       <strong v-if="summary.totalAttention !== null">专注累计 {{ formatDuration(summary.totalAttention, true) }}</strong>
     </article>
@@ -116,11 +115,14 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
   flex-wrap: wrap;
 }
 
-.weekly-inline-icon {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.12));
+.weekly-inline-glyph {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--accent-orange-strong);
+  background: var(--accent-orange-soft);
 }
 
 .weekly-heading-with-icon {
@@ -129,24 +131,15 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
   gap: 10px;
 }
 
-.weekly-section-icon {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  margin-top: 2px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1));
-}
-
-.weekly-input-card__icon--art {
-  background: color-mix(in srgb, var(--bg-soft) 88%, transparent) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 65%, transparent);
-}
-
-.weekly-input-card__icon--art img {
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1));
+.weekly-section-glyph {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  border-radius: 9px;
+  color: var(--accent-orange-strong);
+  background: var(--accent-orange-soft);
 }
 </style>

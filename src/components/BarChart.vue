@@ -103,10 +103,10 @@ function valueLabel(value: number | null | undefined): string {
 .week-bars__value { color: var(--text-primary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .week-bars__columns { width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 5px; }
 .week-bars__bar { width: min(28px, 38%); border-radius: 7px 7px 2px 2px; transition: filter 140ms ease, height 220ms ease; }
-.week-bars__bar--primary { background: linear-gradient(180deg, #86baff, #3d78dd); box-shadow: 0 5px 16px color-mix(in srgb, #3d78dd 20%, transparent); }
-.week-bars--green .week-bars__bar--primary { background: linear-gradient(180deg, #91d6b1, #3fa873); box-shadow: 0 5px 16px color-mix(in srgb, #3fa873 20%, transparent); }
-.week-bars__bar--secondary { background: linear-gradient(180deg, #b3a5f2, #7562d7); box-shadow: 0 5px 16px color-mix(in srgb, #7562d7 18%, transparent); }
-.week-bars__item:hover .week-bars__bar { filter: saturate(1.12) brightness(1.02); }
+.week-bars__bar--primary { background: var(--accent-blue); }
+.week-bars--green .week-bars__bar--primary { background: var(--accent-green); }
+.week-bars__bar--secondary { background: var(--accent-violet); }
+.week-bars__item:hover .week-bars__bar { filter: brightness(1.06); }
 .week-bars__item strong { align-self: end; color: var(--text-primary); font-size: 10px; font-weight: 650; }
 .week-bars__item small { color: var(--text-muted); font-size: 10px; }
 .week-bars__readout { min-height: 26px; display: flex; align-items: center; gap: 14px; padding: 7px 12px 0; color: var(--text-muted); font-size: 10px; }

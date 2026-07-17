@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { PhEye } from '@phosphor-icons/vue'
+import {
+  PhChartBar,
+  PhClockCounterClockwise,
+  PhDesktop,
+  PhEye,
+  PhKeyboard,
+  PhMicrophone,
+  PhPlayCircle,
+  PhRobot,
+  PhTarget,
+} from '@phosphor-icons/vue'
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import TimelineLane from '../components/TimelineLane.vue'
 import { categoryVisuals, fallbackCategoryVisual } from '../data/visualCatalog'
-import { uiIcons } from '../data/uiIcons'
 import { aggregateCategories } from '../domain/metrics'
 import { mergeRanges } from '../domain/intervals'
 import type { TimelineSegment } from '../domain/events'
@@ -95,18 +104,18 @@ function dismissReminder(): void {
   <section class="page home-page">
     <PageHeader title="今天的数字生活" subtitle="真实记录，帮助你看清时间去向" />
     <div class="metrics-grid metrics-grid--home">
-      <MetricCard label="电脑活动时间" :value-parts="durationParts(computerDuration)" :detail="store.state.activityDataMessage" :icon-src="uiIcons.metricComputer" tone="blue" />
-      <MetricCard label="主动注意力" :value-parts="durationParts(foregroundDuration)" :detail="shareOf(foregroundDuration, computerDuration)" :icon-src="uiIcons.metricAttention" tone="green" />
-      <MetricCard label="AI 前台活跃" :value-parts="durationParts(aiDuration)" :detail="store.day.value.aiInteraction.basis" :icon-src="uiIcons.metricAiAgent" tone="violet" />
-      <MetricCard label="语音输入" :value-parts="durationParts(store.day.value.voiceDuration.value)" :detail="`${formatNumber(voiceCharacters)} 字`" :icon-src="uiIcons.metricVoice" tone="cyan" />
-      <MetricCard label="离座播放" :value-parts="durationParts(store.day.value.mediaDuration.value)" :detail="shareOf(store.day.value.mediaDuration.value, computerDuration)" :icon-src="uiIcons.metricMedia" tone="orange" />
+      <MetricCard label="电脑活动时间" :value-parts="durationParts(computerDuration)" :detail="store.state.activityDataMessage" :icon="PhDesktop" tone="blue" />
+      <MetricCard label="主动注意力" :value-parts="durationParts(foregroundDuration)" :detail="shareOf(foregroundDuration, computerDuration)" :icon="PhTarget" tone="green" />
+      <MetricCard label="AI 前台活跃" :value-parts="durationParts(aiDuration)" :detail="store.day.value.aiInteraction.basis" :icon="PhRobot" tone="violet" />
+      <MetricCard label="语音输入" :value-parts="durationParts(store.day.value.voiceDuration.value)" :detail="`${formatNumber(voiceCharacters)} 字`" :icon="PhMicrophone" tone="cyan" />
+      <MetricCard label="离座播放" :value-parts="durationParts(store.day.value.mediaDuration.value)" :detail="shareOf(store.day.value.mediaDuration.value, computerDuration)" :icon="PhPlayCircle" tone="orange" />
     </div>
 
-    <div class="home-columns">
+    <div class="home-data-grid">
       <article class="card ranking-card">
         <div class="section-heading">
           <div class="section-heading__title">
-            <img class="section-heading__icon" :src="uiIcons.sectionRanking" alt="" draggable="false" />
+            <span class="section-heading__glyph" data-tone="green"><PhChartBar :size="18" weight="regular" /></span>
             <div><h2>应用与分类排行</h2><p>按今天的前台活动时间统计</p></div>
           </div>
           <div class="ranking-value-labels" aria-hidden="true"><span>时间</span><span>占比</span></div>
@@ -127,32 +136,34 @@ function dismissReminder(): void {
         </div>
         <p v-else class="home-empty">iTime 已开始记录，新的应用活动会出现在这里。</p>
       </article>
-      <article class="card input-summary-card">
-        <div class="input-summary-icon input-summary-icon--art"><img :src="uiIcons.inputKeystrokes" alt="" draggable="false" /></div>
-        <div><span>今日输入摘要</span><strong>{{ formatNumber(store.input.value.cumulative.keyStrokes) }} 次敲击</strong><small>{{ store.input.value.source }}</small></div>
+      <article class="card today-timeline">
+        <div class="section-heading">
+          <div class="section-heading__title">
+            <span class="section-heading__glyph" data-tone="blue"><PhClockCounterClockwise :size="18" weight="regular" /></span>
+            <div><h2>今日时间线</h2><p>把注意力、AI 前台与离座播放放在同一条时间轴上</p></div>
+          </div>
+          <div class="legend"><span class="green">主动注意力</span><span class="violet">AI 前台</span><span class="orange">离座播放</span></div>
+        </div>
+        <div class="time-axis"><span v-for="tick in timeTicks" :key="tick" :style="{ left: `${tick / 24 * 100}%` }">{{ String(tick).padStart(2, '0') }}:00</span></div>
+        <TimelineLane v-if="timelineSegments.length" :range="store.day.value.range" :segments="timelineSegments" />
+        <p v-else class="timeline-empty">等待第一段本机活动记录</p>
       </article>
     </div>
 
-    <article class="card today-timeline">
-      <div class="section-heading">
-        <div class="section-heading__title">
-          <img class="section-heading__icon" :src="uiIcons.pageTimeline" alt="" draggable="false" />
-          <div><h2>今日时间线</h2><p>把注意力、AI 前台与离座播放放在同一条时间轴上</p></div>
-        </div>
-        <div class="legend"><span class="green">主动注意力</span><span class="violet">AI 前台</span><span class="orange">离座播放</span></div>
-      </div>
-      <div class="time-axis"><span v-for="tick in timeTicks" :key="tick" :style="{ left: `${tick / 24 * 100}%` }">{{ String(tick).padStart(2, '0') }}:00</span></div>
-      <TimelineLane v-if="timelineSegments.length" :range="store.day.value.range" :segments="timelineSegments" />
-      <p v-else class="timeline-empty">等待第一段本机活动记录</p>
-    </article>
-
-    <Transition name="page">
-      <article v-if="reminderVisible" class="wellbeing-card">
-        <div class="wellbeing-icon"><PhEye :size="24" weight="duotone" /></div>
-        <div><span>温润提醒</span><h2>已连续使用 {{ formatDuration(continuousDuration, true) }}{{ continuousDuration >= continuousTarget ? '，建议休息眼睛' : '' }}</h2><p>每隔 {{ store.state.goals.continuous }} 分钟，远眺 20 秒，让眼睛放松一下。</p></div>
-        <button class="button secondary" type="button" @click="dismissReminder">知道了</button>
+    <div class="home-summary-grid">
+      <article class="card input-summary-card">
+        <div class="input-summary-icon"><PhKeyboard :size="21" weight="regular" /></div>
+        <div><span>今日输入摘要</span><strong>{{ formatNumber(store.input.value.cumulative.keyStrokes) }} 次敲击</strong><small>只呈现聚合计数，不保存输入内容</small></div>
+        <div class="input-summary-meta"><span>数据来源</span><strong>{{ store.input.value.source }}</strong></div>
       </article>
-    </Transition>
+      <Transition name="page">
+        <article v-if="reminderVisible" class="wellbeing-card">
+          <div class="wellbeing-icon"><PhEye :size="22" weight="regular" /></div>
+          <div><span>温润提醒</span><h2>已连续使用 {{ formatDuration(continuousDuration, true) }}{{ continuousDuration >= continuousTarget ? '，建议休息眼睛' : '' }}</h2><p>每隔 {{ store.state.goals.continuous }} 分钟，远眺 20 秒，让眼睛放松一下。</p></div>
+          <button class="button secondary" type="button" @click="dismissReminder">知道了</button>
+        </article>
+      </Transition>
+    </div>
   </section>
 </template>
 
