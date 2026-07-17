@@ -68,7 +68,7 @@ def inspect_contrast(page):
     return page.evaluate(script)
 
 
-report = {"pages": {}, "scroll": {}, "minimumMatrix": [], "selectedMinimum": None, "interactions": {}, "dpi": [], "darkContrast": {}}
+report = {"pages": {}, "scroll": {}, "wheelBoundary": {}, "minimumMatrix": [], "selectedMinimum": None, "interactions": {}, "dpi": [], "darkContrast": {}}
 channel = os.environ.get("ITIME_BROWSER_CHANNEL", "chrome")
 
 with sync_playwright() as playwright:
@@ -89,6 +89,42 @@ with sync_playwright() as playwright:
                 scroll_checks.append({"ratio": ratio, "reached": reached, "layout": inspect_layout(page)})
             report["scroll"][page_id] = scroll_checks
             page.evaluate("document.querySelector('.page-viewport').scrollTo(0, 0)")
+
+        for page_id in pages:
+            page.goto(url(page_id))
+            wait_ready(page)
+            viewport = page.locator(".page-viewport")
+            bounds = viewport.bounding_box()
+            if bounds is None:
+                raise RuntimeError(f"{page_id} 页面缺少可见滚动容器")
+            page.mouse.move(bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
+            for _ in range(8):
+                page.mouse.wheel(0, 2400)
+            page.wait_for_timeout(120)
+            for _ in range(4):
+                page.mouse.wheel(0, 2400)
+            page.wait_for_timeout(160)
+            boundary = page.evaluate(
+                "() => {"
+                "const content=document.querySelector('.page-viewport');"
+                "const rect=(selector)=>{const value=document.querySelector(selector).getBoundingClientRect();"
+                "return {top:value.top,bottom:value.bottom,height:value.height}};"
+                "return {top:content.scrollTop,max:content.scrollHeight-content.clientHeight,"
+                "windowTop:window.scrollY,htmlTop:document.documentElement.scrollTop,bodyTop:document.body.scrollTop,"
+                "viewportHeight:innerHeight,app:rect('.desktop-app'),sidebar:rect('.sidebar'),"
+                "surface:rect('.app-surface'),content:rect('.page-viewport')};"
+                "}"
+            )
+            boundary["passed"] = (
+                abs(boundary["top"] - boundary["max"]) <= 1
+                and boundary["windowTop"] == 0
+                and boundary["htmlTop"] == 0
+                and boundary["bodyTop"] == 0
+                and all(abs(boundary[name]["top"]) <= 1 and abs(boundary[name]["bottom"] - boundary["viewportHeight"]) <= 1 for name in ["app", "sidebar", "surface"])
+                and abs(boundary["content"]["bottom"] - boundary["viewportHeight"]) <= 1
+            )
+            report["wheelBoundary"][page_id] = boundary
+            page.screenshot(path=output / f"wheel-boundary-{page_id}.png")
 
         page.goto(url("ai"))
         wait_ready(page)
@@ -262,6 +298,7 @@ scroll_passed = all(
     for checks in report["scroll"].values()
 )
 contrast_passed = all(value["passed"] for value in report["darkContrast"].values())
-passed = report["selectedMinimum"] is not None and required_interactions and wide_passed and scroll_passed and dpi_passed and contrast_passed
-print(json.dumps({"selectedMinimum": report["selectedMinimum"], "interactions": report["interactions"], "widePassed": wide_passed, "scrollPassed": scroll_passed, "dpiPassed": dpi_passed, "contrastPassed": contrast_passed, "passed": passed}, ensure_ascii=False, indent=2))
+wheel_boundary_passed = all(value["passed"] for value in report["wheelBoundary"].values())
+passed = report["selectedMinimum"] is not None and required_interactions and wide_passed and scroll_passed and wheel_boundary_passed and dpi_passed and contrast_passed
+print(json.dumps({"selectedMinimum": report["selectedMinimum"], "interactions": report["interactions"], "widePassed": wide_passed, "scrollPassed": scroll_passed, "wheelBoundaryPassed": wheel_boundary_passed, "dpiPassed": dpi_passed, "contrastPassed": contrast_passed, "passed": passed}, ensure_ascii=False, indent=2))
 sys.exit(0 if passed else 1)
