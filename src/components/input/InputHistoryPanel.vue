@@ -94,7 +94,7 @@ function pointAria(point: InputActivityPoint): string {
 </template>
 
 <style scoped>
-.history-panel { min-width: 0; padding: 20px; }
+.history-panel { min-width: 0; padding: 17px 18px; }
 .history-panel:has(.trend-section) { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(220px, .8fr); gap: 24px; }
 header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 h2 { margin: 0; font-size: 15px; letter-spacing: -.2px; }
@@ -114,15 +114,15 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 10px; line-height:
 .rhythm-bars button:focus-visible span { opacity: 1; }
 .rhythm-bars b { color: var(--text-primary); font-size: 10px; }
 .rhythm-scale { display: flex; justify-content: space-between; margin-top: 7px; color: var(--text-muted); font-size: 10px; }
-.single-day { min-height: 160px; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(170px, .55fr); align-items: center; gap: 17px; }
-.single-day__icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; color: var(--accent-green-strong); background: var(--accent-green-soft); }
+.single-day { min-height: 96px; display: grid; grid-template-columns: auto minmax(0, 1.35fr) minmax(250px, .75fr); align-items: center; gap: 15px; }
+.single-day__icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: var(--accent-green-strong); background: var(--accent-green-soft); }
 .single-day > div > span { color: var(--text-secondary); font-size: 10px; }
-.single-day strong { display: block; margin-top: 5px; font: 720 30px/1.15 var(--font-data); letter-spacing: -.8px; }
+.single-day strong { display: block; margin-top: 3px; font: 720 25px/1.15 var(--font-data); letter-spacing: -.7px; }
 .single-day strong small { color: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: 0; }
-dl { display: grid; gap: 8px; margin: 0; padding: 14px 16px; border-radius: 12px; background: var(--bg-soft); }
+dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 0; padding: 11px 13px; border-radius: 10px; background: var(--bg-soft); }
 dl div { display: flex; justify-content: space-between; gap: 12px; }
 dt { color: var(--text-secondary); font-size: 10px; } dd { margin: 0; font-size: 11px; font-weight: 700; }
-.history-empty { min-height: 160px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
+.history-empty { min-height: 96px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
 .history-empty strong { color: var(--text-primary); font-size: 12px; }
 @media (max-width: 920px) { .history-panel:has(.trend-section) { grid-template-columns: 1fr; } .rhythm-section { padding: 18px 0 0; border-top: 1px solid var(--border-soft); border-left: 0; } }
 @media (max-width: 760px) { .single-day { grid-template-columns: auto 1fr; } dl { grid-column: 1 / -1; } }

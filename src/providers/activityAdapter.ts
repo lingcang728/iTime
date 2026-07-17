@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { TimeDataset, TimeEvent, TimeRange } from '../domain/events'
+import { canonicalAppKey } from '../domain/appIdentity'
 
 const intervalSchema = z.object({
   version: z.literal(1),
@@ -88,6 +89,7 @@ function eventsForInterval(
   }
   if (!interval.appId || !interval.appName) return [device]
   const appName = displayAppName(interval.appName)
+  const aiToolId = interval.aiTool ? canonicalAppKey(appName) ?? interval.appId : undefined
   const style = appStyle(appName, interval.aiTool)
   const foreground = {
     id: `foreground:${interval.start}:${index}`,
@@ -96,7 +98,7 @@ function eventsForInterval(
     end: interval.end,
     appId: interval.appId,
     appName,
-    aiToolId: interval.aiTool ? interval.appId : undefined,
+    aiToolId,
     ...style,
     source,
     accuracyLabel: 'precise' as const,
@@ -120,7 +122,7 @@ function eventsForInterval(
       type: 'aiInteraction',
       start: interval.start,
       end: interval.end,
-      toolId: interval.appId,
+      toolId: aiToolId ?? interval.appId,
       toolName: appName,
       ...aiEvidence,
     },

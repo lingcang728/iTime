@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { KeyStatsInputActivityProvider, parseKeyStatsSnapshot } from './keyStatsAdapter'
 
 const raw = {
-  source: 'KeyStats 1.1.1 · 本机只读',
+  source: 'iTime 本机输入记录',
   updatedAt: 123,
   today: {
     date: '2026-07-16', keyStrokes: 200, leftClicks: 20, rightClicks: 4,

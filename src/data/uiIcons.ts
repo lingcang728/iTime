@@ -11,7 +11,6 @@ import sectionRanking from '../assets/ui-icons/section-ranking.png'
 import metricComputer from '../assets/ui-icons/metric-computer.png'
 import metricAttention from '../assets/ui-icons/metric-attention.png'
 import metricAiAgent from '../assets/ui-icons/metric-ai-agent.png'
-import metricVoice from '../assets/ui-icons/metric-voice.png'
 import metricMedia from '../assets/ui-icons/metric-media.png'
 import metricCoverage from '../assets/ui-icons/metric-coverage.png'
 import metricLeverage from '../assets/ui-icons/metric-leverage.png'
@@ -48,7 +47,6 @@ export const uiIcons = {
   metricComputer,
   metricAttention,
   metricAiAgent,
-  metricVoice,
   metricMedia,
   metricCoverage,
   metricLeverage,

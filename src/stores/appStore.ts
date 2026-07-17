@@ -31,7 +31,7 @@ const state = reactive({
   selectedDate: desktopRuntime ? localDate() : mockDates[mockDates.length - 1],
   availableDates: desktopRuntime ? [localDate()] : [...mockDates],
   inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'unavailable',
-  inputDataMessage: desktopRuntime ? '正在读取本机 KeyStats 聚合记录' : '浏览器预览数据',
+  inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
   autostartEnabled: false,
@@ -168,7 +168,7 @@ async function syncRecording(): Promise<void> {
 
 function deleteInputDate(date: string): void {
   if (!input.value.capabilities.deleteByDate) {
-    showToast('KeyStats 是只读数据源，iTime 不会修改它的历史记录')
+    showToast('本机输入历史为只读记录，iTime 不会修改它')
     return
   }
   if (!state.deletedInputDates.includes(date)) state.deletedInputDates.push(date)
@@ -202,12 +202,12 @@ async function refreshInputData(): Promise<void> {
     inputDates.value = dates
     updateAvailableDates()
     state.inputDataStatus = 'ready'
-    state.inputDataMessage = '已连接 KeyStats 本机只读记录'
+    state.inputDataMessage = 'iTime 本机输入记录已连接'
     state.migrationState = 'imported'
   } catch (error) {
     if (request !== inputRequest) return
     state.inputDataStatus = 'unavailable'
-    state.inputDataMessage = errorMessage(error, 'KeyStats 数据暂时不可用')
+    state.inputDataMessage = errorMessage(error, '本机输入数据暂时不可用')
   }
 }
 

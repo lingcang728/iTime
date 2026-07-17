@@ -42,6 +42,7 @@ describe('activity adapter', () => {
     expect(dataset.events.some((event) => event.type === 'aiWork')).toBe(false)
     expect(interaction?.accuracyLabel).toBe('estimated')
     expect(interaction?.reviewState).toBe('needsReview')
+    expect(interaction).toMatchObject({ toolId: 'codex', toolName: 'Codex' })
   })
 
   it('normalizes display names in records written by older collectors', () => {

@@ -35,6 +35,15 @@ describe('AppIcon', () => {
     expect(img.attributes('src')).toBeTruthy()
   })
 
+  it('uses locked brand assets for Codex and Typeless even with anonymous process ids', async () => {
+    for (const appName of ['Codex', 'Typeless']) {
+      const wrapper = mount(AppIcon, { props: { appIdentity: 'process:anonymous', appName, size: 24 } })
+      await Promise.resolve()
+      expect(wrapper.find('img').exists()).toBe(true)
+      wrapper.unmount()
+    }
+  })
+
   it('switches to glyph on image error', async () => {
     const wrapper = mount(AppIcon, {
       props: { iconKey: 'chrome', appName: 'Chrome', size: 20 },

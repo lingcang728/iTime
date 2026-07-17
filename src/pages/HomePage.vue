@@ -6,7 +6,6 @@ import {
   PhDesktop,
   PhEye,
   PhKeyboard,
-  PhMicrophone,
   PhPlayCircle,
   PhRobot,
   PhTarget,
@@ -40,7 +39,6 @@ const rankingRows = computed(() => categories.value.map((category) => ({
 const computerDuration = computed(() => store.day.value.computerActivity.value)
 const foregroundDuration = computed(() => store.day.value.foregroundActivity.value)
 const aiDuration = computed(() => store.day.value.aiInteraction.value)
-const voiceCharacters = computed(() => store.day.value.events.reduce((total, event) => event.type === 'voice' ? total + event.characters : total, 0))
 const activeInterval = computed(() => mergeRanges(store.day.value.events
   .filter((event) => event.type === 'device' && event.state === 'active')
   .map(({ start, end }) => ({ start, end })))
@@ -107,7 +105,6 @@ function dismissReminder(): void {
       <MetricCard label="电脑活动时间" :value-parts="durationParts(computerDuration)" :detail="store.state.activityDataMessage" :icon="PhDesktop" tone="blue" />
       <MetricCard label="主动注意力" :value-parts="durationParts(foregroundDuration)" :detail="shareOf(foregroundDuration, computerDuration)" :icon="PhTarget" tone="green" />
       <MetricCard label="AI 前台活跃" :value-parts="durationParts(aiDuration)" :detail="store.day.value.aiInteraction.basis" :icon="PhRobot" tone="violet" />
-      <MetricCard label="语音输入" :value-parts="durationParts(store.day.value.voiceDuration.value)" :detail="`${formatNumber(voiceCharacters)} 字`" :icon="PhMicrophone" tone="cyan" />
       <MetricCard label="离座播放" :value-parts="durationParts(store.day.value.mediaDuration.value)" :detail="shareOf(store.day.value.mediaDuration.value, computerDuration)" :icon="PhPlayCircle" tone="orange" />
     </div>
 
@@ -154,7 +151,7 @@ function dismissReminder(): void {
       <article class="card input-summary-card">
         <div class="input-summary-icon"><PhKeyboard :size="21" weight="regular" /></div>
         <div><span>今日输入摘要</span><strong>{{ formatNumber(store.input.value.cumulative.keyStrokes) }} 次敲击</strong><small>只呈现聚合计数，不保存输入内容</small></div>
-        <div class="input-summary-meta"><span>数据来源</span><strong>{{ store.input.value.source }}</strong></div>
+        <div class="input-summary-stats"><span><small>鼠标点击</small><strong>{{ formatNumber(store.input.value.cumulative.combinedClicks) }}</strong></span><span><small>滚动</small><strong>{{ formatNumber(store.input.value.cumulative.scrollDistance) }}</strong></span></div>
       </article>
       <Transition name="page">
         <article v-if="reminderVisible" class="wellbeing-card">

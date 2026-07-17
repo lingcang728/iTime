@@ -54,7 +54,7 @@ function valueLabel(value: number | null | undefined): string {
         @focus="activeIndex = index"
         @blur="activeIndex = null"
       >
-        <span class="week-bars__value">{{ point.value === null ? '—' : point.value.toFixed(1) }}</span>
+        <span class="week-bars__value"><i>{{ point.value === null ? '—' : point.value.toFixed(1) }}</i><i v-if="point.secondary !== undefined" class="secondary">{{ point.secondary === null ? '—' : point.secondary.toFixed(1) }}</i></span>
         <span class="week-bars__columns">
           <i class="week-bars__bar week-bars__bar--primary" :style="{ height: height(point.value) }"></i>
           <i v-if="point.secondary !== undefined" class="week-bars__bar week-bars__bar--secondary" :style="{ height: height(point.secondary) }"></i>
@@ -100,7 +100,9 @@ function valueLabel(value: number | null | undefined): string {
 }
 .week-bars__item:hover,
 .week-bars__item:focus-visible { background: color-mix(in srgb, var(--accent-blue-soft) 46%, transparent); outline: none; }
-.week-bars__value { color: var(--text-primary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.week-bars__value { width: 100%; display: flex; justify-content: center; gap: 5px; color: var(--text-primary); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.week-bars__value i { width: min(28px, 38%); overflow: hidden; font-style: normal; text-align: center; }
+.week-bars__value i.secondary { color: var(--accent-violet-strong); }
 .week-bars__columns { width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 5px; }
 .week-bars__bar { width: min(28px, 38%); border-radius: 7px 7px 2px 2px; transition: filter 140ms ease, height 220ms ease; }
 .week-bars__bar--primary { background: var(--accent-blue); }

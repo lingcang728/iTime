@@ -48,16 +48,10 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
   <section class="page weekly-page">
     <PageHeader title="本周回顾" subtitle="用可验证的本机记录回看专注、应用与 AI 工具使用" :range-label="summary.rangeLabel" />
 
-    <div class="weekly-chart-stack">
-      <article class="card weekly-card weekly-card--activity">
-        <header class="weekly-card__heading"><div><span>电脑活动</span><h2>每日电脑活动</h2><p>设备活跃与空闲区间的去重时长</p></div><em class="legend legend--blue"><i></i>电脑活动</em></header>
-        <BarChart :points="activityPoints" unit="小时" tone="blue" primary-label="电脑活动" />
-      </article>
-      <article class="card weekly-card">
-        <header class="weekly-card__heading"><div><span>注意力构成</span><h2>主动注意力与 AI 前台活跃</h2><p>两组时长可重叠，用于核对工具处于前台的时间</p></div><div class="legend-group"><em class="legend legend--green"><i></i>主动注意力</em><em class="legend legend--violet"><i></i>AI 前台活跃</em></div></header>
-        <BarChart :points="comparePoints" unit="小时" tone="green" primary-label="主动注意力" secondary-label="AI 前台活跃" compact />
-      </article>
-    </div>
+    <article class="card weekly-card weekly-card--activity">
+      <header class="weekly-card__heading"><div><span>电脑活动</span><h2>每日电脑活动</h2><p>设备活跃与空闲区间的去重时长</p></div><em class="legend legend--blue"><i></i>电脑活动</em></header>
+      <BarChart :points="activityPoints" unit="小时" tone="blue" primary-label="电脑活动" />
+    </article>
 
     <div class="weekly-analysis-grid">
       <article class="card weekly-card focus-panel">
@@ -69,33 +63,27 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
         <WeeklyTopApps :apps="summary.topApps" />
       </article>
       <article class="card weekly-card insight-panel">
-        <header class="weekly-card__heading">
-          <div>
-            <span>本周洞察</span>
-            <h2 class="weekly-insight-title">
-              <span class="weekly-inline-glyph"><PhStar :size="16" weight="regular" /></span>
-              最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong>
-            </h2>
-          </div>
-        </header>
-        <div class="attention-summary">
-          <span><small>当日主动注意力</small><strong>{{ hourLabel(summary.bestDay?.foreground) }}</strong></span>
-          <span><small>本周主动注意力</small><strong>{{ hourLabel(summary.totalAttention) }}</strong></span>
-          <em :class="{ positive: (summary.improvementPercent ?? 0) > 0, negative: (summary.improvementPercent ?? 0) < 0 }">{{ comparisonLabel(summary.improvementPercent, summary.comparisonBasis) }}</em>
-        </div>
+        <header class="weekly-card__heading"><div><span>本周洞察</span><h2 class="weekly-insight-title"><span class="weekly-inline-glyph"><PhStar :size="16" weight="regular" /></span>最专注的一天是 <strong>{{ summary.bestDay?.label ?? '暂无记录' }}</strong></h2></div></header>
+        <div class="attention-summary"><span><small>当日主动注意力</small><strong>{{ hourLabel(summary.bestDay?.foreground) }}</strong></span><span><small>本周主动注意力</small><strong>{{ hourLabel(summary.totalAttention) }}</strong></span><em :class="{ positive: (summary.improvementPercent ?? 0) > 0, negative: (summary.improvementPercent ?? 0) < 0 }">{{ comparisonLabel(summary.improvementPercent, summary.comparisonBasis) }}</em></div>
         <WeeklyTrendChart :points="trendPoints" />
       </article>
     </div>
 
-    <article class="card weekly-card achievements-panel">
-      <header class="weekly-card__heading">
-        <div class="weekly-heading-with-icon">
-          <span class="weekly-section-glyph"><PhTrophy :size="18" weight="regular" /></span>
-          <div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div>
-        </div>
-      </header>
-      <WeeklyAchievements :achievements="summary.achievements" />
-    </article>
+    <div class="weekly-chart-stack">
+      <article class="card weekly-card attention-panel">
+        <header class="weekly-card__heading"><div><span>注意力构成</span><h2>主动注意力与 AI 前台活跃</h2><p>按日期对齐；两组时长可重叠，不代表重复统计</p></div><div class="legend-group"><em class="legend legend--green"><i></i>主动注意力</em><em class="legend legend--violet"><i></i>AI 前台活跃</em></div></header>
+        <BarChart :points="comparePoints" unit="小时" tone="green" primary-label="主动注意力" secondary-label="AI 前台活跃" compact />
+      </article>
+      <article class="card weekly-card achievements-panel">
+        <header class="weekly-card__heading">
+          <div class="weekly-heading-with-icon">
+            <span class="weekly-section-glyph"><PhTrophy :size="18" weight="regular" /></span>
+            <div><span>里程碑</span><h2>本周成就</h2><p>按明确阈值自动解锁，未达成项目保持中性状态</p></div>
+          </div>
+        </header>
+        <WeeklyAchievements :achievements="summary.achievements" />
+      </article>
+    </div>
 
     <article class="weekly-input-card">
       <div class="weekly-input-card__icon"><PhKeyboard :size="20" weight="regular" /></div>

@@ -10,24 +10,24 @@
 }
 
 .page {
-  width: min(100%, 1160px);
+  width: min(100%, 1440px);
   min-height: 100%;
   margin: 0 auto;
-  padding: 18px 28px 32px;
+  padding: 18px 24px 26px;
 }
 
 .page-header {
-  min-height: 70px;
+  min-height: 62px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .page-header h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1.25;
   letter-spacing: -0.65px;
   font-weight: 650;
@@ -76,6 +76,7 @@
   color: var(--text-primary);
   background: var(--bg-hover);
 }
+.icon-button:active { transform: scale(.96); }
 .icon-button:disabled { cursor: default; opacity: .35; background: transparent; }
 
 .metrics-grid {
@@ -84,7 +85,7 @@
 }
 
 .metrics-grid--home {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.22fr) repeat(3, minmax(0, 1fr));
 }
 
 .metrics-grid--four {
@@ -99,8 +100,8 @@
 }
 
 .metric-card {
-  min-height: 108px;
-  padding: 14px 15px 13px;
+  min-height: 104px;
+  padding: 13px 14px 12px;
   border-radius: var(--radius-md);
 }
 

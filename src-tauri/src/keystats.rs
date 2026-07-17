@@ -55,7 +55,7 @@ fn parse_snapshot(contents: &str, updated_at: u128) -> Result<KeyStatsSnapshot, 
     if !is_iso_date(&legacy.today.date)
         || legacy.history.iter().any(|item| !is_iso_date(&item.date))
     {
-        return Err(invalid_data("KeyStats 日期字段格式无效"));
+        return Err(invalid_data("本机输入日期字段格式无效"));
     }
 
     let mut single_keys = Vec::new();
@@ -78,7 +78,7 @@ fn parse_snapshot(contents: &str, updated_at: u128) -> Result<KeyStatsSnapshot, 
     shortcuts.sort_by(sort_counts);
 
     Ok(KeyStatsSnapshot {
-        source: "KeyStats 1.1.1 · 本机只读",
+        source: "iTime 本机输入记录",
         updated_at,
         today: KeyStatsToday {
             date: legacy.today.date,
@@ -124,7 +124,7 @@ fn decode_contents(bytes: &[u8]) -> Result<String, KeyStatsReadError> {
         return String::from_utf8(bytes.to_vec()).map_err(|error| invalid_data(error.to_string()));
     };
     if bytes.len() % 2 != 0 {
-        return Err(invalid_data("KeyStats UTF-16 数据长度无效"));
+        return Err(invalid_data("本机输入数据编码无效"));
     }
     let units = bytes.chunks_exact(2).map(|pair| {
         if big_endian {
@@ -155,7 +155,7 @@ fn modified_millis(path: &Path) -> u128 {
 }
 
 fn read_snapshot(path: &Path) -> Result<KeyStatsSnapshot, KeyStatsReadError> {
-    let mut last_message = String::from("KeyStats 数据暂时不可读");
+    let mut last_message = String::from("本机输入数据暂时不可读");
     for attempt in 0..READ_ATTEMPTS {
         match fs::read(path) {
             Ok(bytes) => match decode_contents(&bytes)

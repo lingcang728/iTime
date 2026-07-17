@@ -74,35 +74,32 @@ const insight = computed(() => {
       />
     </div>
 
-    <article class="ai-panel ai-timeline-panel">
-      <div class="ai-section-heading">
-        <div><span>区间视图</span><h2>人的活动与 AI 工具证据</h2><p>实心执行区间仅来自 Provider；前台交互单独标记。</p></div>
-        <div class="ai-section-hint"><PhInfo :size="14" />悬停或用键盘聚焦区间查看时间</div>
-      </div>
-      <AiActivityTimeline :range="store.day.value.range" :foreground="foreground" :tools="store.day.value.aiTools" />
-    </article>
+    <div class="ai-workspace-grid">
+      <article class="ai-panel ai-timeline-panel">
+        <div class="ai-section-heading">
+          <div><span>区间视图</span><h2>人的活动与 AI 工具证据</h2><p>实心执行区间仅来自 Provider；前台交互单独标记。</p></div>
+          <div class="ai-section-hint"><PhInfo :size="14" />悬停或用键盘聚焦区间查看时间</div>
+        </div>
+        <AiActivityTimeline :range="store.day.value.range" :foreground="foreground" :tools="store.day.value.aiTools" />
+      </article>
 
-    <article class="ai-panel ai-tools-panel">
-      <div class="ai-section-heading">
-        <div><span>工具明细</span><h2>AI 工具</h2><p>前台活跃来自进程身份匹配；没有 Provider 证据时，执行相关列显示为不可用。</p></div>
-      </div>
-      <div class="ai-tool-table" role="table" aria-label="AI 工具采样明细">
-        <div class="ai-tool-table__head" role="row">
-          <span role="columnheader">工具</span><span role="columnheader">证据</span><span role="columnheader">Provider 执行</span><span role="columnheader">前台活跃</span><span role="columnheader">静默等待</span><span role="columnheader">并行重叠</span><span role="columnheader">置信度</span><span role="columnheader">操作</span>
+      <article class="ai-panel ai-tools-panel">
+        <div class="ai-section-heading">
+          <div><span>工具明细</span><h2>AI 工具</h2><p>同名工具已合并；没有 Provider 证据时仅展示可观察的前台活跃。</p></div>
         </div>
-        <div v-if="!store.day.value.aiTools.length" class="ai-tool-table__empty">当天尚未采集到 AI 工具活动。</div>
-        <div v-for="tool in store.day.value.aiTools" :key="tool.toolId" class="ai-tool-table__row" role="row">
-          <span class="ai-tool-name" role="cell"><ApplicationIcon :icon-key="tool.iconKey" :app-name="tool.toolName" :size="24" /><span><strong>{{ tool.toolName }}</strong><small>{{ tool.taskCount ? `${tool.taskCount} 组执行记录` : '没有执行记录' }}</small></span></span>
-          <span :class="['ai-tool-status', `is-${tool.status}`]" role="cell">{{ statusLabels[tool.status] }}</span>
-          <span role="cell">{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '—' }}</span>
-          <span role="cell">{{ formatDuration(tool.foregroundDuration, true) }}</span>
-          <span role="cell">{{ executionAvailable ? formatDuration(tool.silentWaitDuration, true) : '—' }}</span>
-          <span role="cell">{{ executionAvailable ? formatDuration(tool.parallelOverlapDuration, true) : '—' }}</span>
-          <span class="ai-tool-confidence" role="cell"><i :style="{ width: `${Math.round(tool.confidence * 100)}%` }"></i><b>{{ Math.round(tool.confidence * 100) }}%</b></span>
-          <button role="cell" type="button" :aria-label="`查看 ${tool.toolName} 采样详情`" @click="store.openTool(tool.toolId)">详情<PhArrowUpRight :size="12" /></button>
+        <div v-if="store.day.value.aiTools.length" class="ai-tool-list" aria-label="AI 工具采样明细">
+          <article v-for="tool in store.day.value.aiTools" :key="tool.toolId" class="ai-tool-item">
+            <header>
+              <span class="ai-tool-name"><ApplicationIcon :icon-key="tool.iconKey" :app-name="tool.toolName" :size="28" /><span><strong>{{ tool.toolName }}</strong><small>{{ tool.taskCount ? `${tool.taskCount} 组执行记录` : '仅前台观察' }}</small></span></span>
+              <span :class="['ai-tool-status', `is-${tool.status}`]">{{ statusLabels[tool.status] }}</span>
+            </header>
+            <dl><div><dt>前台活跃</dt><dd>{{ formatDuration(tool.foregroundDuration, true) }}</dd></div><div><dt>Provider</dt><dd>{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '暂无证据' }}</dd></div></dl>
+            <footer><span class="ai-tool-confidence"><i :style="{ width: `${Math.round(tool.confidence * 100)}%` }"></i><b>置信度 {{ Math.round(tool.confidence * 100) }}%</b></span><button type="button" :aria-label="`查看 ${tool.toolName} 采样详情`" @click="store.openTool(tool.toolId)">详情<PhArrowUpRight :size="12" /></button></footer>
+          </article>
         </div>
-      </div>
-    </article>
+        <div v-else class="ai-tool-list__empty">当天尚未采集到 AI 工具活动。</div>
+      </article>
+    </div>
 
     <article class="ai-insight">
       <div><span>今日洞察</span><h2>{{ insight.title }}</h2><p>{{ insight.detail }}</p></div>

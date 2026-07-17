@@ -92,6 +92,15 @@ describe('daily metrics', () => {
     expect(result.aiTools[0].parallelOverlapDuration).toBe(30)
   })
 
+  it('merges duplicate process identities for the same named AI tool', () => {
+    const result = deriveDaySnapshot([
+      event<AiInteractionInterval>({ id: 'one', type: 'aiInteraction', toolId: 'process:a', toolName: 'Codex', start: 0, end: 20, ...evidence }),
+      event<AiInteractionInterval>({ id: 'two', type: 'aiInteraction', toolId: 'process:b', toolName: 'Codex', start: 30, end: 50, ...evidence }),
+    ], { start: 0, end: 100 })
+    expect(result.aiTools).toHaveLength(1)
+    expect(result.aiTools[0]).toMatchObject({ toolId: 'codex', toolName: 'Codex', foregroundDuration: 40 })
+  })
+
   it('keeps silent waiting outside effective agent work', () => {
     const day = new MockDataProvider().getDay('2026-05-20')
     const effective = day.aiTools.reduce((sum, tool) => sum + tool.effectiveDuration, 0)

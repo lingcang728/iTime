@@ -7,26 +7,25 @@ import type {
   MediaPlaybackInterval,
   TimeDataset,
   TimeEvent,
-  VoiceInputInterval,
 } from '../domain/events'
 
 const minute = 60_000
 
 const dayConfigs = [
-  { date: '2026-05-14', screen: 366, foreground: 228, ai: 96, voice: 31, media: 38 },
-  { date: '2026-05-15', screen: 432, foreground: 264, ai: 132, voice: 42, media: 52 },
-  { date: '2026-05-16', screen: 516, foreground: 288, ai: 156, voice: 54, media: 63 },
-  { date: '2026-05-17', screen: 318, foreground: 186, ai: 84, voice: 27, media: 47 },
-  { date: '2026-05-18', screen: 468, foreground: 276, ai: 144, voice: 51, media: 58 },
-  { date: '2026-05-19', screen: 390, foreground: 240, ai: 126, voice: 39, media: 50 },
-  { date: '2026-05-20', screen: 408, foreground: 312, ai: 156, voice: 68, media: 43 },
+  { date: '2026-05-14', screen: 366, foreground: 228, ai: 96, media: 38 },
+  { date: '2026-05-15', screen: 432, foreground: 264, ai: 132, media: 52 },
+  { date: '2026-05-16', screen: 516, foreground: 288, ai: 156, media: 63 },
+  { date: '2026-05-17', screen: 318, foreground: 186, ai: 84, media: 47 },
+  { date: '2026-05-18', screen: 468, foreground: 276, ai: 144, media: 58 },
+  { date: '2026-05-19', screen: 390, foreground: 240, ai: 126, media: 50 },
+  { date: '2026-05-20', screen: 408, foreground: 312, ai: 156, media: 43 },
 ]
 
 const apps = [
   { id: 'vscode', name: 'VS Code', category: '开发', color: '#4f80e8', share: 0.32 },
   { id: 'chrome', name: 'Chrome', category: '学习', color: '#55b77a', share: 0.26 },
   { id: 'chatgpt', name: 'ChatGPT', category: 'AI 工具', color: '#7866d7', share: 0.19, aiToolId: 'chatgpt' },
-  { id: 'typeless', name: 'Typeless', category: '语音输入', color: '#52b9b4', share: 0.12 },
+  { id: 'typeless', name: 'Typeless', category: '效率工具', color: '#52b9b4', share: 0.12 },
   { id: 'youtube', name: 'YouTube', category: '视频', color: '#df7650', share: 0.07 },
   { id: 'explorer', name: '文件资源管理器', category: '系统工具', color: '#d69b40', share: 0.04 },
 ]
@@ -127,10 +126,6 @@ function buildDay(config: typeof dayConfigs[number], dayIndex: number): TimeEven
   })
 
   result.push({
-    id: `${config.date}-voice`, type: 'voice', toolName: 'Typeless', start: at(config.date, 10, 35), end: at(config.date, 10, 35) + config.voice * minute,
-    characters: Math.round(config.voice * 18.9), ...precise('voice-tool-session-events', '语音工具唤起至文字插入完成'),
-  } satisfies VoiceInputInterval)
-  result.push({
     id: `${config.date}-media`, type: 'media', appName: 'Chrome', awayPlayback: true, start: at(config.date, 14, 5), end: at(config.date, 14, 5) + config.media * minute,
     ...estimated('media-session-events', '媒体会话与窗口状态推断', 0.82),
   } satisfies MediaPlaybackInterval)
@@ -164,7 +159,7 @@ export const mockDataset: TimeDataset = {
 export const mockDates = dayConfigs.map((config) => config.date)
 
 export const mockToolRuntime: Record<string, { status: 'running' | 'completed' | 'waiting'; silentWaitMinutes: number; iconKey: string }> = {
-  codex: { status: 'running', silentWaitMinutes: 12, iconKey: 'chatgpt' },
+  codex: { status: 'running', silentWaitMinutes: 12, iconKey: 'codex' },
   chatgpt: { status: 'completed', silentWaitMinutes: 9, iconKey: 'chatgpt' },
   claude: { status: 'completed', silentWaitMinutes: 7, iconKey: 'claude' },
   antigravity: { status: 'waiting', silentWaitMinutes: 5, iconKey: 'antigravity' },

@@ -131,7 +131,7 @@ with sync_playwright() as playwright:
         page.locator(".metric__info").first.focus()
         page.wait_for_timeout(200)
         report["interactions"]["agentInfoTooltip"] = page.locator('.metric__info [role="tooltip"]').first.evaluate("element => getComputedStyle(element).opacity === '1'")
-        page.locator(".ai-tool-table__row button").first.click()
+        page.locator(".ai-tool-item button").first.click()
         page.wait_for_selector(".ai-drawer")
         report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["Provider 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
         report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("不是工具的“知性度”", exact=False).count() == 1
@@ -161,7 +161,15 @@ with sync_playwright() as playwright:
             timeline_segments.count() > 0
             and timeline_segments.first.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
             and page.get_by_text("输入密度", exact=True).count() == 0
+            and page.get_by_text("语音输入", exact=True).count() == 0
         )
+        page.get_by_role("button", name="查看统计口径与轨道说明").click()
+        timeline_notes = page.get_by_role("dialog", name="统计口径与轨道说明")
+        report["interactions"]["timelineNotesPopover"] = (
+            timeline_notes.get_by_text("总覆盖按自然时间并集计算", exact=True).count() == 1
+            and timeline_notes.get_by_text("上下对齐表示同时发生", exact=True).count() == 1
+        )
+        timeline_notes.get_by_role("button", name="关闭说明").click()
 
         page.goto(url("settings"))
         wait_ready(page)
@@ -191,9 +199,9 @@ with sync_playwright() as playwright:
         home_metric_columns = page.locator(".metrics-grid--home").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
         home_data_columns = page.locator(".home-data-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
         report["interactions"]["homeSelectedFormat"] = (
-            page.locator(".metrics-grid--home .metric-card").count() == 5
+            page.locator(".metrics-grid--home .metric-card").count() == 4
             and page.locator(".metrics-grid--home .metric-icon[data-art]").count() == 0
-            and home_metric_columns == 5
+            and home_metric_columns == 4
             and home_data_columns == 2
         )
         reminder = page.get_by_role("button", name="知道了")
@@ -229,7 +237,8 @@ with sync_playwright() as playwright:
         wait_ready(page)
         report["interactions"]["realSettingsSources"] = (
             page.get_by_text("开机自启动", exact=True).count() == 1
-            and page.get_by_text("KeyStats 本机数据", exact=True).count() == 1
+            and page.get_by_text("本机输入数据", exact=True).count() == 1
+            and page.get_by_text("KeyStats 本机数据", exact=True).count() == 0
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 

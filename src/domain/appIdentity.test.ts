@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAppIdentity, identityAccent, identityGlyph, normalizeLogicalKey } from './appIdentity'
+import { buildAppIdentity, canonicalAppKey, identityAccent, identityGlyph, normalizeLogicalKey } from './appIdentity'
 
 describe('appIdentity', () => {
   it('prefers aumid package identity', () => {
@@ -33,6 +33,12 @@ describe('appIdentity', () => {
     expect(identityGlyph('VS Code')).toBe('V')
     expect(identityGlyph('微信')).toBe('微')
     expect(identityGlyph(undefined, 'app:explorer')).toBe('E')
+  })
+
+  it('maps display names to stable icon identities', () => {
+    expect(canonicalAppKey('文件资源管理器')).toBe('explorer')
+    expect(canonicalAppKey('Claude Code')).toBe('claude')
+    expect(canonicalAppKey('Codex')).toBe('codex')
   })
 
   it('returns stable accent colors for the same identity', () => {

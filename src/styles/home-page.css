@@ -1,3 +1,10 @@
+.home-page {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(292px, 1fr) auto;
+  align-content: stretch;
+}
+
 .home-page :deep(.metric-card) {
   min-height: 110px;
   padding: 14px 15px;
@@ -30,10 +37,11 @@
   grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr);
   gap: 12px;
   margin-top: 12px;
+  min-height: 0;
 }
 
 .home-data-grid > .card {
-  min-height: 236px;
+  min-height: 292px;
 }
 
 .ranking-value-labels {
@@ -105,6 +113,8 @@
   position: relative;
   margin-top: 0;
   padding: 15px 16px 18px;
+  display: flex;
+  flex-direction: column;
 }
 
 .today-timeline .legend {
@@ -141,7 +151,7 @@
 }
 
 .today-timeline :deep(.timeline-lane__track) {
-  height: 26px;
+  height: 38px;
   border-color: color-mix(in srgb, var(--border-soft) 72%, transparent);
 }
 
@@ -152,7 +162,7 @@
 
 .timeline-empty {
   display: grid;
-  min-height: 26px;
+  min-height: 38px;
   place-items: center;
   border: 1px dashed var(--border-soft);
   border-radius: 7px;
@@ -192,24 +202,21 @@
   border-radius: 11px;
 }
 
-.input-summary-meta {
-  min-width: 150px;
-  display: grid;
-  align-content: center;
-  gap: 4px;
+.input-summary-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
   padding-left: 18px;
   border-left: 1px solid var(--border-soft);
-  text-align: right;
 }
 
-.input-summary-meta strong {
-  overflow: hidden;
-  max-width: 220px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.input-summary-stats > span { display: grid; gap: 3px; min-width: 58px; }
+.input-summary-stats small { color: var(--text-muted); font-size: 9px; }
+.input-summary-stats strong { color: var(--text-primary); font: 700 12px/1 var(--font-data); font-variant-numeric: tabular-nums; }
+
+.today-timeline > :deep(.timeline-lane),
+.today-timeline > .timeline-empty {
+  margin-block: auto;
 }
 
 @media (max-width: 1050px) {
@@ -222,15 +229,15 @@
   }
 
   .metrics-grid--home {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .metrics-grid--home :deep(.metric-card:nth-child(-n + 3)) {
-    grid-column: span 2;
+    grid-column: auto;
   }
 
   .metrics-grid--home :deep(.metric-card:nth-child(n + 4)) {
-    grid-column: span 3;
+    grid-column: auto;
   }
 
   .ranking-row {
@@ -245,7 +252,7 @@
 }
 
 @media (max-width: 760px) {
-  .input-summary-meta {
+  .input-summary-stats {
     display: none;
   }
 

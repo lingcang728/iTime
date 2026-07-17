@@ -13,6 +13,34 @@ export interface AppIdentityInput {
   appName?: string | null
 }
 
+const appNameAliases: Record<string, string> = {
+  chrome: 'chrome',
+  'googlechrome': 'chrome',
+  code: 'vscode',
+  vscode: 'vscode',
+  'visualstudiocode': 'vscode',
+  codex: 'codex',
+  chatgpt: 'chatgpt',
+  claude: 'claude',
+  claudecode: 'claude',
+  typeless: 'typeless',
+  antigravity: 'antigravity',
+  explorer: 'explorer',
+  fileexplorer: 'explorer',
+  '文件资源管理器': 'explorer',
+  microsoftedge: 'msedge',
+  edge: 'msedge',
+  wechat: 'wechat',
+  weixin: 'wechat',
+  微信: 'wechat',
+  itime: 'itime',
+}
+
+export function canonicalAppKey(value?: string | null): string | null {
+  const compact = value?.trim().toLocaleLowerCase().replace(/[\s._-]+/g, '')
+  return compact ? appNameAliases[compact] ?? null : null
+}
+
 export function normalizeLogicalKey(value: string | null | undefined): string | null {
   if (!value) return null
   const normalized = value

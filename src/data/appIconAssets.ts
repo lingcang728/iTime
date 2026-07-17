@@ -5,6 +5,7 @@ import youtubeIcon from "../assets/apps/youtube.png";
 
 export const embeddedAppIcons: Record<string, string> = {
   antigravity: antigravityIcon,
+  codex: chatgptIcon,
   chatgpt: chatgptIcon,
   typeless: typelessIcon,
   youtube: youtubeIcon,

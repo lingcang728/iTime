@@ -27,7 +27,7 @@ const autostartStatusLabel = computed(() => ({
   error: store.state.autostartMessage || '无法读取系统启动项',
 }[store.state.autostartStatus]))
 
-const keyStatsFacts = computed(() => {
+const inputFacts = computed(() => {
   const capabilities = store.input.value.capabilities
   const historyLabel = {
     minute: '分钟级',
@@ -36,12 +36,12 @@ const keyStatsFacts = computed(() => {
     none: '无历史序列',
   }[capabilities.historyGranularity]
   return [
-    { label: '访问方式', value: capabilities.deleteByDate ? '由数据源授权读写' : '只读，不修改 KeyStats' },
+    { label: '访问方式', value: capabilities.deleteByDate ? '本机授权读写' : '本机只读' },
     { label: '历史粒度', value: historyLabel },
     { label: '键位统计', value: capabilities.keyHeatmap ? '可用' : '数据源未提供' },
     { label: '功能组合键', value: capabilities.functionalShortcuts ? '可用' : '数据源未提供' },
     { label: '历史左右键', value: capabilities.splitHistoricalClicks ? '可分别统计' : '仅提供合计' },
-    { label: '日期口径', value: capabilities.timezoneSemantics === 'utc-date-bucket' ? 'KeyStats UTC 日期桶' : '本地自然日' },
+    { label: '日期口径', value: capabilities.timezoneSemantics === 'utc-date-bucket' ? 'UTC 日期归档' : '本地自然日' },
   ]
 })
 
@@ -91,7 +91,7 @@ onMounted(() => void store.refreshAutostart())
           </header>
           <label class="control-row"><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
           <label class="control-row"><div><strong>功能组合键</strong><span>仅显示 Ctrl+C 等明确功能组合的累计次数。</span></div><span class="toggle"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
-          <div class="privacy-note"><PhShieldCheck :size="23" weight="duotone" /><p>iTime 不读取键盘文字、密码内容或剪贴板正文。KeyStats 数据通过本机文件只读接入，删除操作不会反向修改 KeyStats。</p></div>
+          <div class="privacy-note"><PhShieldCheck :size="23" weight="duotone" /><p>iTime 只读取本机聚合计数，不读取键盘文字、密码内容或剪贴板正文，也不会修改既有输入历史。</p></div>
         </article>
 
         <article class="card settings-section appearance-section">
@@ -111,14 +111,13 @@ onMounted(() => void store.refreshAutostart())
         <article class="card source-card">
           <header class="section-heading">
             <span class="section-icon orange section-icon--art"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span>
-            <div><h2>KeyStats 本机数据</h2><p>展示当前实际连接状态与数据能力。</p></div>
+            <div><h2>本机输入数据</h2><p>查看当前连接状态与可用统计能力。</p></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">
             <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
           </div>
           <dl class="source-facts">
-            <div><dt>来源</dt><dd>{{ store.input.value.source }}</dd></div>
-            <div v-for="fact in keyStatsFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+            <div v-for="fact in inputFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
           </dl>
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
             <PhArrowClockwise :size="17" />重新读取本机记录
@@ -127,7 +126,7 @@ onMounted(() => void store.refreshAutostart())
 
         <article class="card data-boundary-card">
           <PhPauseCircle :size="26" weight="duotone" />
-          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>KeyStats 提供输入聚合；应用与 AI 活动仅从 iTime 采集器启用后开始记录。</p></div>
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>输入页呈现本机已有聚合；应用与 AI 活动仅从 iTime 采集器启用后开始记录。</p></div>
         </article>
       </aside>
     </div>

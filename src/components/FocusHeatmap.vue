@@ -99,7 +99,7 @@ function moveFocus(event: KeyboardEvent, day: HeatmapDay): void {
 </template>
 
 <style scoped>
-.focus-calendar { --heat-0: #edf2ee; --heat-1: #d9eee0; --heat-2: #bce2ca; --heat-3: #8ed0a7; --heat-4: #57b77d; --heat-5: #26955f; min-width: 0; }
+.focus-calendar { --heat-empty: #dde2de; --heat-0: #e9f0eb; --heat-1: #d1ead9; --heat-2: #add9bc; --heat-3: #7cc796; --heat-4: #4caf72; --heat-5: #218c56; min-width: 0; }
 .focus-calendar__meta { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 10px; }
 .focus-calendar__meta strong { color: var(--accent-green-strong); font-weight: 650; }
 .focus-calendar__body { min-width: 0; position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-rows: 16px minmax(0, 1fr); gap: 5px 7px; margin-top: 10px; }
@@ -110,7 +110,7 @@ function moveFocus(event: KeyboardEvent, day: HeatmapDay): void {
 .focus-calendar__cell:hover,
 .focus-calendar__cell:focus-visible { transform: translateY(-1px) scale(1.04); outline: none; box-shadow: 0 4px 12px color-mix(in srgb, #26955f 24%, transparent); }
 .focus-calendar__cell.is-locked { border-color: #1d6f49; box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3px #3aa66d; }
-.focus-calendar__cell.is-unavailable { background: var(--heat-0); opacity: .58; }
+.focus-calendar__cell.is-unavailable { border-color: color-mix(in srgb, var(--border-soft) 70%, transparent); background: var(--heat-empty); opacity: .38; }
 .focus-calendar__cell.intensity-1 { background: var(--heat-1); }
 .focus-calendar__cell.intensity-2 { background: var(--heat-2); }
 .focus-calendar__cell.intensity-3 { background: var(--heat-3); }
@@ -123,5 +123,5 @@ function moveFocus(event: KeyboardEvent, day: HeatmapDay): void {
 .focus-calendar__tooltip small { color: var(--text-secondary); font-size: 10px; }
 .focus-calendar__scale { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-muted); font-size: 10px; }
 .focus-calendar__scale i { flex: 1; height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--heat-0), var(--heat-1), var(--heat-2), var(--heat-3), var(--heat-4), var(--heat-5)); }
-:global(html[data-theme="dark"]) .focus-calendar { --heat-0: #202a24; --heat-1: #243b2d; --heat-2: #2d583d; --heat-3: #34734c; --heat-4: #3b905c; --heat-5: #4eb578; }
+:global(html[data-theme="dark"]) .focus-calendar { --heat-empty: #222925; --heat-0: #24312a; --heat-1: #284132; --heat-2: #2f5a40; --heat-3: #36734d; --heat-4: #43935f; --heat-5: #62bd7e; }
 </style>

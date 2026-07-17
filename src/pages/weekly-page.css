@@ -1,5 +1,4 @@
 .weekly-page { padding-bottom: 28px; }
-.weekly-chart-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .weekly-card { min-width: 0; padding: 16px 17px; }
 .weekly-card--activity { padding-bottom: 14px; }
 .weekly-card__heading { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
@@ -14,19 +13,22 @@
 .legend i { width: 7px; height: 7px; border-radius: 2px; background: var(--accent-blue); }
 .legend--green i { background: var(--accent-green); }
 .legend--violet i { background: var(--accent-violet); }
-.weekly-analysis-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.weekly-analysis-grid { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); grid-template-areas: "focus insight" "apps apps"; gap: 12px; margin-top: 12px; }
+.weekly-chart-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .focus-panel,
-.top-apps-panel { grid-column: span 2; min-height: 302px; }
-.insight-panel { min-height: 302px; }
+.attention-panel { min-height: 294px; }
+.focus-panel { grid-area: focus; }
+.top-apps-panel { grid-area: apps; min-height: 0; }
+.insight-panel { grid-area: insight; min-width: 0; min-height: 0; }
 .focus-panel :deep(.focus-calendar) { margin-top: 14px; }
-.attention-summary { display: grid; gap: 9px; margin-top: 13px; padding: 10px; border: 1px solid var(--border-soft); border-radius: 11px; background: color-mix(in srgb, var(--bg-subtle) 76%, transparent); }
+.attention-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 11px; padding: 9px 10px; border: 1px solid var(--border-soft); border-radius: 10px; background: color-mix(in srgb, var(--bg-subtle) 76%, transparent); }
 .attention-summary span { display: grid; gap: 3px; }
 .attention-summary small { color: var(--text-muted); font-size: 10px; }
 .attention-summary strong { color: var(--text-primary); font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.attention-summary em { align-self: center; justify-self: start; padding: 5px 7px; border-radius: 8px; color: var(--text-muted); background: var(--bg-card); font-size: 10px; font-style: normal; white-space: normal; }
+.attention-summary em { min-width: 0; grid-column: 1 / -1; align-self: center; justify-self: start; padding: 5px 7px; border-radius: 8px; color: var(--text-muted); background: var(--bg-card); font-size: 10px; font-style: normal; overflow-wrap: anywhere; white-space: normal; }
 .attention-summary em.positive { color: color-mix(in srgb, var(--accent-green) 62%, var(--text-primary)); background: var(--accent-green-soft); }
 .attention-summary em.negative { color: color-mix(in srgb, var(--accent-red) 62%, var(--text-primary)); background: var(--accent-red-soft); }
-.achievements-panel { margin-top: 12px; }
+.achievements-panel { margin-top: 0; }
 .top-apps-panel { margin-top: 0; }
 .weekly-input-card { min-height: 84px; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 14px; margin-top: 12px; padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-card); }
 .weekly-input-card__icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; color: var(--accent-green-strong); background: var(--accent-green-soft); }
@@ -36,18 +38,12 @@
 .weekly-input-card p { margin: 0; color: var(--text-secondary); font-size: 10px; }
 .weekly-input-card > strong { color: var(--text-secondary); font-size: 10px; font-weight: 650; white-space: nowrap; }
 @media (max-width: 1120px) {
-  .weekly-analysis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .focus-panel,
-  .top-apps-panel,
-  .insight-panel { grid-column: auto; }
-  .top-apps-panel { grid-column: span 2; }
-  .attention-summary { grid-template-columns: 1fr 1fr; }
-  .attention-summary em { grid-column: span 2; }
+  .weekly-analysis-grid { grid-template-columns: 1fr; grid-template-areas: "focus" "insight" "apps"; }
+  .weekly-chart-stack { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
-  .weekly-chart-stack,
-  .weekly-analysis-grid { grid-template-columns: 1fr; }
-  .top-apps-panel { grid-column: auto; }
+  .weekly-analysis-grid,
+  .weekly-chart-stack { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .weekly-card { padding: 14px; }

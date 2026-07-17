@@ -14,6 +14,7 @@ import type {
   TimeEvent,
   TimeRange,
 } from './events'
+import { canonicalAppKey } from './appIdentity'
 import { clipRange, durationOf, intersectRanges, mergeRanges, peakConcurrency, summedDuration } from './intervals'
 
 function overlaps(event: TimeRange, range: TimeRange): boolean {
@@ -63,9 +64,10 @@ function deriveApps(foreground: ForegroundAppInterval[], activeRanges: TimeRange
   for (const event of foreground) {
     const duration = durationOf(intersectRanges([event], activeRanges))
     if (!duration) continue
-    const existing = totals.get(event.appId)
+    const appId = canonicalAppKey(event.appName) ?? event.appId
+    const existing = totals.get(appId)
     if (existing) existing.duration += duration
-    else totals.set(event.appId, { appId: event.appId, appName: event.appName, category: event.category, color: event.color, duration })
+    else totals.set(appId, { appId, appName: event.appName, category: event.category, color: event.color, duration })
   }
   return [...totals.values()].sort((a, b) => b.duration - a.duration)
 }
@@ -91,10 +93,11 @@ export function aggregateCategories(apps: AppDuration[]): CategoryDuration[] {
 
 function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval[], foregroundRanges: TimeRange[]): AiToolSummary[] {
   const total = summedDuration(work)
-  const ids = [...new Set([...work.map((event) => event.toolId), ...interactions.map((event) => event.toolId)])]
+  const canonicalToolId = (event: AiWorkInterval | AiInteractionInterval) => canonicalAppKey(event.toolName) ?? event.toolId
+  const ids = [...new Set([...work.map(canonicalToolId), ...interactions.map(canonicalToolId)])]
   return ids.map((toolId) => {
-    const workIntervals = work.filter((event) => event.toolId === toolId)
-    const interactionIntervals = interactions.filter((event) => event.toolId === toolId)
+    const workIntervals = work.filter((event) => canonicalToolId(event) === toolId)
+    const interactionIntervals = interactions.filter((event) => canonicalToolId(event) === toolId)
     const effectiveDuration = summedDuration(workIntervals)
     const evidence = evidenceFor([...workIntervals, ...interactionIntervals], '尚未检测到工具区间')
     return {

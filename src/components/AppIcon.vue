@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { PhAppWindow } from '@phosphor-icons/vue'
-import { buildAppIdentity, identityAccent, identityGlyph } from '../domain/appIdentity'
+import { buildAppIdentity, canonicalAppKey, identityAccent, identityGlyph } from '../domain/appIdentity'
 import { embeddedAppIcons } from '../data/appIconAssets'
 import chromeIcon from '../assets/apps/chrome.svg'
 import claudeIcon from '../assets/apps/claude.svg'
@@ -42,9 +42,17 @@ const status = ref<IconStatus>('loading')
 const nativeUrl = ref<string | null>(null)
 const imageBroken = ref(false)
 
+const displayKey = computed(() => canonicalAppKey(props.appName)
+  ?? canonicalAppKey(props.appIdentity)
+  ?? canonicalAppKey(props.iconKey)
+  ?? (props.appIdentity ?? props.iconKey ?? '').replace(/^app:/, '').toLowerCase())
+const resolverIdentity = computed(() => {
+  const hasConcreteIdentity = Boolean(props.executablePath || props.aumid || props.packageFullName || props.packageFamilyName || props.siteHost)
+  return hasConcreteIdentity ? props.appIdentity ?? props.iconKey : displayKey.value || props.appIdentity || props.iconKey
+})
 const identityInfo = computed(() =>
   buildAppIdentity({
-    appIdentity: props.appIdentity,
+    appIdentity: resolverIdentity.value,
     iconKey: props.iconKey,
     executablePath: props.executablePath,
     aumid: props.aumid,
@@ -55,14 +63,10 @@ const identityInfo = computed(() =>
   }),
 )
 
-const logicalKey = computed(() => {
-  const raw = props.appIdentity ?? props.iconKey ?? ''
-  return raw.replace(/^app:/, '').toLowerCase()
-})
-
 const embeddedSource = computed(
-  () => localIcons[logicalKey.value] ?? embeddedAppIcons[logicalKey.value] ?? null,
+  () => localIcons[displayKey.value] ?? embeddedAppIcons[displayKey.value] ?? null,
 )
+const lockedBrandAsset = computed(() => ['codex', 'typeless'].includes(displayKey.value) ? embeddedSource.value : null)
 
 const accent = computed(() => {
   store.themeRevision.value
@@ -72,7 +76,7 @@ const glyph = computed(() => identityGlyph(props.appName, identityInfo.value.ide
 
 const displayUrl = computed(() => {
   if (imageBroken.value) return null
-  return nativeUrl.value ?? embeddedSource.value
+  return lockedBrandAsset.value ?? nativeUrl.value ?? embeddedSource.value
 })
 
 const showImage = computed(() => Boolean(displayUrl.value) && !imageBroken.value)
@@ -95,7 +99,7 @@ async function refresh(): Promise<void> {
   }
 
   const result = await resolveAppIcon({
-    appIdentity: props.appIdentity ?? props.iconKey,
+    appIdentity: resolverIdentity.value,
     iconKey: props.iconKey,
     appName: props.appName,
     executablePath: props.executablePath,
@@ -140,6 +144,7 @@ watch(
   () => [
     props.appIdentity,
     props.iconKey,
+    props.appName,
     props.executablePath,
     props.aumid,
     props.packageFullName,

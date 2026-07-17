@@ -19,7 +19,7 @@ defineProps<{ apps: WeeklyApp[] }>()
 </template>
 
 <style scoped>
-.weekly-apps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 14px 0 0; padding: 0; list-style: none; }
+.weekly-apps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin: 13px 0 0; padding: 0; list-style: none; }
 .weekly-apps li { min-width: 0; display: grid; grid-template-columns: 18px 24px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 8px; border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--bg-subtle) 68%, transparent); }
 .weekly-apps__rank { color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .weekly-apps__name { min-width: 0; display: grid; gap: 2px; }
@@ -27,5 +27,6 @@ defineProps<{ apps: WeeklyApp[] }>()
 .weekly-apps__name small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .weekly-apps em { color: var(--text-secondary); font-size: 10px; font-style: normal; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .weekly-apps__empty { min-height: 110px; display: grid; place-items: center; color: var(--text-muted); font-size: 10px; }
+@media (max-width: 1180px) { .weekly-apps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .weekly-apps { grid-template-columns: 1fr; } }
 </style>
