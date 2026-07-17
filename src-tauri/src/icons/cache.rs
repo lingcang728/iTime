@@ -87,6 +87,10 @@ pub fn write_cached_png(path: &Path, png_bytes: &[u8]) -> std::io::Result<()> {
     }
     let tmp = path.with_extension("png.tmp");
     fs::write(&tmp, png_bytes)?;
+    if path.is_file() {
+        let _ = fs::remove_file(&tmp);
+        return Ok(());
+    }
     fs::rename(&tmp, path)?;
     Ok(())
 }

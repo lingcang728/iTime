@@ -24,8 +24,8 @@
   transition: opacity 190ms var(--ease-out), transform 190ms var(--ease-out);
 }
 
-.page-enter-from { opacity: 0; transform: translateX(8px); }
-.page-leave-to { opacity: 0; transform: translateX(-5px); }
+.page-enter-from,
+.page-leave-to { opacity: 0; }
 .drawer-enter-from,
 .drawer-leave-to,
 .modal-enter-from,

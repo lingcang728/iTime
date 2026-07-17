@@ -30,7 +30,7 @@ const colors = { learning: '#50a874', development: '#4c79e8', ai: '#7664d8', con
 function currentDuration(id: GoalId): number {
   if (id === 'learning') return store.day.value.apps.filter((app) => app.category === '学习').reduce((sum, app) => sum + app.duration, 0)
   if (id === 'development') return store.day.value.apps.filter((app) => app.category === '开发').reduce((sum, app) => sum + app.duration, 0)
-  if (id === 'ai') return store.day.value.aiEffective.value ?? 0
+  if (id === 'ai') return store.day.value.aiInteraction.value ?? 0
   return 0
 }
 
@@ -113,11 +113,6 @@ function saveQuietHours(): void {
           </header>
           <div class="time-range"><label><span>开始</span><input v-model="quietDraft.start" type="time"></label><b>至</b><label><span>结束</span><input v-model="quietDraft.end" type="time"></label></div>
           <div class="quiet-footer"><p :class="{ error: quietError }" role="status" aria-live="polite">{{ quietMessage || '支持跨午夜时段，例如 22:30 至 08:00。' }}</p><button type="button" @click="saveQuietHours">保存时段</button></div>
-        </article>
-        <article class="card reminder-card">
-          <span class="reminder-icon orange reminder-icon--art"><img :src="uiIcons.goalAiNotify" alt="" draggable="false" /></span>
-          <div><span>AI 任务完成</span><h2>后台任务完成时通知</h2><p>合并短时间内的连续完成消息，减少打断。</p></div>
-          <label class="toggle"><input v-model="store.state.aiNotifications" type="checkbox"><i></i></label>
         </article>
       </div>
     </div>

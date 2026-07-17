@@ -10,7 +10,7 @@ export interface TrendPoint {
 const props = defineProps<{ points: TrendPoint[] }>()
 const activeIndex = ref<number | null>(null)
 const values = computed(() => props.points.flatMap((point) => point.value === null ? [] : [point.value]))
-const maximum = computed(() => Math.max(1, ...values.value))
+const maximum = computed(() => values.value.reduce((current, value) => Math.max(current, value), 1))
 const positioned = computed(() => props.points.map((point, index) => ({
   ...point,
   x: 7 + index / Math.max(1, props.points.length - 1) * 86,
@@ -45,7 +45,7 @@ function valueLabel(value: number | null): string {
           v-for="(point, index) in positioned"
           :key="`${point.label}-${point.note}`"
           :tabindex="point.value === null ? -1 : 0"
-          role="button"
+          role="img"
           :aria-label="`${point.label} ${point.note}，主动注意力 ${valueLabel(point.value)}`"
           @mouseenter="activeIndex = index"
           @focus="activeIndex = index"
@@ -68,9 +68,9 @@ function valueLabel(value: number | null): string {
 
 <style scoped>
 .trend { min-width: 0; margin-top: 14px; }
-.trend__legend { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 9px; }
+.trend__legend { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 10px; }
 .trend__legend i { width: 8px; height: 8px; border-radius: 50%; background: #4f7fe7; box-shadow: 0 0 0 3px color-mix(in srgb, #4f7fe7 12%, transparent); }
-.trend__legend small { margin-left: auto; color: var(--text-muted); font-size: 8px; }
+.trend__legend small { margin-left: auto; color: var(--text-muted); font-size: 10px; }
 .trend__plot { position: relative; height: 100px; margin-top: 4px; }
 .trend__plot svg { width: 100%; height: 100%; overflow: visible; }
 .trend__grid { stroke: color-mix(in srgb, var(--border-soft) 76%, transparent); stroke-width: .4; vector-effect: non-scaling-stroke; }
@@ -80,8 +80,8 @@ function valueLabel(value: number | null): string {
 .trend g:hover circle,
 .trend g:focus-visible circle { r: 2.6; fill: #4f7fe7; outline: none; }
 .trend g:focus-visible { outline: none; }
-.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 1px; transform: translate(-50%, -110%); padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-card); font-size: 8px; pointer-events: none; white-space: nowrap; }
+.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 1px; transform: translate(-50%, -110%); padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-card); font-size: 10px; pointer-events: none; white-space: nowrap; }
 .trend__tooltip span { color: var(--text-secondary); }
-.trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); color: var(--text-muted); font-size: 8px; text-align: center; }
-.trend__empty { height: 100px; display: grid; place-items: center; margin-top: 4px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: 9px; }
+.trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); color: var(--text-muted); font-size: 10px; text-align: center; }
+.trend__empty { height: 100px; display: grid; place-items: center; margin-top: 4px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: 10px; }
 </style>

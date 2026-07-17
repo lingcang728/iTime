@@ -12,6 +12,7 @@ import { mergeRanges } from '../domain/intervals'
 import type { TimelineSegment } from '../domain/events'
 import { useAppStore } from '../stores/appStore'
 import { formatDuration, formatNumber } from '../utils/format'
+import { shouldShowRestReminder } from '../utils/reminders'
 
 interface DurationPart {
   amount: string
@@ -29,7 +30,7 @@ const rankingRows = computed(() => categories.value.map((category) => ({
 })))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
 const foregroundDuration = computed(() => store.day.value.foregroundActivity.value)
-const aiDuration = computed(() => store.day.value.aiEffective.value)
+const aiDuration = computed(() => store.day.value.aiInteraction.value)
 const voiceCharacters = computed(() => store.day.value.events.reduce((total, event) => event.type === 'voice' ? total + event.characters : total, 0))
 const activeInterval = computed(() => mergeRanges(store.day.value.events
   .filter((event) => event.type === 'device' && event.state === 'active')
@@ -40,15 +41,22 @@ const continuousTarget = computed(() => store.state.goals.continuous * 60_000)
 const timelineSegments = computed<TimelineSegment[]>(() => store.day.value.events
   .flatMap((event): TimelineSegment[] => {
     if (event.type === 'foreground') return [{ start: event.start, end: event.end, kind: 'attention' }]
-    if (event.type === 'aiWork') return [{ start: event.start, end: event.end, kind: 'agent' }]
+    if (event.type === 'aiInteraction') return [{ start: event.start, end: event.end, kind: 'interaction' }]
     if (event.type === 'media') return [{ start: event.start, end: event.end, kind: 'media' }]
     return []
   })
   .sort((a, b) => a.start - b.start))
 const dismissedDates = ref<string[]>(readDismissedDates())
-const reminderVisible = computed(() => store.state.reminders
-  && continuousDuration.value >= continuousTarget.value
-  && !dismissedDates.value.includes(store.state.selectedDate))
+const reminderVisible = computed(() => shouldShowRestReminder({
+  enabled: store.state.reminders,
+  continuousDuration: continuousDuration.value,
+  targetDuration: continuousTarget.value,
+  lastActiveEnd: activeInterval.value?.end ?? null,
+  now: new Date(),
+  quietStart: store.state.quietStart,
+  quietEnd: store.state.quietEnd,
+  dismissed: dismissedDates.value.includes(store.state.selectedDate),
+}))
 const timeTicks = [0, 4, 8, 12, 16, 20, 24]
 
 function durationParts(value: number | null): DurationPart[] {
@@ -89,7 +97,7 @@ function dismissReminder(): void {
     <div class="metrics-grid metrics-grid--home">
       <MetricCard label="电脑活动时间" :value-parts="durationParts(computerDuration)" :detail="store.state.activityDataMessage" :icon-src="uiIcons.metricComputer" tone="blue" />
       <MetricCard label="主动注意力" :value-parts="durationParts(foregroundDuration)" :detail="shareOf(foregroundDuration, computerDuration)" :icon-src="uiIcons.metricAttention" tone="green" />
-      <MetricCard label="AI 代理工作" :value-parts="durationParts(aiDuration)" :detail="store.day.value.aiEffective.basis" :icon-src="uiIcons.metricAiAgent" tone="violet" />
+      <MetricCard label="AI 前台活跃" :value-parts="durationParts(aiDuration)" :detail="store.day.value.aiInteraction.basis" :icon-src="uiIcons.metricAiAgent" tone="violet" />
       <MetricCard label="语音输入" :value-parts="durationParts(store.day.value.voiceDuration.value)" :detail="`${formatNumber(voiceCharacters)} 字`" :icon-src="uiIcons.metricVoice" tone="cyan" />
       <MetricCard label="离座播放" :value-parts="durationParts(store.day.value.mediaDuration.value)" :detail="shareOf(store.day.value.mediaDuration.value, computerDuration)" :icon-src="uiIcons.metricMedia" tone="orange" />
     </div>
@@ -129,9 +137,9 @@ function dismissReminder(): void {
       <div class="section-heading">
         <div class="section-heading__title">
           <img class="section-heading__icon" :src="uiIcons.pageTimeline" alt="" draggable="false" />
-          <div><h2>今日时间线</h2><p>把注意力、AI 与离座播放放在同一条时间轴上</p></div>
+          <div><h2>今日时间线</h2><p>把注意力、AI 前台与离座播放放在同一条时间轴上</p></div>
         </div>
-        <div class="legend"><span class="green">主动注意力</span><span class="violet">AI 代理</span><span class="orange">离座播放</span></div>
+        <div class="legend"><span class="green">主动注意力</span><span class="violet">AI 前台</span><span class="orange">离座播放</span></div>
       </div>
       <div class="time-axis"><span v-for="tick in timeTicks" :key="tick" :style="{ left: `${tick / 24 * 100}%` }">{{ String(tick).padStart(2, '0') }}:00</span></div>
       <TimelineLane v-if="timelineSegments.length" :range="store.day.value.range" :segments="timelineSegments" />

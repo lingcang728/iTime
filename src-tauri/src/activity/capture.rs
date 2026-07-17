@@ -2,7 +2,12 @@ use super::model::{ActivityObservation, DeviceState};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-const IDLE_THRESHOLD_MILLIS: u32 = 5 * 60 * 1_000;
+pub(super) const IDLE_THRESHOLD_MILLIS: u32 = 5 * 60 * 1_000;
+
+pub(super) struct CapturedObservation {
+    pub(super) observation: ActivityObservation,
+    pub(super) idle_millis: Option<u32>,
+}
 
 fn identify(path: &Path) -> (String, String, bool) {
     let raw = path.to_string_lossy();
@@ -15,12 +20,11 @@ fn identify(path: &Path) -> (String, String, bool) {
     let normalized_file = file.to_ascii_lowercase();
     let (name, ai_tool) = if lower.contains("openai.codex") {
         ("Codex".to_string(), true)
-    } else if ["codex", "claude", "chatgpt", "typeless"].contains(&normalized_file.as_str()) {
+    } else if ["codex", "claude", "chatgpt"].contains(&normalized_file.as_str()) {
         let name = match normalized_file.as_str() {
             "codex" => "Codex",
             "claude" => "Claude",
             "chatgpt" => "ChatGPT",
-            "typeless" => "Typeless",
             _ => file.as_str(),
         };
         (name.to_string(), true)
@@ -137,19 +141,23 @@ fn foreground_path() -> Option<std::path::PathBuf> {
     None
 }
 
-pub(super) fn capture_observation() -> ActivityObservation {
-    let device_state = match idle_millis() {
+pub(super) fn capture_observation() -> CapturedObservation {
+    let idle_millis = idle_millis();
+    let device_state = match idle_millis {
         Some(value) if value >= IDLE_THRESHOLD_MILLIS => DeviceState::Idle,
         Some(_) => DeviceState::Active,
         None => DeviceState::Unknown,
     };
     let path = foreground_path();
     let identity = path.as_deref().map(identify);
-    ActivityObservation {
-        device_state,
-        app_id: identity.as_ref().map(|value| value.0.clone()),
-        app_name: identity.as_ref().map(|value| value.1.clone()),
-        ai_tool: identity.is_some_and(|value| value.2),
+    CapturedObservation {
+        observation: ActivityObservation {
+            device_state,
+            app_id: identity.as_ref().map(|value| value.0.clone()),
+            app_name: identity.as_ref().map(|value| value.1.clone()),
+            ai_tool: identity.is_some_and(|value| value.2),
+        },
+        idle_millis,
     }
 }
 

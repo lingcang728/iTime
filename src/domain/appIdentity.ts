@@ -23,12 +23,22 @@ export function normalizeLogicalKey(value: string | null | undefined): string | 
   return normalized || null
 }
 
+function privatePathKey(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/\//g, '\\')
+  let hash = 0xcbf29ce484222325n
+  for (const byte of new TextEncoder().encode(normalized)) {
+    hash ^= BigInt(byte)
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n)
+  }
+  return hash.toString(16).padStart(16, '0')
+}
+
 /** Frontend mirror of Rust normalize_app_identity for cache keys / UI state. */
 export function buildAppIdentity(input: AppIdentityInput): { identity: string; kind: AppIdentityKind } {
   const host = input.siteHost?.trim()
   if (host) {
     const browser =
-      normalizeLogicalKey(input.executablePath) ??
+      (input.executablePath?.trim() ? privatePathKey(input.executablePath) : null) ??
       normalizeLogicalKey(input.appIdentity) ??
       normalizeLogicalKey(input.iconKey) ??
       'browser'
@@ -47,7 +57,7 @@ export function buildAppIdentity(input: AppIdentityInput): { identity: string; k
 
   const path = input.executablePath?.trim()
   if (path) {
-    return { identity: `exe:${path.toLowerCase().replace(/\//g, '\\')}`, kind: 'executable_path' }
+    return { identity: `exe:${privatePathKey(path)}`, kind: 'executable_path' }
   }
 
   const logical =

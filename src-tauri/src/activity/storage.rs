@@ -3,7 +3,8 @@ use std::{
     fs::{self, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::PathBuf,
-    time::SystemTime,
+    thread,
+    time::{Duration, SystemTime},
 };
 
 const MAX_QUERY_MILLIS: u64 = 32 * 24 * 60 * 60 * 1_000;
@@ -19,7 +20,7 @@ fn data_file_path() -> Result<PathBuf, ActivityError> {
         .join("activity-v1.jsonl"))
 }
 
-pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
+fn append_slice_once(slice: &ActivitySlice) -> Result<(), ActivityError> {
     let path = data_file_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(ActivityError::io)?;
@@ -31,7 +32,22 @@ pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
         .map_err(ActivityError::io)?;
     serde_json::to_writer(&mut file, slice).map_err(ActivityError::io)?;
     file.write_all(b"\n").map_err(ActivityError::io)?;
-    file.flush().map_err(ActivityError::io)
+    file.flush().map_err(ActivityError::io)?;
+    file.sync_data().map_err(ActivityError::io)
+}
+
+pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
+    let mut last_error = None;
+    for attempt in 0..3 {
+        match append_slice_once(slice) {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = Some(error),
+        }
+        if attempt < 2 {
+            thread::sleep(Duration::from_millis(50 * (attempt + 1)));
+        }
+    }
+    Err(last_error.unwrap_or_else(|| ActivityError::io("活动记录写入失败")))
 }
 
 fn modified_millis(path: &PathBuf) -> u128 {

@@ -22,6 +22,7 @@ pub fn normalize_app_identity(
 ) -> (String, AppIdentityKind) {
     if let Some(host) = site_host.map(str::trim).filter(|v| !v.is_empty()) {
         let browser = normalize_path_key(executable_path)
+            .map(|path| private_path_key(&path))
             .or_else(|| normalize_logical_key(app_identity))
             .unwrap_or_else(|| "browser".to_string());
         return (
@@ -41,7 +42,10 @@ pub fn normalize_app_identity(
     }
 
     if let Some(path_key) = normalize_path_key(executable_path) {
-        return (format!("exe:{}", path_key), AppIdentityKind::ExecutablePath);
+        return (
+            format!("exe:{}", private_path_key(&path_key)),
+            AppIdentityKind::ExecutablePath,
+        );
     }
 
     if let Some(logical) = normalize_logical_key(app_identity) {
@@ -49,6 +53,15 @@ pub fn normalize_app_identity(
     }
 
     ("app:unknown".to_string(), AppIdentityKind::Logical)
+}
+
+fn private_path_key(value: &str) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}")
 }
 
 pub fn normalize_path_key(path: Option<&str>) -> Option<String> {
@@ -124,6 +137,23 @@ mod tests {
         );
         assert_eq!(kind, AppIdentityKind::BrowserSite);
         assert!(id.starts_with("site:github.com@"));
+    }
+
+    #[test]
+    fn executable_identity_never_exposes_the_source_path() {
+        let (id, kind) = normalize_app_identity(
+            None,
+            Some(r"C:\Users\person\Apps\Secret\tool.exe"),
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(kind, AppIdentityKind::ExecutablePath);
+        assert!(id.starts_with("exe:"));
+        assert_eq!(id.len(), 20);
+        assert!(!id.to_ascii_lowercase().contains("users"));
+        assert!(!id.to_ascii_lowercase().contains("secret"));
     }
 
     #[test]

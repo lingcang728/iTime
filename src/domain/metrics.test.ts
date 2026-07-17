@@ -25,11 +25,12 @@ describe('daily metrics', () => {
     ]
     const result = deriveDaySnapshot(events, range)
     expect(result.foregroundActivity.value).toBe(60)
+    expect(result.aiInteraction.value).toBe(20)
     expect(result.aiEffective.value).toBe(80)
     expect(result.aiCoverage.value).toBe(60)
     expect(result.parallelOverlap.value).toBe(50)
     expect(result.maxConcurrency.value).toBe(2)
-    expect(result.totalDuration.value).toBe(140)
+    expect(result.totalDuration.value).toBe(70)
     expect(result.aiLeverage.value).toBe(4)
     expect(result.parallelGain.value).toBeCloseTo(4 / 3)
   })
@@ -39,6 +40,23 @@ describe('daily metrics', () => {
     expect(result.aiLeverage.value).toBeNull()
     expect(result.parallelGain.value).toBeNull()
     expect(result.aiLeverage.reviewState).toBe('needsReview')
+    expect(result.foregroundActivity.value).toBeNull()
+  })
+
+  it('does not turn partial evidence into real zeroes', () => {
+    const range = { start: 0, end: 100 }
+    const events: TimeEvent[] = [
+      event<DeviceStateInterval>({ id: 'd', type: 'device', state: 'active', start: 0, end: 100, ...evidence }),
+      event<AiInteractionInterval>({ id: 'i', type: 'aiInteraction', toolId: 'codex', toolName: 'Codex', start: 10, end: 30, ...evidence }),
+    ]
+    const result = deriveDaySnapshot(events, range)
+    expect(result.computerActivity.value).toBe(100)
+    expect(result.aiInteraction.value).toBe(20)
+    expect(result.foregroundActivity.value).toBeNull()
+    expect(result.aiEffective.value).toBeNull()
+    expect(result.parallelOverlap.value).toBeNull()
+    expect(result.totalDuration.value).toBeNull()
+    expect(result.aiLeverage.value).toBeNull()
   })
 
   it('propagates estimated and low-confidence evidence', () => {

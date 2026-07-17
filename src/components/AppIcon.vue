@@ -12,6 +12,7 @@ import {
   subscribeAppIcons,
   type IconStatus,
 } from '../services/appIconService'
+import { useAppStore } from '../stores/appStore'
 
 const props = withDefaults(
   defineProps<{
@@ -29,6 +30,7 @@ const props = withDefaults(
   }>(),
   { size: 20 },
 )
+const store = useAppStore()
 
 const localIcons: Record<string, string> = {
   claude: claudeIcon,
@@ -62,9 +64,8 @@ const embeddedSource = computed(
   () => localIcons[logicalKey.value] ?? embeddedAppIcons[logicalKey.value] ?? null,
 )
 
-const themeTick = ref(0)
 const accent = computed(() => {
-  themeTick.value
+  store.themeRevision.value
   return identityAccent(identityInfo.value.identity)
 })
 const glyph = computed(() => identityGlyph(props.appName, identityInfo.value.identity))
@@ -79,6 +80,7 @@ const showGlyph = computed(() => !showImage.value)
 const ariaLabel = computed(() => props.appName || props.appIdentity || props.iconKey || 'app')
 
 let unsubscribe: (() => void) | undefined
+let mounted = false
 
 async function refresh(): Promise<void> {
   imageBroken.value = false
@@ -104,7 +106,7 @@ async function refresh(): Promise<void> {
     requestedSize: Math.max(32, Math.round(props.size * 2)),
   })
 
-  if (result.appIdentity !== identityInfo.value.identity) return
+  if (!mounted || result.appIdentity !== identityInfo.value.identity) return
   status.value = result.status
   nativeUrl.value = result.iconUrl ?? null
   if (result.status === 'failed' || result.status === 'unknown') {
@@ -118,25 +120,20 @@ function onImageError(): void {
   if (status.value === 'resolved') status.value = 'failed'
 }
 
-let themeObserver: MutationObserver | undefined
-
 onMounted(() => {
+  mounted = true
   unsubscribe = subscribeAppIcons((result) => {
     if (result.appIdentity !== identityInfo.value.identity) return
     status.value = result.status
     nativeUrl.value = result.iconUrl ?? null
     if (result.status === 'resolved') imageBroken.value = false
   })
-  themeObserver = new MutationObserver(() => {
-    themeTick.value += 1
-  })
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
   void refresh()
 })
 
 onUnmounted(() => {
+  mounted = false
   unsubscribe?.()
-  themeObserver?.disconnect()
 })
 
 watch(
@@ -146,6 +143,7 @@ watch(
     props.executablePath,
     props.aumid,
     props.packageFullName,
+    props.packageFamilyName,
     props.siteHost,
     props.size,
   ],

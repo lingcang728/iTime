@@ -12,13 +12,34 @@ const READ_ATTEMPTS: usize = 3;
 const RETRY_DELAY: Duration = Duration::from_millis(30);
 
 fn is_iso_date(value: &str) -> bool {
-    value.len() == 10
+    if !(value.len() == 10
         && value.as_bytes().get(4) == Some(&b'-')
         && value.as_bytes().get(7) == Some(&b'-')
         && value
             .bytes()
             .enumerate()
-            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
+            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit()))
+    {
+        return false;
+    }
+    let Ok(year) = value[0..4].parse::<u32>() else {
+        return false;
+    };
+    let Ok(month) = value[5..7].parse::<u32>() else {
+        return false;
+    };
+    let Ok(day) = value[8..10].parse::<u32>() else {
+        return false;
+    };
+    let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 fn invalid_data(message: impl Into<String>) -> KeyStatsReadError {
@@ -91,6 +112,30 @@ fn parse_snapshot(contents: &str, updated_at: u128) -> Result<KeyStatsSnapshot, 
     })
 }
 
+fn decode_contents(bytes: &[u8]) -> Result<String, KeyStatsReadError> {
+    if let Some(rest) = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]) {
+        return String::from_utf8(rest.to_vec()).map_err(|error| invalid_data(error.to_string()));
+    }
+    let (bytes, big_endian) = if let Some(rest) = bytes.strip_prefix(&[0xff, 0xfe]) {
+        (rest, false)
+    } else if let Some(rest) = bytes.strip_prefix(&[0xfe, 0xff]) {
+        (rest, true)
+    } else {
+        return String::from_utf8(bytes.to_vec()).map_err(|error| invalid_data(error.to_string()));
+    };
+    if bytes.len() % 2 != 0 {
+        return Err(invalid_data("KeyStats UTF-16 数据长度无效"));
+    }
+    let units = bytes.chunks_exact(2).map(|pair| {
+        if big_endian {
+            u16::from_be_bytes([pair[0], pair[1]])
+        } else {
+            u16::from_le_bytes([pair[0], pair[1]])
+        }
+    });
+    String::from_utf16(&units.collect::<Vec<_>>()).map_err(|error| invalid_data(error.to_string()))
+}
+
 fn source_path() -> Result<PathBuf, KeyStatsReadError> {
     let app_data = std::env::var_os("APPDATA").ok_or_else(|| KeyStatsReadError {
         code: "not_found",
@@ -112,8 +157,10 @@ fn modified_millis(path: &Path) -> u128 {
 fn read_snapshot(path: &Path) -> Result<KeyStatsSnapshot, KeyStatsReadError> {
     let mut last_message = String::from("KeyStats 数据暂时不可读");
     for attempt in 0..READ_ATTEMPTS {
-        match fs::read_to_string(path) {
-            Ok(contents) => match parse_snapshot(&contents, modified_millis(path)) {
+        match fs::read(path) {
+            Ok(bytes) => match decode_contents(&bytes)
+                .and_then(|contents| parse_snapshot(&contents, modified_millis(path)))
+            {
                 Ok(snapshot) => return Ok(snapshot),
                 Err(error) => last_message = error.message,
             },
@@ -165,5 +212,19 @@ mod tests {
           "history":[],"keyStats":{},"totalKeyStats":{}
         }"#;
         assert!(parse_snapshot(json, 0).is_err());
+    }
+
+    #[test]
+    fn rejects_impossible_calendar_dates() {
+        assert!(!is_iso_date("2026-02-29"));
+        assert!(is_iso_date("2024-02-29"));
+        assert!(!is_iso_date("2026-13-01"));
+    }
+
+    #[test]
+    fn decodes_utf8_bom_and_utf16_little_endian() {
+        assert_eq!(decode_contents(b"\xef\xbb\xbf{}").unwrap(), "{}");
+        let utf16 = [0xff, 0xfe, b'{', 0, b'}', 0];
+        assert_eq!(decode_contents(&utf16).unwrap(), "{}");
     }
 }

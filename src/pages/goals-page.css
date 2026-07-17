@@ -219,7 +219,7 @@
 .toggle i::after { position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-elevated); box-shadow: 0 2px 5px rgba(40, 42, 39, .2); content: ''; transition: transform .18s var(--ease-out); }
 .toggle input:checked + i { background: var(--accent-green); }
 .toggle input:checked + i::after { transform: translateX(20px); }
-.toggle input:focus-visible + i { outline: 3px solid var(--accent-blue-soft); }
+.toggle input:focus-visible + i { outline: 3px solid var(--border-focus); outline-offset: 2px; }
 
 .quiet-card { padding: 16px; }
 .quiet-card header { display: flex; align-items: center; gap: 13px; }

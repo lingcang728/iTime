@@ -31,7 +31,6 @@ import goalDevelopment from '../assets/ui-icons/goal-development.png'
 import goalAi from '../assets/ui-icons/goal-ai.png'
 import goalContinuous from '../assets/ui-icons/goal-continuous.png'
 import goalQuiet from '../assets/ui-icons/goal-quiet.png'
-import goalAiNotify from '../assets/ui-icons/goal-ai-notify.png'
 import weeklyAchievements from '../assets/ui-icons/weekly-achievements.png'
 import weeklyBestDay from '../assets/ui-icons/weekly-best-day.png'
 import goalSave from '../assets/ui-icons/goal-save.png'
@@ -69,7 +68,6 @@ export const uiIcons = {
   goalAi,
   goalContinuous,
   goalQuiet,
-  goalAiNotify,
   weeklyAchievements,
   weeklyBestDay,
   goalSave,

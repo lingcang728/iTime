@@ -43,7 +43,7 @@ function evidenceFor(events: EventEvidence[], fallback: string): Pick<StatValue,
 }
 
 function metric(value: number | null, unit: StatUnit, range: TimeRange, calculationType: CalculationType, evidence: EventEvidence[], fallback: string): StatValue {
-  return { value, unit, range, calculationType, ...evidenceFor(evidence, fallback) }
+  return { value: evidence.length ? value : null, unit, range, calculationType, ...evidenceFor(evidence, fallback) }
 }
 
 type EventOfType<K extends TimeEvent['type']> = Extract<TimeEvent, { type: K }>
@@ -91,7 +91,7 @@ export function aggregateCategories(apps: AppDuration[]): CategoryDuration[] {
 
 function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval[], foregroundRanges: TimeRange[]): AiToolSummary[] {
   const total = summedDuration(work)
-  const ids = [...new Set(work.map((event) => event.toolId))]
+  const ids = [...new Set([...work.map((event) => event.toolId), ...interactions.map((event) => event.toolId)])]
   return ids.map((toolId) => {
     const workIntervals = work.filter((event) => event.toolId === toolId)
     const interactionIntervals = interactions.filter((event) => event.toolId === toolId)
@@ -99,8 +99,8 @@ function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval
     const evidence = evidenceFor([...workIntervals, ...interactionIntervals], '尚未检测到工具区间')
     return {
       toolId,
-      toolName: workIntervals[0].toolName,
-      status: 'completed' as const,
+      toolName: workIntervals[0]?.toolName ?? interactionIntervals[0]?.toolName ?? toolId,
+      status: workIntervals.length ? 'completed' as const : 'waiting' as const,
       iconKey: toolId,
       foregroundDuration: durationOf(interactionIntervals),
       effectiveDuration,
@@ -115,7 +115,7 @@ function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval
       interactionIntervals,
       waitIntervals: [],
     }
-  }).sort((a, b) => b.effectiveDuration - a.effectiveDuration)
+  }).sort((a, b) => (b.effectiveDuration || b.foregroundDuration) - (a.effectiveDuration || a.foregroundDuration))
 }
 
 export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySnapshot {
@@ -138,19 +138,26 @@ export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySna
   const coverageDuration = durationOf(aiCoverageRanges)
   const interactionDuration = durationOf(interactionRanges)
   const parallelDuration = durationOf(intersectRanges(foregroundRanges, aiCoverageRanges))
-  const aiLeverage = interactionDuration ? effectiveDuration / interactionDuration : null
+  const aiLeverage = aiWork.length && interactionDuration ? effectiveDuration / interactionDuration : null
   const parallelGain = coverageDuration ? effectiveDuration / coverageDuration : null
-  const snapshotEvents = events.filter((event) => overlaps(event, range))
+  const totalRanges = mergeRanges([...foregroundRanges, ...aiCoverageRanges])
+  const snapshotEvents = events
+    .filter((event) => overlaps(event, range))
+    .flatMap((event) => {
+      const clipped = clipRange(event, range)
+      return clipped ? [{ ...event, ...clipped } as TimeEvent] : []
+    })
 
   return {
     range,
     computerActivity: metric(durationOf(availableDevice), 'milliseconds', range, 'union', availableDevice, '设备状态数据不足'),
-    foregroundActivity: metric(foregroundDuration, 'milliseconds', range, 'intersection', [...foreground, ...activeDevice], '前台活动数据不足'),
+    foregroundActivity: metric(foreground.length && activeDevice.length ? foregroundDuration : null, 'milliseconds', range, 'intersection', [...foreground, ...activeDevice], '前台活动数据不足'),
+    aiInteraction: metric(interactionDuration, 'milliseconds', range, 'union', aiInteractions, 'AI 前台活跃数据不足'),
     aiEffective: metric(effectiveDuration, 'milliseconds', range, 'sum', aiWork, 'AI 工具执行区间不足'),
     aiCoverage: metric(coverageDuration, 'milliseconds', range, 'union', aiWork, 'AI 工具执行区间不足'),
-    parallelOverlap: metric(parallelDuration, 'milliseconds', range, 'intersection', [...foreground, ...activeDevice, ...aiWork], '并行区间不足'),
+    parallelOverlap: metric(foreground.length && activeDevice.length && aiWork.length ? parallelDuration : null, 'milliseconds', range, 'intersection', [...foreground, ...activeDevice, ...aiWork], '并行区间不足'),
     maxConcurrency: metric(peakConcurrency(aiRanges), 'count', range, 'peak', aiWork, 'AI 工具执行区间不足'),
-    totalDuration: metric(foregroundDuration + effectiveDuration, 'milliseconds', range, 'sum', [...foreground, ...activeDevice, ...aiWork], '前台或 AI 数据不足'),
+    totalDuration: metric(totalRanges.length ? durationOf(totalRanges) : null, 'milliseconds', range, 'union', [...foreground, ...activeDevice, ...aiWork], '前台或 AI 数据不足'),
     aiLeverage: metric(aiLeverage, 'ratio', range, 'ratio', [...aiWork, ...aiInteractions], '缺少 AI 前台交互区间'),
     parallelGain: metric(parallelGain, 'ratio', range, 'ratio', aiWork, '缺少 AI 覆盖区间'),
     voiceDuration: metric(summedDuration(voice), 'milliseconds', range, 'sum', voice, '语音输入数据不足'),

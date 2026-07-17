@@ -4,7 +4,7 @@ import { PhActivity, PhCheckCircle, PhClockCounterClockwise, PhStack } from '@ph
 import PageHeader from '../components/PageHeader.vue'
 import ActivityLane, { type ActivitySegment } from '../components/timeline/ActivityLane.vue'
 import type {
-  AiWorkInterval,
+  AiInteractionInterval,
   DeviceStateInterval,
   ForegroundAppInterval,
   MediaPlaybackInterval,
@@ -34,13 +34,13 @@ const appSegments = computed<ActivitySegment[]>(() => byType<ForegroundAppInterv
   kind: 'other',
   title: event.appName,
 })))
-const aiSegments = computed<ActivitySegment[]>(() => byType<AiWorkInterval>('aiWork').map((event) => ({
+const aiSegments = computed<ActivitySegment[]>(() => byType<AiInteractionInterval>('aiInteraction').map((event) => ({
   start: event.start,
   end: event.end,
-  color: event.accuracyLabel === 'precise' ? '#7664d8' : '#9b8ce8',
-  kind: 'agent',
-  variant: event.accuracyLabel === 'precise' ? 'solid' : 'hatched',
-  title: `${event.toolName}${event.accuracyLabel === 'estimated' ? '（估算）' : ''}`,
+  color: '#7664d8',
+  kind: 'interaction',
+  variant: 'hatched',
+  title: `${event.toolName}（前台活跃）`,
 })))
 const voiceSegments = computed<ActivitySegment[]>(() => byType<VoiceInputInterval>('voice').map((event) => ({
   start: event.start,
@@ -58,8 +58,8 @@ const mediaSegments = computed<ActivitySegment[]>(() => byType<MediaPlaybackInte
   title: `${event.appName}${event.awayPlayback ? '（离开播放）' : ''}`,
 })))
 const pageSubtitle = computed(() => store.state.activityDataStatus === 'ready'
-  ? '用同一日活动记录核对设备、前台应用与 AI 工作'
-  : '展示设备、前台应用与 AI 工作在一天中的关系')
+  ? '用同一日活动记录核对设备、前台应用与 AI 前台活跃'
+  : '展示设备、前台应用与 AI 前台活跃在一天中的关系')
 const sourceLabel = computed(() => store.state.activityDataStatus === 'ready' ? '本机活动记录' : '预览数据')
 </script>
 
@@ -69,8 +69,8 @@ const sourceLabel = computed(() => store.state.activityDataStatus === 'ready' ? 
 
     <div class="timeline-overview">
       <article class="timeline-stat stat-green"><span>前台活动</span><strong>{{ formatDuration(store.day.value.foregroundActivity.value, true) }}</strong><small>设备活跃且有前台应用</small></article>
-      <article class="timeline-stat stat-violet"><span>AI 覆盖</span><strong>{{ formatDuration(store.day.value.aiCoverage.value, true) }}</strong><small>至少一个代理在有效执行</small></article>
-      <article class="timeline-stat stat-blue"><span>并行时段</span><strong>{{ formatDuration(store.day.value.parallelOverlap.value, true) }}</strong><small>人的活动与 AI 同时发生</small></article>
+      <article class="timeline-stat stat-violet"><span>AI 前台活跃</span><strong>{{ formatDuration(store.day.value.aiInteraction.value, true) }}</strong><small>设备活跃且 AI 工具处于前台</small></article>
+      <article class="timeline-stat stat-blue"><span>Provider 并行</span><strong>{{ formatDuration(store.day.value.parallelOverlap.value, true) }}</strong><small>仅有执行事件时计算</small></article>
     </div>
 
     <article class="card full-timeline" aria-labelledby="activity-tracks-title">
@@ -82,19 +82,19 @@ const sourceLabel = computed(() => store.state.activityDataStatus === 'ready' ? 
       <div class="timeline-tracks">
         <ActivityLane label="设备状态" :range="store.day.value.range" :segments="deviceSegments" />
         <ActivityLane label="前台应用" :range="store.day.value.range" :segments="appSegments" />
-        <ActivityLane label="AI 代理" :range="store.day.value.range" :segments="aiSegments" />
+        <ActivityLane label="AI 前台" :range="store.day.value.range" :segments="aiSegments" />
         <ActivityLane label="语音输入" :range="store.day.value.range" :segments="voiceSegments" />
         <ActivityLane label="媒体播放" :range="store.day.value.range" :segments="mediaSegments" />
       </div>
       <div class="timeline-legend" aria-label="时间线颜色说明">
-        <span><i class="green" />设备活跃</span><span><i class="blue" />前台应用</span><span><i class="violet" />AI 代理</span><span><i class="cyan" />语音输入</span><span><i class="orange" />媒体播放</span>
+        <span><i class="green" />设备活跃</span><span><i class="idle" />设备空闲</span><span><i class="unknown" />状态未知</span><span><i class="blue" />前台应用</span><span><i class="violet" />AI 前台</span><span><i class="cyan" />语音输入</span><span><i class="orange" />媒体播放</span>
       </div>
     </article>
 
     <div class="timeline-detail-grid">
       <article class="card event-summary">
         <span class="summary-icon green"><PhActivity :size="21" weight="duotone" /></span>
-        <div><small>统计口径</small><h2>人的前台活动与 AI 有效工时分别累加</h2><p>{{ formatDuration(store.day.value.foregroundActivity.value, true) }} 前台活动 + {{ formatDuration(store.day.value.aiEffective.value, true) }} AI 有效工时 = {{ formatDuration(store.day.value.totalDuration.value, true) }} 总投入。</p></div>
+        <div><small>统计口径</small><h2>总覆盖按自然时间并集计算</h2><p>前台活动与有证据的 Provider 执行重叠时只计一次；当前总覆盖为 {{ formatDuration(store.day.value.totalDuration.value, true) }}。</p></div>
       </article>
       <article class="card event-summary">
         <span class="summary-icon violet"><PhStack :size="21" weight="duotone" /></span>
@@ -110,26 +110,26 @@ const sourceLabel = computed(() => store.state.activityDataStatus === 'ready' ? 
 .timeline-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .timeline-stat { position: relative; overflow: hidden; display: grid; gap: 5px; padding: 17px 19px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-card); }
 .timeline-stat::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--stat-color); }
-.timeline-stat span { color: var(--text-secondary); font-size: 10px; }
+.timeline-stat span { color: var(--text-secondary); font-size: 11px; }
 .timeline-stat strong { font: 720 21px/1.2 var(--font-data); letter-spacing: -.35px; }
-.timeline-stat small { color: var(--text-muted); font-size: 9px; }
+.timeline-stat small { color: var(--text-muted); font-size: 10px; }
 .stat-green { --stat-color: var(--accent-green); }.stat-violet { --stat-color: var(--accent-violet); }.stat-blue { --stat-color: var(--accent-blue); }
 .full-timeline { margin-top: 12px; padding: 21px; }
 .track-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .track-header h2 { margin: 0; font-size: 16px; }
-.track-header p { margin: 5px 0 0; color: var(--text-secondary); font-size: 10px; }
-.track-header > span { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 9px; }
-.timeline-axis { display: grid; grid-template-columns: 92px repeat(7, 1fr); gap: 12px; margin: 20px 0 8px; color: var(--text-muted); font-size: 8px; font-variant-numeric: tabular-nums; }
+.track-header p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; }
+.track-header > span { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 10px; }
+.timeline-axis { display: grid; grid-template-columns: 92px repeat(7, 1fr); gap: 12px; margin: 20px 0 8px; color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .timeline-axis span:not(:first-child) { text-align: center; }
 .timeline-tracks { display: grid; gap: 7px; }
-.timeline-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 14px; margin-top: 17px; color: var(--text-secondary); font-size: 9px; }
+.timeline-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 14px; margin-top: 17px; color: var(--text-secondary); font-size: 10px; }
 .timeline-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.timeline-legend i { width: 7px; height: 7px; border-radius: 2px; }.timeline-legend .green { background: var(--accent-green); }.timeline-legend .blue { background: var(--accent-blue); }.timeline-legend .violet { background: var(--accent-violet); }.timeline-legend .cyan { background: var(--accent-cyan); }.timeline-legend .orange { background: var(--accent-orange); }
+.timeline-legend i { width: 7px; height: 7px; border-radius: 2px; }.timeline-legend .green { background: var(--accent-green); }.timeline-legend .idle { background: #d29a45; }.timeline-legend .unknown { background: #a3a8ae; }.timeline-legend .blue { background: var(--accent-blue); }.timeline-legend .violet { background: var(--accent-violet); }.timeline-legend .cyan { background: var(--accent-cyan); }.timeline-legend .orange { background: var(--accent-orange); }
 .timeline-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .event-summary { display: flex; gap: 13px; padding: 17px; }
 .summary-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 11px; }.summary-icon.green { color: var(--accent-green-strong); background: var(--accent-green-soft); }.summary-icon.violet { color: var(--accent-violet-strong); background: var(--accent-violet-soft); }
-.event-summary small { color: var(--text-muted); font-size: 9px; }.event-summary h2 { margin: 4px 0 0; font-size: 12px; }.event-summary p { margin: 6px 0 0; color: var(--text-secondary); font-size: 9px; line-height: 1.6; }
-.timeline-footnote { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin: 10px 2px 0; color: var(--text-muted); font-size: 8px; }
+.event-summary small { color: var(--text-muted); font-size: 10px; }.event-summary h2 { margin: 4px 0 0; font-size: 12px; }.event-summary p { margin: 6px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.timeline-footnote { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin: 10px 2px 0; color: var(--text-muted); font-size: 10px; }
 @media (max-width: 760px) { .timeline-overview,
 .timeline-detail-grid { grid-template-columns: 1fr; } .timeline-axis { grid-template-columns: 72px repeat(7, 1fr); gap: 8px; } }
 </style>

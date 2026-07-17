@@ -49,6 +49,10 @@ function checkedValue(event: Event): boolean {
   return event.currentTarget instanceof HTMLInputElement && event.currentTarget.checked
 }
 
+function updateClosePreference(event: Event): void {
+  store.state.closePreference = checkedValue(event) ? 'hide' : 'ask'
+}
+
 async function updateAutostart(event: Event): Promise<void> {
   await store.setAutostart(checkedValue(event))
 }
@@ -72,7 +76,7 @@ onMounted(() => void store.refreshAutostart())
           </label>
           <label class="control-row">
             <div><strong>关闭窗口时隐藏到托盘</strong><span>保留本机记录进程，可从托盘再次打开。</span></div>
-            <span class="toggle"><input v-model="store.state.hideToTray" type="checkbox"><i></i></span>
+            <span class="toggle"><input :checked="store.state.closePreference === 'hide'" type="checkbox" @change="updateClosePreference"><i></i></span>
           </label>
           <label class="control-row">
             <div><strong>活动记录</strong><span>{{ store.state.recording ? '正在记录启用后的本机活动' : '当前已暂停记录' }}</span></div>

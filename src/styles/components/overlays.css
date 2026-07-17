@@ -42,7 +42,7 @@
 }
 
 .drawer-metrics svg { color: var(--accent-blue); }
-.drawer-metrics span { color: var(--text-secondary); font-size: 9px; }
+.drawer-metrics span { color: var(--text-secondary); font-size: 10px; }
 .drawer-metrics strong { font-size: 14px; }
 
 .drawer-row,

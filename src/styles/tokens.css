@@ -2,11 +2,13 @@
   color-scheme: light;
   --font-ui: "Segoe UI Variable", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --font-data: "Segoe UI Variable", "Microsoft YaHei UI", sans-serif;
+  --font-sans: var(--font-ui);
   --bg-app: #f8f7f4;
   --bg-sidebar: rgba(250, 249, 247, 0.94);
   --bg-surface: #fbfaf8;
   --bg-card: rgba(255, 255, 255, 0.86);
   --bg-soft: #f2f1ee;
+  --bg-subtle: #f5f4f1;
   --bg-hover: #efeeeb;
   --bg-elevated: #ffffff;
   --bg-inset: #eceae6;
@@ -16,7 +18,7 @@
   --text-inverse: #f7f8f5;
   --border-soft: rgba(65, 67, 61, 0.09);
   --border-strong: rgba(65, 67, 61, 0.15);
-  --border-focus: color-mix(in srgb, var(--accent-blue) 72%, white);
+  --border-focus: #275cca;
   --shadow-card: 0 8px 28px rgba(89, 78, 65, 0.055), 0 1px 2px rgba(89, 78, 65, 0.05);
   --shadow-window: 0 20px 60px rgba(76, 67, 57, 0.16);
   --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.55) inset;
@@ -70,6 +72,7 @@
   --bg-surface: #171a18;
   --bg-card: rgba(28, 32, 30, 0.92);
   --bg-soft: #232826;
+  --bg-subtle: #1f2421;
   --bg-hover: #2c322f;
   --bg-elevated: #2a2f2c;
   --bg-inset: #0e100f;
@@ -79,7 +82,7 @@
   --text-inverse: #161916;
   --border-soft: rgba(232, 238, 230, 0.07);
   --border-strong: rgba(232, 238, 230, 0.14);
-  --border-focus: color-mix(in srgb, var(--accent-blue) 68%, #0c0e0c);
+  --border-focus: #a9c2ff;
   --shadow-card:
     0 10px 28px rgba(0, 0, 0, 0.34),
     0 1px 0 rgba(255, 255, 255, 0.035) inset,

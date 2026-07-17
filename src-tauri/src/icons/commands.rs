@@ -60,10 +60,3 @@ pub fn resolve_app_icon(
     });
     icons.try_get_cached_or_enqueue(app, extract).into()
 }
-
-#[tauri::command]
-pub fn get_icon_cache_dir() -> String {
-    super::cache::icons_cache_dir()
-        .to_string_lossy()
-        .to_string()
-}

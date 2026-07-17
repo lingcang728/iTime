@@ -1,11 +1,14 @@
 use super::extract::{extract_and_cache, try_cache_hit, ExtractRequest, IconSource};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const MAX_INFLIGHT: usize = 3;
+const MAX_QUEUED: usize = 256;
+const MAX_FAILURES: usize = 512;
 const FAILURE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,7 +35,7 @@ pub struct IconService {
 
 struct IconServiceInner {
     inflight: HashSet<String>,
-    queued: Vec<PendingJob>,
+    queued: VecDeque<PendingJob>,
     failures: HashMap<String, FailureRecord>,
     active: usize,
 }
@@ -47,7 +50,7 @@ impl IconService {
         Self {
             inner: Arc::new(Mutex::new(IconServiceInner {
                 inflight: HashSet::new(),
-                queued: Vec::new(),
+                queued: VecDeque::new(),
                 failures: HashMap::new(),
                 active: 0,
             })),
@@ -76,7 +79,13 @@ impl IconService {
         let size = req.size;
 
         {
-            let mut guard = self.inner.lock().expect("icon service poisoned");
+            let mut guard = self
+                .inner
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            guard
+                .failures
+                .retain(|_, failure| failure.until > Instant::now());
 
             if let Some(failure) = guard.failures.get(&identity) {
                 if failure.until > Instant::now() {
@@ -105,8 +114,20 @@ impl IconService {
                 };
             }
 
+            if guard.queued.len() >= MAX_QUEUED {
+                return IconUpdateEvent {
+                    app_identity: identity,
+                    status: "failed".into(),
+                    cache_path: None,
+                    icon_source: IconSource::Fallback.as_str().into(),
+                    width: size,
+                    height: size,
+                    error_code: Some("icon_queue_full".into()),
+                };
+            }
+
             guard.inflight.insert(identity.clone());
-            guard.queued.push(PendingJob { app, req });
+            guard.queued.push_back(PendingJob { app, req });
             Self::pump_locked(&mut guard, Arc::clone(&self.inner));
         }
 
@@ -123,7 +144,7 @@ impl IconService {
 
     fn pump_locked(guard: &mut IconServiceInner, service: Arc<Mutex<IconServiceInner>>) {
         while guard.active < MAX_INFLIGHT {
-            let Some(job) = guard.queued.pop() else {
+            let Some(job) = guard.queued.pop_front() else {
                 break;
             };
             guard.active += 1;
@@ -131,9 +152,9 @@ impl IconService {
             tauri::async_runtime::spawn_blocking(move || {
                 let identity = job.req.app_identity.clone();
                 let size = job.req.size;
-                let outcome = extract_and_cache(&job.req);
+                let outcome = catch_unwind(AssertUnwindSafe(|| extract_and_cache(&job.req)));
                 let event = match outcome {
-                    Ok(result) => IconUpdateEvent {
+                    Ok(Ok(result)) => IconUpdateEvent {
                         app_identity: identity.clone(),
                         status: "resolved".into(),
                         cache_path: Some(result.png_path.to_string_lossy().to_string()),
@@ -142,7 +163,7 @@ impl IconService {
                         height: result.height,
                         error_code: None,
                     },
-                    Err(err) => {
+                    Ok(Err(err)) => {
                         let code = err.to_string();
                         IconUpdateEvent {
                             app_identity: identity.clone(),
@@ -154,10 +175,21 @@ impl IconService {
                             error_code: Some(code.clone()),
                         }
                     }
+                    Err(_) => IconUpdateEvent {
+                        app_identity: identity.clone(),
+                        status: "failed".into(),
+                        cache_path: None,
+                        icon_source: IconSource::Fallback.as_str().into(),
+                        width: size,
+                        height: size,
+                        error_code: Some("icon_worker_panicked".into()),
+                    },
                 };
 
                 {
-                    let mut g = service_for_task.lock().expect("icon service poisoned");
+                    let mut g = service_for_task
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
                     g.inflight.remove(&identity);
                     g.active = g.active.saturating_sub(1);
                     if event.status == "failed" {
@@ -169,6 +201,11 @@ impl IconService {
                                     code,
                                 },
                             );
+                            if g.failures.len() > MAX_FAILURES {
+                                if let Some(oldest) = g.failures.keys().next().cloned() {
+                                    g.failures.remove(&oldest);
+                                }
+                            }
                         }
                     } else {
                         g.failures.remove(&identity);

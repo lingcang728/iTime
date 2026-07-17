@@ -11,7 +11,7 @@ export const goalDefinitions: ReadonlyArray<{
 }> = [
   { id: 'learning', label: '学习时间', hint: '每天用于阅读、课程等学习活动', min: 15, max: 1_440 },
   { id: 'development', label: '开发时间', hint: '每天用于编程与开发工具', min: 15, max: 1_440 },
-  { id: 'ai', label: 'AI 有效工时', hint: '每天希望由 AI 代理有效执行的时间', min: 15, max: 1_440 },
+  { id: 'ai', label: 'AI 前台活跃', hint: '设备活跃且 AI 工具处于前台的时间', min: 15, max: 1_440 },
   { id: 'continuous', label: '连续使用阈值', hint: '达到这个时长后提醒短暂休息', min: 10, max: 240 },
 ]
 

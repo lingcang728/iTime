@@ -15,7 +15,12 @@ const hasSplitClicks = computed(() => snapshot.value.cumulative.leftClicks !== n
 const pageSubtitle = computed(() => store.state.inputDataStatus === 'ready'
   ? '读取本机 KeyStats 聚合记录；不记录输入内容'
   : '展示输入数据能力与聚合结果；不记录输入内容')
-const sourceState = computed(() => store.state.inputDataStatus === 'ready' ? '本机只读' : '数据预览')
+const sourceState = computed(() => ({
+  loading: '正在连接',
+  preview: '预览数据',
+  ready: '本机只读',
+  unavailable: '不可用',
+}[store.state.inputDataStatus]))
 const sourceUpdated = computed(() => snapshot.value.sourceUpdatedAt
   ? new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(snapshot.value.sourceUpdatedAt)
   : '暂无更新时间')
@@ -48,7 +53,7 @@ const timezoneNote = computed(() => snapshot.value.capabilities.timezoneSemantic
     <div class="input-story-grid">
       <InputHistoryPanel :history="snapshot.history" :granularity="snapshot.capabilities.historyGranularity" />
       <article class="card source-card">
-        <header><span class="source-card__icon"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span><div><small>数据来源</small><h2>{{ snapshot.source }}</h2></div><b>{{ sourceState }}</b></header>
+        <header><span class="source-card__icon"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span><div><small>数据来源</small><h2>{{ snapshot.source }}</h2></div><b :class="`is-${store.state.inputDataStatus}`">{{ sourceState }}</b></header>
         <dl>
           <div><dt>最近更新</dt><dd>{{ sourceUpdated }}</dd></div>
           <div><dt>历史范围</dt><dd>{{ granularityText }}</dd></div>
@@ -75,14 +80,17 @@ const timezoneNote = computed(() => snapshot.value.capabilities.timezoneSemantic
 .source-card header > span,
 .source-card__icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--accent-blue); background: color-mix(in srgb, var(--bg-soft) 88%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent); }
 .source-card__icon img { width: 26px; height: 26px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1)); }
-.source-card small { color: var(--text-muted); font-size: 8px; }
+.source-card small { color: var(--text-muted); font-size: 10px; }
 .source-card h2 { overflow: hidden; margin: 2px 0 0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.source-card header b { padding: 5px 7px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 8px; }
+.source-card header b { padding: 5px 7px; border-radius: 999px; color: var(--accent-orange-strong); background: var(--accent-orange-soft); font-size: 10px; }
+.source-card header b.is-ready { color: var(--accent-green-strong); background: var(--accent-green-soft); }
+.source-card header b.is-loading { color: var(--accent-blue-strong); background: var(--accent-blue-soft); }
+.source-card header b.is-unavailable { color: var(--accent-red); background: var(--accent-red-soft); }
 .source-card dl { display: grid; gap: 9px; margin: 15px 0; }
 .source-card dl div { display: flex; justify-content: space-between; gap: 12px; }
-.source-card dt { color: var(--text-secondary); font-size: 9px; }
-.source-card dd { margin: 0; font-size: 9px; font-weight: 650; text-align: right; }
-.source-note { display: flex; align-items: flex-start; gap: 7px; margin: 9px 0 0; color: var(--text-secondary); font-size: 9px; line-height: 1.55; }
+.source-card dt { color: var(--text-secondary); font-size: 10px; }
+.source-card dd { margin: 0; font-size: 10px; font-weight: 650; text-align: right; }
+.source-note { display: flex; align-items: flex-start; gap: 7px; margin: 9px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.55; }
 .source-note svg { flex: 0 0 auto; color: var(--accent-orange); }
 @media (max-width: 980px) { .input-story-grid { grid-template-columns: 1fr; } }
 </style>

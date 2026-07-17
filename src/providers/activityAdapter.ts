@@ -11,12 +11,12 @@ const intervalSchema = z.object({
   aiTool: z.boolean(),
 }).refine((value) => value.end > value.start)
 
-const snapshotSchema = z.object({
+const snapshotEnvelopeSchema = z.object({
   source: z.string().min(1),
   updatedAt: z.number().nonnegative(),
   recordedFrom: z.number().int().nonnegative().nullable(),
   skippedRecords: z.number().int().nonnegative(),
-  intervals: z.array(intervalSchema),
+  intervals: z.array(z.unknown()),
   capabilities: z.object({
     contentCaptured: z.literal(false),
     windowTitlesCaptured: z.literal(false),
@@ -32,7 +32,10 @@ const snapshotSchema = z.object({
   }),
 })
 
-export type ActivityWireSnapshot = z.infer<typeof snapshotSchema>
+type ActivityInterval = z.infer<typeof intervalSchema>
+export type ActivityWireSnapshot = Omit<z.infer<typeof snapshotEnvelopeSchema>, 'intervals'> & {
+  intervals: ActivityInterval[]
+}
 
 const categoryStyles: Record<string, { category: string; color: string }> = {
   ai: { category: 'AI 工具', color: '#806be1' },
@@ -40,6 +43,12 @@ const categoryStyles: Record<string, { category: string; color: string }> = {
   chrome: { category: '浏览', color: '#4bb97a' },
   'microsoft edge': { category: '浏览', color: '#48aeb0' },
   youtube: { category: '视频', color: '#e86f4f' },
+  anki: { category: '学习', color: '#d59548' },
+  kindle: { category: '学习', color: '#d59548' },
+  calibre: { category: '学习', color: '#d59548' },
+  duolingo: { category: '学习', color: '#d59548' },
+  acrobat: { category: '学习', color: '#d59548' },
+  sumatrapdf: { category: '学习', color: '#d59548' },
 }
 
 const commonDisplayNames: Record<string, string> = {
@@ -107,17 +116,6 @@ function eventsForInterval(
     device,
     foreground,
     {
-      id: `ai-work:${interval.start}:${index}`,
-      type: 'aiWork',
-      start: interval.start,
-      end: interval.end,
-      agentId: interval.appId,
-      toolId: interval.appId,
-      toolName: appName,
-      taskId: `foreground-session:${interval.start}`,
-      ...aiEvidence,
-    },
-    {
       id: `ai-interaction:${interval.start}:${index}`,
       type: 'aiInteraction',
       start: interval.start,
@@ -130,7 +128,19 @@ function eventsForInterval(
 }
 
 export function parseActivitySnapshot(value: unknown): ActivityWireSnapshot {
-  return snapshotSchema.parse(value)
+  const envelope = snapshotEnvelopeSchema.parse(value)
+  const intervals: ActivityInterval[] = []
+  let rejected = 0
+  for (const candidate of envelope.intervals) {
+    const parsed = intervalSchema.safeParse(candidate)
+    if (parsed.success) intervals.push(parsed.data)
+    else rejected += 1
+  }
+  return {
+    ...envelope,
+    skippedRecords: envelope.skippedRecords + rejected,
+    intervals,
+  }
 }
 
 export function activityDataset(value: unknown): TimeDataset {

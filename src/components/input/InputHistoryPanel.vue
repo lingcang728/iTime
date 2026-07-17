@@ -99,21 +99,21 @@ function pointAria(point: InputActivityPoint): string {
 header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 h2 { margin: 0; font-size: 15px; letter-spacing: -.2px; }
 p { margin: 5px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.55; }
-.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 9px; }
+.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 10px; }
 .trend-chart { height: 122px; margin-top: 13px; padding: 6px 5px 0; border-bottom: 1px solid var(--border-soft); background-image: linear-gradient(to bottom, transparent 32%, var(--border-soft) 33%, transparent 34%, transparent 65%, var(--border-soft) 66%, transparent 67%); }
-.trend-labels { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; color: var(--text-muted); font-size: 8px; }
+.trend-labels { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; color: var(--text-muted); font-size: 10px; }
 .rhythm-section { min-width: 0; padding-left: 22px; border-left: 1px solid var(--border-soft); }
 .rhythm-bars { height: 128px; display: flex; align-items: flex-end; gap: clamp(4px, .8vw, 9px); margin-top: 14px; padding: 8px 6px 0; border-bottom: 1px solid var(--border-strong); }
 .rhythm-bars button { position: relative; flex: 1; min-width: 6px; max-width: 34px; padding: 0; border: 0; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, var(--accent-green), color-mix(in srgb, var(--accent-green) 48%, var(--bg-card))); cursor: crosshair; transition: filter 150ms ease, transform 150ms ease; }
 .rhythm-bars button:hover,
 .rhythm-bars button:focus,
 .rhythm-bars button:focus-visible { z-index: 2; filter: saturate(1.2); transform: translateY(-2px); }
-.rhythm-bars button span { position: absolute; left: 50%; bottom: calc(100% + 7px); display: grid; gap: 2px; min-width: 92px; padding: 6px 8px; transform: translateX(-50%); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-secondary); background: var(--bg-elevated); box-shadow: var(--shadow-card); font-size: 9px; white-space: nowrap; opacity: 0; pointer-events: none; }
+.rhythm-bars button span { position: absolute; left: 50%; bottom: calc(100% + 7px); display: grid; gap: 2px; min-width: 92px; padding: 6px 8px; transform: translateX(-50%); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-secondary); background: var(--bg-elevated); box-shadow: var(--shadow-card); font-size: 10px; white-space: nowrap; opacity: 0; pointer-events: none; }
 .rhythm-bars button:hover span,
 .rhythm-bars button:focus span,
 .rhythm-bars button:focus-visible span { opacity: 1; }
 .rhythm-bars b { color: var(--text-primary); font-size: 10px; }
-.rhythm-scale { display: flex; justify-content: space-between; margin-top: 7px; color: var(--text-muted); font-size: 8px; }
+.rhythm-scale { display: flex; justify-content: space-between; margin-top: 7px; color: var(--text-muted); font-size: 10px; }
 .single-day { min-height: 160px; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(170px, .55fr); align-items: center; gap: 17px; }
 .single-day__icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; color: var(--accent-green-strong); background: var(--accent-green-soft); }
 .single-day > div > span { color: var(--text-secondary); font-size: 10px; }

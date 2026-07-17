@@ -14,7 +14,7 @@ defineProps<{
     :width="size ?? 24"
     :height="size ?? 24"
     draggable="false"
-    aria-hidden="true"
+    :aria-hidden="alt ? undefined : 'true'"
   />
 </template>
 

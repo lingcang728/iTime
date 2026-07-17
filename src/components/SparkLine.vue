@@ -14,7 +14,9 @@ const props = withDefaults(defineProps<{
   ariaLabel: '数据趋势',
 })
 
-const activeIndex = ref<number | null>(null)
+const hoveredIndex = ref<number | null>(null)
+const focusedIndex = ref<number | null>(null)
+const activeIndex = computed(() => focusedIndex.value ?? hoveredIndex.value)
 const numberFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 })
 
 const chartPoints = computed(() => {
@@ -55,7 +57,7 @@ function accessibleLabel(index: number): string {
 </script>
 
 <template>
-  <div class="spark-chart" role="group" :aria-label="ariaLabel" @mouseleave="activeIndex = null">
+  <div class="spark-chart" role="group" :aria-label="ariaLabel" @mouseleave="hoveredIndex = null">
     <svg viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true">
       <polyline
         v-if="linePoints"
@@ -76,9 +78,9 @@ function accessibleLabel(index: number): string {
       type="button"
       :style="{ left: `${point.x}%`, top: `${point.y / 42 * 100}%`, '--point-color': color }"
       :aria-label="accessibleLabel(point.index)"
-      @focus="activeIndex = point.index"
-      @blur="activeIndex = null"
-      @mouseenter="activeIndex = point.index"
+      @focus="focusedIndex = point.index"
+      @blur="focusedIndex = null"
+      @mouseenter="hoveredIndex = point.index"
     />
     <span v-if="activePoint" class="spark-tooltip" role="tooltip" :style="tooltipStyle">{{ activeLabel }}</span>
     <span v-if="!values.length" class="spark-empty">暂无趋势数据</span>

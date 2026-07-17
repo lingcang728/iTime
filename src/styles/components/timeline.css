@@ -7,7 +7,7 @@
   flex-wrap: wrap;
   gap: 12px;
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .legend span::before {
@@ -29,7 +29,7 @@
   position: relative;
   margin: 14px 0 5px;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -55,7 +55,7 @@
 .timeline-lane__label {
   width: 64px;
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .timeline-lane__track {
@@ -122,7 +122,7 @@
 
 .wellbeing-card span {
   color: var(--accent-blue);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .wellbeing-card h2 {
@@ -149,5 +149,5 @@
 
 .button:hover { filter: brightness(0.98); }
 .button:active { transform: scale(0.98); }
-.button.primary { color: white; border-color: transparent; background: var(--accent-blue); }
+.button.primary { color: var(--text-inverse); border-color: transparent; background: var(--accent-blue); }
 .button.secondary { color: var(--text-primary); background: var(--bg-card); }

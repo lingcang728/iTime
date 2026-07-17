@@ -1,4 +1,4 @@
-import { computed, reactive, shallowRef, watch } from 'vue'
+import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { mockDates } from '../data/mockEvents'
 import type { TimeDataset } from '../domain/events'
 import { loadActivityData } from '../providers/activityAdapter'
@@ -12,7 +12,7 @@ import {
 } from '../providers/inputActivity'
 import { loadKeyStatsProvider } from '../providers/keyStatsAdapter'
 import { getAutostartEnabled, setDesktopAutostart } from '../platform/autostart'
-import { isTauriRuntime, setDesktopRecording } from '../platform/desktop'
+import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -21,6 +21,7 @@ export type ClosePreference = 'ask' | 'hide' | 'quit'
 
 const persisted = loadPersistedState()
 const desktopRuntime = isTauriRuntime()
+const themeRevision = ref(0)
 
 function localDate(value = new Date()): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -42,6 +43,7 @@ const state = reactive({
   rememberCloseChoice: false,
   toast: '',
   ...persisted,
+  recording: true,
 })
 
 const liveDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
@@ -51,6 +53,16 @@ const runtimeDataProvider = computed(() => desktopRuntime
 const day = computed(() => runtimeDataProvider.value.getDay(state.selectedDate))
 const week = computed(() => runtimeDataProvider.value.getWeek(state.selectedDate))
 const liveInputProvider = shallowRef<InputActivityProvider | null>(null)
+const inputDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
+const activityDates = shallowRef<string[]>(desktopRuntime ? [localDate()] : [...mockDates])
+
+function updateAvailableDates(): void {
+  const dates = [...new Set([...inputDates.value, ...activityDates.value])].sort()
+  state.availableDates = dates.length ? dates : [localDate()]
+  if (!state.availableDates.includes(state.selectedDate)) {
+    state.selectedDate = state.availableDates.at(-1) ?? localDate()
+  }
+}
 const input = computed<InputActivitySnapshot>(() => {
   const range = dayRange(state.selectedDate)
   const snapshot = desktopRuntime
@@ -80,14 +92,12 @@ const selectedTool = computed<AiToolDetail | null>(() => state.selectedToolId
 function persist(): void {
   if (typeof localStorage === 'undefined') return
   const value: PersistedState = {
+    schemaVersion: state.schemaVersion,
     theme: state.theme,
-    recording: state.recording,
     reminders: state.reminders,
-    hideToTray: state.hideToTray,
     closePreference: state.closePreference,
     heatmapEnabled: state.heatmapEnabled,
     shortcutsEnabled: state.shortcutsEnabled,
-    aiNotifications: state.aiNotifications,
     quietStart: state.quietStart,
     quietEnd: state.quietEnd,
     goals: state.goals,
@@ -97,15 +107,32 @@ function persist(): void {
   savePersistedState(value)
 }
 
-watch(state, persist, { deep: true })
+watch([
+  () => state.theme,
+  () => state.reminders,
+  () => state.closePreference,
+  () => state.heatmapEnabled,
+  () => state.shortcutsEnabled,
+  () => state.quietStart,
+  () => state.quietEnd,
+  () => ({ ...state.goals }),
+  () => state.migrationState,
+  () => [...state.deletedInputDates],
+], persist, { deep: true })
 
-function applyTheme(): void {
+function applyTheme(preview?: 'light' | 'dark'): void {
+  if (preview) {
+    document.documentElement.dataset.theme = preview
+    themeRevision.value += 1
+    return
+  }
   const systemDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
   const resolved = state.theme === 'system' ? (systemDark ? 'dark' : 'light') : state.theme
   document.documentElement.dataset.theme = resolved
+  themeRevision.value += 1
 }
 
-watch(() => state.theme, applyTheme)
+watch(() => state.theme, () => applyTheme())
 
 function stepDate(delta: number): void {
   const index = state.availableDates.indexOf(state.selectedDate)
@@ -123,8 +150,20 @@ function closeTool(): void {
 }
 
 async function setRecording(recording: boolean): Promise<void> {
-  state.recording = recording
-  await setDesktopRecording(recording)
+  try {
+    await setDesktopRecording(recording)
+    state.recording = recording
+  } catch (error) {
+    showToast(errorMessage(error, '无法修改活动记录状态'))
+  }
+}
+
+async function syncRecording(): Promise<void> {
+  try {
+    state.recording = await getDesktopRecording()
+  } catch (error) {
+    showToast(errorMessage(error, '无法读取活动记录状态'))
+  }
 }
 
 function deleteInputDate(date: string): void {
@@ -136,34 +175,63 @@ function deleteInputDate(date: string): void {
   showToast(`已删除 ${date} 的输入统计`)
 }
 
+let inputRequest = 0
+let activityRequest = 0
+let toastRequest = 0
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
+  if (error && typeof error === 'object') {
+    const candidate = error as { message?: unknown; error?: unknown }
+    if (typeof candidate.message === 'string') return candidate.message
+    if (typeof candidate.error === 'string') return candidate.error
+    try { return JSON.stringify(error) } catch { return fallback }
+  }
+  return fallback
+}
+
 async function refreshInputData(): Promise<void> {
   if (!desktopRuntime) return
+  const request = ++inputRequest
   try {
     const provider = await loadKeyStatsProvider()
+    if (request !== inputRequest) return
     const dates = provider.getAvailableDates()
     liveInputProvider.value = provider
-    state.availableDates = dates
-    if (!dates.includes(state.selectedDate)) state.selectedDate = dates.at(-1) ?? localDate()
+    inputDates.value = dates
+    updateAvailableDates()
     state.inputDataStatus = 'ready'
     state.inputDataMessage = '已连接 KeyStats 本机只读记录'
     state.migrationState = 'imported'
   } catch (error) {
+    if (request !== inputRequest) return
     state.inputDataStatus = 'unavailable'
-    state.inputDataMessage = error instanceof Error ? error.message : 'KeyStats 数据暂时不可用'
+    state.inputDataMessage = errorMessage(error, 'KeyStats 数据暂时不可用')
   }
 }
 
 async function refreshActivityData(): Promise<void> {
   if (!desktopRuntime) return
+  const request = ++activityRequest
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
   try {
     const result = await loadActivityData({ start: startDate.getTime(), end: selectedEnd })
+    if (request !== activityRequest) return
     liveDataset.value = result.dataset
+    activityDates.value = [...new Set([
+      ...activityDates.value,
+      ...result.dataset.events.map((event) => localDate(new Date(event.start))),
+    ])].sort()
+    updateAvailableDates()
     if (result.snapshot.health.lastError) {
       state.activityDataStatus = 'degraded'
       state.activityDataMessage = `采集写入异常：${result.snapshot.health.lastError}`
+    } else if (result.snapshot.skippedRecords > 0) {
+      state.activityDataStatus = 'degraded'
+      state.activityDataMessage = `已跳过 ${result.snapshot.skippedRecords} 条损坏或不兼容的活动记录`
     } else if (!result.snapshot.health.collectorRunning) {
       state.activityDataStatus = 'unavailable'
       state.activityDataMessage = '本机活动采集器未运行'
@@ -174,8 +242,9 @@ async function refreshActivityData(): Promise<void> {
         : '已开始记录；接入前的应用历史不会补造'
     }
   } catch (error) {
+    if (request !== activityRequest) return
     state.activityDataStatus = 'unavailable'
-    state.activityDataMessage = error instanceof Error ? error.message : 'iTime 本机活动记录暂时不可用'
+    state.activityDataMessage = errorMessage(error, 'iTime 本机活动记录暂时不可用')
   }
 }
 
@@ -188,7 +257,7 @@ async function refreshAutostart(): Promise<void> {
     state.autostartMessage = state.autostartEnabled ? '已由 Windows 注册开机启动' : '当前不会随 Windows 启动'
   } catch (error) {
     state.autostartStatus = 'error'
-    state.autostartMessage = error instanceof Error ? error.message : '无法读取 Windows 启动设置'
+    state.autostartMessage = errorMessage(error, '无法读取 Windows 启动设置')
   }
 }
 
@@ -204,20 +273,22 @@ async function setAutostart(enabled: boolean): Promise<void> {
       : 'Windows 返回的启动状态与请求不一致'
   } catch (error) {
     state.autostartStatus = 'error'
-    state.autostartMessage = error instanceof Error ? error.message : '无法修改 Windows 启动设置'
+    state.autostartMessage = errorMessage(error, '无法修改 Windows 启动设置')
   }
 }
 
 function showToast(message: string): void {
+  const request = ++toastRequest
   state.toast = message
   window.setTimeout(() => {
-    if (state.toast === message) state.toast = ''
+    if (request === toastRequest) state.toast = ''
   }, 2600)
 }
 
 export function useAppStore() {
   return {
     state,
+    themeRevision,
     day,
     week,
     input,
@@ -226,6 +297,7 @@ export function useAppStore() {
     openTool,
     closeTool,
     setRecording,
+    syncRecording,
     applyTheme,
     deleteInputDate,
     refreshInputData,
@@ -234,6 +306,12 @@ export function useAppStore() {
     setAutostart,
     showToast,
   }
+}
+
+if (typeof matchMedia !== 'undefined') {
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (state.theme === 'system') applyTheme()
+  })
 }
 
 if (desktopRuntime) {

@@ -4,7 +4,7 @@
 }
 
 .home-page :deep(.metric-card__header) {
-  font-family: SimHei, "Microsoft YaHei UI", sans-serif;
+  font-family: var(--font-ui);
   font-size: 10px;
 }
 
@@ -25,7 +25,7 @@
   gap: 8px;
   padding-top: 3px;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
   text-align: right;
 }
 
@@ -44,7 +44,7 @@
 .rank-value strong,
 .rank-value b {
   overflow: visible;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

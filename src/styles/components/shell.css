@@ -129,7 +129,7 @@
 
 .profile-card small {
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .pro-badge {
@@ -138,7 +138,7 @@
   border-radius: 999px;
   color: #6450c5;
   background: linear-gradient(135deg, #eee9ff, #e4efff);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: .2px;
 }
@@ -199,7 +199,7 @@ html[data-theme="dark"] .pro-badge {
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-secondary);
 }
 

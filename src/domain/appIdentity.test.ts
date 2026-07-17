@@ -20,6 +20,14 @@ describe('appIdentity', () => {
     expect(result.identity).toBe('site:github.com@chrome')
   })
 
+  it('does not expose an executable path in the public identity', () => {
+    const result = buildAppIdentity({ executablePath: 'C:\\Users\\person\\Apps\\Secret\\tool.exe' })
+    expect(result.kind).toBe('executable_path')
+    expect(result.identity).toMatch(/^exe:[0-9a-f]{16}$/)
+    expect(result.identity).not.toContain('users')
+    expect(result.identity).not.toContain('secret')
+  })
+
   it('normalizes logical keys and glyphs', () => {
     expect(normalizeLogicalKey('VS Code')).toBe('vs-code')
     expect(identityGlyph('VS Code')).toBe('V')

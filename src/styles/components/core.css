@@ -73,6 +73,7 @@
   color: var(--text-primary);
   background: var(--bg-hover);
 }
+.icon-button:disabled { cursor: default; opacity: .35; background: transparent; }
 
 .metrics-grid {
   display: grid;
@@ -156,7 +157,7 @@
   display: block;
   margin-top: 8px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .card {
@@ -181,7 +182,7 @@
 .section-heading p {
   margin: 4px 0 0;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .text-button {

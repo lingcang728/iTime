@@ -46,7 +46,7 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
 
 <template>
   <section class="page weekly-page">
-    <PageHeader title="本周回顾" subtitle="用可验证的本机记录回看专注、应用与 AI 协作" :range-label="summary.rangeLabel" />
+    <PageHeader title="本周回顾" subtitle="用可验证的本机记录回看专注、应用与 AI 工具使用" :range-label="summary.rangeLabel" />
 
     <div class="weekly-chart-stack">
       <article class="card weekly-card weekly-card--activity">
@@ -54,8 +54,8 @@ function comparisonLabel(value: number | null, basis: 'previousWeek' | 'peerDays
         <BarChart :points="activityPoints" unit="小时" tone="blue" primary-label="电脑活动" />
       </article>
       <article class="card weekly-card">
-        <header class="weekly-card__heading"><div><span>注意力构成</span><h2>主动注意力与 AI 代理工作</h2><p>两组时长独立统计，重叠区间不会被隐藏</p></div><div class="legend-group"><em class="legend legend--green"><i></i>主动注意力</em><em class="legend legend--violet"><i></i>AI 代理工作</em></div></header>
-        <BarChart :points="comparePoints" unit="小时" tone="green" primary-label="主动注意力" secondary-label="AI 代理工作" compact />
+        <header class="weekly-card__heading"><div><span>注意力构成</span><h2>主动注意力与 AI 前台活跃</h2><p>两组时长可重叠，用于核对工具处于前台的时间</p></div><div class="legend-group"><em class="legend legend--green"><i></i>主动注意力</em><em class="legend legend--violet"><i></i>AI 前台活跃</em></div></header>
+        <BarChart :points="comparePoints" unit="小时" tone="green" primary-label="主动注意力" secondary-label="AI 前台活跃" compact />
       </article>
     </div>
 

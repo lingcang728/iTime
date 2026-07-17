@@ -9,21 +9,21 @@ const derive = (key: keyof typeof scenarioFixtures) => deriveDaySnapshot(scenari
 describe('required product scenarios', () => {
   it('represents a new user with unavailable ratios and review metadata', () => {
     const value = derive('empty')
-    expect(value.foregroundActivity.value).toBe(0)
+    expect(value.foregroundActivity.value).toBeNull()
     expect(value.aiLeverage.value).toBeNull()
     expect(value.aiLeverage.reviewState).toBe('needsReview')
   })
 
   it('separates foreground-only and background-AI-only days', () => {
     expect(derive('foregroundOnly').foregroundActivity.value).toBe(4 * 3_600_000)
-    expect(derive('foregroundOnly').aiEffective.value).toBe(0)
-    expect(derive('aiOnly').foregroundActivity.value).toBe(0)
+    expect(derive('foregroundOnly').aiEffective.value).toBeNull()
+    expect(derive('aiOnly').foregroundActivity.value).toBeNull()
     expect(derive('aiOnly').aiEffective.value).toBe(5 * 3_600_000)
   })
 
-  it('counts three simultaneous agents and allows total duration above 24 hours', () => {
+  it('counts three simultaneous agents while wall-clock coverage stays within the day', () => {
     expect(derive('threeAgents').maxConcurrency.value).toBe(3)
-    expect(derive('overTwentyFourHours').totalDuration.value).toBe(60 * 3_600_000)
+    expect(derive('overTwentyFourHours').totalDuration.value).toBe(24 * 3_600_000)
   })
 
   it('clips cross-midnight tasks into the requested local day', () => {

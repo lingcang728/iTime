@@ -14,7 +14,7 @@
 .tools-table__head {
   padding: 0 9px 7px;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .tools-table__row {
@@ -61,7 +61,7 @@
   border-radius: 7px;
   color: var(--text-secondary);
   background: var(--bg-card);
-  font-size: 8px;
+  font-size: 10px;
   cursor: pointer;
 }
 
@@ -69,7 +69,7 @@
   width: fit-content;
   padding: 3px 6px;
   border-radius: 6px;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .accuracy.precise { color: var(--accent-green); background: var(--accent-green-soft); }

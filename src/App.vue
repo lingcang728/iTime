@@ -11,6 +11,7 @@ import {
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import CloseDialog from './components/CloseDialog.vue'
 import { uiIcons } from './data/uiIcons'
+import packageMetadata from '../package.json'
 
 const store = useAppStore()
 const route = useRoute()
@@ -34,7 +35,7 @@ const developmentDuration = computed(() => store.day.value.apps
   .reduce((total, app) => total + app.duration, 0))
 const focusDuration = computed(() => learningDuration.value + developmentDuration.value)
 const focusTarget = computed(() => (store.state.goals.learning + store.state.goals.development) * 60_000)
-const agentDuration = computed(() => store.day.value.aiEffective.value ?? 0)
+const agentDuration = computed(() => store.day.value.aiInteraction.value ?? 0)
 const agentTarget = computed(() => store.state.goals.ai * 60_000)
 const goalProgress = computed(() => {
   const target = focusTarget.value + agentTarget.value
@@ -102,15 +103,17 @@ async function toggleWindowSize(): Promise<void> {
 }
 
 onMounted(async () => {
-  if (requestedTheme === 'light' || requestedTheme === 'dark') store.state.theme = requestedTheme
-  store.applyTheme()
-  await store.setRecording(store.state.recording)
+  store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
   window.addEventListener('keydown', handleKeydown)
-  cleanups.push(await listenDesktop<boolean>('recording-status', (recording) => { store.state.recording = recording }))
-  cleanups.push(await listenDesktop<string>('navigate-to', (page) => router.push({ name: page })))
-  cleanups.push(await listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }))
-  cleanups.push(await listenDesktop('native-close-requested', () => requestClose()))
-  cleanups.push(await listenWindowResize(() => { void syncMaximized() }))
+  cleanups.push(...await Promise.all([
+    listenDesktop<boolean>('recording-status', (recording) => { store.state.recording = recording }),
+    listenDesktop<string>('recording-error', (message) => store.showToast(message)),
+    listenDesktop<string>('navigate-to', (page) => router.push({ name: page })),
+    listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }),
+    listenDesktop('native-close-requested', () => requestClose()),
+    listenWindowResize(() => { void syncMaximized() }),
+  ]))
+  await store.syncRecording()
   await syncMaximized()
 })
 
@@ -127,7 +130,7 @@ onBeforeUnmount(() => {
     <aside class="sidebar">
       <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
         <img :src="uiIcons.brandItime" alt="iTime" />
-        <div><strong>iTime</strong><span>v0.1.0</span></div>
+        <div><strong>iTime</strong><span>v{{ packageMetadata.version }}</span></div>
       </div>
       <nav aria-label="主导航">
         <RouterLink v-for="item in navItems" :key="item.id" :to="`/${item.id}`" class="nav-item">
@@ -135,17 +138,16 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
-      <button class="profile-card" type="button" aria-label="打开林小北的账户信息" @click="router.push({ name: 'account' })">
-        <img src="/src/assets/avatar-lin.svg" alt="林小北的头像" />
-        <div><strong>林小北</strong><small>本机个人空间</small></div>
-        <span class="pro-badge">Free</span>
+      <button class="profile-card" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
+        <img :src="uiIcons.pageSettings" alt="" />
+        <div><strong>本机数据</strong><small>仅保存在这台电脑</small></div>
       </button>
       <button class="goal-ring-card" type="button" aria-label="查看提醒与目标" @click="router.push({ name: 'goals' })">
         <div class="goal-ring" :style="{ '--goal-progress': goalProgress }"><span>{{ goalProgress }}%</span></div>
         <div class="goal-copy">
           <strong>今日目标</strong>
           <small><span>专注</span><b>{{ formatGoalHours(focusDuration, focusTarget) }}</b></small>
-          <small><span>代理</span><b>{{ formatGoalHours(agentDuration, agentTarget) }}</b></small>
+          <small><span>AI 前台</span><b>{{ formatGoalHours(agentDuration, agentTarget) }}</b></small>
         </div>
       </button>
     </aside>
@@ -163,7 +165,7 @@ onBeforeUnmount(() => {
       </div>
       <main id="main-content" class="page-viewport" tabindex="-1">
         <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in"><component :is="Component" /></Transition>
+          <Transition name="page"><component :is="Component" /></Transition>
         </RouterView>
       </main>
     </section>

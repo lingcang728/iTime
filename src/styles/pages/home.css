@@ -50,7 +50,7 @@
 .ranking-identity small,
 .rank-value small {
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
@@ -141,7 +141,7 @@ html[data-theme="dark"] .app-icon__generic {
   border-radius: 7px;
   color: var(--text-muted);
   background: transparent;
-  font-size: 9px;
+  font-size: 10px;
   cursor: pointer;
 }
 
@@ -229,5 +229,5 @@ html[data-theme="dark"] .app-icon__generic {
 
 .input-summary-card small {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }

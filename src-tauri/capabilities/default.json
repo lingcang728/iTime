@@ -4,7 +4,6 @@
   "description": "Capabilities for the iTime desktop window",
   "windows": ["main"],
   "permissions": [
-    "core:default",
     "core:event:default",
     "core:window:allow-hide",
     "core:window:allow-show",

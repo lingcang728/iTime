@@ -12,12 +12,25 @@ const kindLabels = {
   waiting: '静默等待',
   overlap: '并行重叠',
 } as const
-const positioned = computed(() => props.segments.map((segment) => ({
-  ...segment,
-  left: `${Math.max(0, (segment.start - props.range.start) / (props.range.end - props.range.start) * 100)}%`,
-  width: `${Math.max(0.6, (segment.end - segment.start) / (props.range.end - props.range.start) * 100)}%`,
-  tooltip: `${kindLabels[segment.kind ?? 'other']} · ${formatClock(segment.start)}—${formatClock(segment.end)}`,
-})))
+const positioned = computed(() => {
+  const duration = Math.max(1, props.range.end - props.range.start)
+  return props.segments.flatMap((segment) => {
+    const start = Math.max(props.range.start, segment.start)
+    const end = Math.min(props.range.end, segment.end)
+    if (end <= start) return []
+    const left = (start - props.range.start) / duration * 100
+    const width = Math.min(100 - left, Math.max(0.6, (end - start) / duration * 100))
+    return [{
+      ...segment,
+      start,
+      end,
+      left: `${left}%`,
+      width: `${width}%`,
+      edge: left < 14 ? 'left' : left + width > 86 ? 'right' : 'center',
+      tooltip: `${kindLabels[segment.kind ?? 'other']} · ${formatClock(start)}—${formatClock(end)}`,
+    }]
+  })
+})
 </script>
 
 <template>
@@ -28,7 +41,7 @@ const positioned = computed(() => props.segments.map((segment) => ({
         v-for="(segment, index) in positioned"
         :key="index"
         class="timeline-segment"
-        :class="[`is-${segment.kind ?? 'custom'}`, `is-${segment.variant ?? 'solid'}`, { muted: segment.muted }]"
+        :class="[`is-${segment.kind ?? 'custom'}`, `is-${segment.variant ?? 'solid'}`, `edge-${segment.edge}`, { muted: segment.muted }]"
         :style="{ left: segment.left, width: segment.width, '--segment-color': segment.color }"
         :aria-label="segment.tooltip"
         :data-tooltip="segment.tooltip"
@@ -80,7 +93,7 @@ const positioned = computed(() => props.segments.map((segment) => ({
   color: var(--text-primary);
   background: var(--bg-card);
   box-shadow: var(--shadow-card);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.3;
   opacity: 0;
@@ -95,4 +108,10 @@ const positioned = computed(() => props.segments.map((segment) => ({
   opacity: 1;
   transform: translate(-50%, 0);
 }
+.timeline-segment.edge-left::after { left: 0; transform: translate(0, 4px); }
+.timeline-segment.edge-left:hover::after,
+.timeline-segment.edge-left:focus::after { transform: translate(0, 0); }
+.timeline-segment.edge-right::after { right: 0; left: auto; transform: translate(0, 4px); }
+.timeline-segment.edge-right:hover::after,
+.timeline-segment.edge-right:focus::after { transform: translate(0, 0); }
 </style>

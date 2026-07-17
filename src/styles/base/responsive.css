@@ -125,12 +125,12 @@ html[data-reference="compact"] .page-header h1 {
 }
 
 html[data-reference="compact"] .page-header p {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 html[data-reference="compact"] .date-switcher strong {
   min-width: 88px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 html[data-reference="compact"] .metric-card {
@@ -164,7 +164,7 @@ html[data-reference="compact"] .ai-page .metric-card {
 html[data-reference="compact"] .ai-page .metric-card__header {
   align-items: flex-start;
   gap: 3px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 html[data-reference="compact"] .ai-page .metric-icon {

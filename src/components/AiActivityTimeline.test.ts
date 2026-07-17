@@ -71,7 +71,7 @@ describe('AiActivityTimeline', () => {
     expect(segments.length).toBeGreaterThanOrEqual(5)
     expect(segments.every((item) => item.attributes('aria-label'))).toBe(true)
     expect(wrapper.text()).toContain('Codex')
-    expect(wrapper.text()).toContain('前台交互（估算）')
+    expect(wrapper.text()).toContain('AI 前台活跃')
     expect(wrapper.find('.is-overlap').exists()).toBe(true)
   })
 
@@ -79,6 +79,6 @@ describe('AiActivityTimeline', () => {
     const wrapper = mount(AiActivityTimeline, {
       props: { range: { start, end: start + 24 * hour }, foreground: [], tools: [] },
     })
-    expect(wrapper.text()).toContain('尚未采集到 AI 工具执行区间')
+    expect(wrapper.text()).toContain('尚未采集到 AI 工具活动')
   })
 })

@@ -30,7 +30,7 @@ describe('activity adapter', () => {
     expect(JSON.stringify(dataset)).not.toContain('windowTitle')
   })
 
-  it('marks foreground AI duration as an estimate that needs review', () => {
+  it('keeps foreground AI activity separate from Provider execution evidence', () => {
     const dataset = activityDataset({
       ...base,
       intervals: [{
@@ -38,9 +38,10 @@ describe('activity adapter', () => {
         appId: 'process:codex', appName: 'Codex', aiTool: true,
       }],
     })
-    const work = dataset.events.find((event) => event.type === 'aiWork')
-    expect(work?.accuracyLabel).toBe('estimated')
-    expect(work?.reviewState).toBe('needsReview')
+    const interaction = dataset.events.find((event) => event.type === 'aiInteraction')
+    expect(dataset.events.some((event) => event.type === 'aiWork')).toBe(false)
+    expect(interaction?.accuracyLabel).toBe('estimated')
+    expect(interaction?.reviewState).toBe('needsReview')
   })
 
   it('normalizes display names in records written by older collectors', () => {
@@ -61,5 +62,17 @@ describe('activity adapter', () => {
       capabilities: { ...base.capabilities, contentCaptured: true },
       intervals: [],
     })).toThrow()
+  })
+
+  it('keeps valid intervals when one stored record is malformed', () => {
+    const snapshot = parseActivitySnapshot({
+      ...base,
+      intervals: [
+        { version: 1, start: 1000, end: 2000, deviceState: 'active', appId: 'code', appName: 'Code', aiTool: false },
+        { version: 1, start: 3000, end: 2000, deviceState: 'active', appId: 'bad', appName: 'Bad', aiTool: false },
+      ],
+    })
+    expect(snapshot.intervals).toHaveLength(1)
+    expect(snapshot.skippedRecords).toBe(1)
   })
 })

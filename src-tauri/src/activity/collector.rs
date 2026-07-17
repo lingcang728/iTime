@@ -1,12 +1,12 @@
 use super::{
-    capture::capture_observation,
-    model::{ActivitySlice, CollectorHealth, SAMPLE_INTERVAL_SECONDS},
+    capture::{capture_observation, CapturedObservation, IDLE_THRESHOLD_MILLIS},
+    model::{ActivitySlice, CollectorHealth, DeviceState, SAMPLE_INTERVAL_SECONDS},
     storage::append_slice,
 };
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{self, RecvTimeoutError, Sender},
+        mpsc::{self, Receiver, RecvTimeoutError, Sender},
         Arc, Mutex,
     },
     thread::{self, JoinHandle},
@@ -24,6 +24,7 @@ struct HealthState {
 pub(crate) struct ActivityCollector {
     health: Arc<HealthState>,
     stop: Sender<()>,
+    done: Mutex<Receiver<()>>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -36,6 +37,26 @@ fn unix_millis() -> Option<u64> {
 
 fn should_close_interval(start: u64, end: u64) -> bool {
     end > start && end - start <= MAX_CONTIGUOUS_MILLIS
+}
+
+fn observation_boundary(
+    previous: &Option<(u64, super::model::ActivityObservation)>,
+    current: &CapturedObservation,
+    now: u64,
+) -> u64 {
+    let Some((start, observation)) = previous else {
+        return now;
+    };
+    if observation.device_state != DeviceState::Active
+        || current.observation.device_state != DeviceState::Idle
+    {
+        return now;
+    }
+    let excess = current
+        .idle_millis
+        .unwrap_or(IDLE_THRESHOLD_MILLIS)
+        .saturating_sub(IDLE_THRESHOLD_MILLIS);
+    now.saturating_sub(u64::from(excess)).clamp(*start, now)
 }
 
 fn write_previous(
@@ -79,6 +100,7 @@ impl ActivityCollector {
         });
         let thread_health = health.clone();
         let (stop, receiver) = mpsc::channel();
+        let (done_sender, done_receiver) = mpsc::channel();
         let spawn_result = thread::Builder::new()
             .name("itime-activity-collector".into())
             .spawn(move || {
@@ -88,14 +110,19 @@ impl ActivityCollector {
                 loop {
                     let current_generation = generation.load(Ordering::Acquire);
                     if current_generation != observed_generation {
-                        previous = None;
+                        if let Some(now) = unix_millis() {
+                            write_previous(&mut previous, now, &thread_health);
+                        } else {
+                            previous = None;
+                        }
                         observed_generation = current_generation;
                     }
                     if recording.load(Ordering::Acquire) {
                         if let Some(now) = unix_millis() {
                             let current = capture_observation();
-                            write_previous(&mut previous, now, &thread_health);
-                            previous = Some((now, current));
+                            let boundary = observation_boundary(&previous, &current, now);
+                            write_previous(&mut previous, boundary, &thread_health);
+                            previous = Some((boundary, current.observation));
                         }
                     } else {
                         previous = None;
@@ -113,6 +140,7 @@ impl ActivityCollector {
                         }
                     }
                 }
+                let _ = done_sender.send(());
             });
         let worker = match spawn_result {
             Ok(handle) => Some(handle),
@@ -126,6 +154,7 @@ impl ActivityCollector {
         Self {
             health,
             stop,
+            done: Mutex::new(done_receiver),
             worker: Mutex::new(worker),
         }
     }
@@ -148,8 +177,13 @@ impl ActivityCollector {
 impl Drop for ActivityCollector {
     fn drop(&mut self) {
         let _ = self.stop.send(());
+        let finished = self
+            .done
+            .lock()
+            .ok()
+            .is_some_and(|done| done.recv_timeout(Duration::from_secs(2)).is_ok());
         if let Ok(mut worker) = self.worker.lock() {
-            if let Some(handle) = worker.take() {
+            if let Some(handle) = worker.take().filter(|_| finished) {
                 let _ = handle.join();
             }
         }
@@ -165,5 +199,28 @@ mod tests {
         assert!(should_close_interval(1_000, 11_000));
         assert!(!should_close_interval(1_000, 31_001));
         assert!(!should_close_interval(2_000, 1_000));
+    }
+
+    #[test]
+    fn closes_active_interval_at_idle_threshold_boundary() {
+        let previous = Some((
+            1_000,
+            super::super::model::ActivityObservation {
+                device_state: DeviceState::Active,
+                app_id: None,
+                app_name: None,
+                ai_tool: false,
+            },
+        ));
+        let current = CapturedObservation {
+            observation: super::super::model::ActivityObservation {
+                device_state: DeviceState::Idle,
+                app_id: None,
+                app_name: None,
+                ai_tool: false,
+            },
+            idle_millis: Some(IDLE_THRESHOLD_MILLIS + 3_000),
+        };
+        assert_eq!(observation_boundary(&previous, &current, 20_000), 17_000);
     }
 }

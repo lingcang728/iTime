@@ -9,7 +9,7 @@ use std::rc::Rc;
 use windows::core::{Interface, Owned, PCWSTR, PWSTR};
 use windows::Win32::Foundation::SIZE;
 use windows::Win32::Graphics::Gdi::HBITMAP;
-use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 use windows::Win32::UI::Shell::{
     ExtractIconExW, IShellItem, IShellItemImageFactory, SHCreateItemFromParsingName,
     SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_SMALLICON,
@@ -26,7 +26,7 @@ impl ComGuard {
     fn new() -> Self {
         // SAFETY: [Category 8 - FFI boundary] `None` supplies COM's required null
         // reserved pointer, and the documented apartment flag is a valid value.
-        let result = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+        let result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
         Self {
             should_uninitialize: result.is_ok(),
             _thread_affine: PhantomData,

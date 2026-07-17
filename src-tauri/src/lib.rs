@@ -1,6 +1,7 @@
 mod activity;
 mod icons;
 mod keystats;
+mod settings;
 
 use activity::ActivityCollector;
 use icons::IconService;
@@ -25,6 +26,7 @@ struct RuntimeState {
     recording: Arc<AtomicBool>,
     recording_generation: Arc<AtomicU64>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
+    window_fitted: AtomicBool,
 }
 
 fn fitted_window_size(work_width: f64, work_height: f64) -> (LogicalSize<f64>, LogicalSize<f64>) {
@@ -65,7 +67,7 @@ fn apply_recording_state(app: &AppHandle, recording: bool) {
     if let Some(item) = state
         .toggle_item
         .lock()
-        .expect("tray toggle state poisoned")
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
         .as_ref()
     {
         let _ = item.set_text(if recording {
@@ -91,12 +93,18 @@ fn get_recording_state(state: State<'_, RuntimeState>) -> bool {
 }
 
 #[tauri::command]
-fn set_recording_state(app: AppHandle, state: State<'_, RuntimeState>, recording: bool) {
+fn set_recording_state(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    recording: bool,
+) -> Result<(), String> {
+    settings::save_recording(recording)?;
     let previous = state.recording.swap(recording, Ordering::AcqRel);
     if previous != recording {
         state.recording_generation.fetch_add(1, Ordering::AcqRel);
     }
     apply_recording_state(&app, recording);
+    Ok(())
 }
 
 #[tauri::command]
@@ -106,15 +114,15 @@ fn quit_app(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let recording = Arc::new(AtomicBool::new(true));
+    let recording = Arc::new(AtomicBool::new(settings::load_recording().unwrap_or(true)));
     let recording_generation = Arc::new(AtomicU64::new(0));
     tauri::Builder::default()
         .manage(RuntimeState {
             recording: recording.clone(),
             recording_generation: recording_generation.clone(),
             toggle_item: Mutex::new(None),
+            window_fitted: AtomicBool::new(false),
         })
-        .manage(ActivityCollector::start(recording, recording_generation))
         .manage(IconService::new())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -126,14 +134,36 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), PageLoadEvent::Finished) {
                 let window = webview.window();
-                let _ = fit_main_window_to_work_area(&window);
+                let state = webview.app_handle().state::<RuntimeState>();
+                if !state.window_fitted.swap(true, Ordering::AcqRel) {
+                    let _ = fit_main_window_to_work_area(&window);
+                }
                 let _ = window.show();
                 let _ = window.set_focus();
             }
         })
         .setup(|app| {
+            let (recording, generation, recording_now) = {
+                let runtime = app.state::<RuntimeState>();
+                (
+                    runtime.recording.clone(),
+                    runtime.recording_generation.clone(),
+                    runtime.recording.load(Ordering::Acquire),
+                )
+            };
+            app.manage(ActivityCollector::start(recording, generation));
             let open = MenuItem::with_id(app, "open", "打开 iTime", true, None::<&str>)?;
-            let toggle = MenuItem::with_id(app, "toggle", "暂停记录", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(
+                app,
+                "toggle",
+                if recording_now {
+                    "暂停记录"
+                } else {
+                    "继续记录"
+                },
+                true,
+                None::<&str>,
+            )?;
             let overview = MenuItem::with_id(app, "overview", "今日概览", true, None::<&str>)?;
             let reminders = MenuItem::with_id(app, "reminders", "提醒开关", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
@@ -141,7 +171,7 @@ pub fn run() {
             *app.state::<RuntimeState>()
                 .toggle_item
                 .lock()
-                .expect("tray toggle state poisoned") = Some(toggle.clone());
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(toggle.clone());
 
             TrayIconBuilder::with_id("main")
                 .icon(
@@ -151,14 +181,26 @@ pub fn run() {
                 )
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .tooltip("iTime · 记录中")
+                .tooltip(if recording_now {
+                    "iTime · 记录中"
+                } else {
+                    "iTime · 已暂停"
+                })
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => show_main_window(app),
                     "toggle" => {
                         let state = app.state::<RuntimeState>();
-                        let recording = !state.recording.fetch_xor(true, Ordering::AcqRel);
-                        state.recording_generation.fetch_add(1, Ordering::AcqRel);
-                        apply_recording_state(app, recording);
+                        let recording = !state.recording.load(Ordering::Acquire);
+                        match settings::save_recording(recording) {
+                            Ok(()) => {
+                                state.recording.store(recording, Ordering::Release);
+                                state.recording_generation.fetch_add(1, Ordering::AcqRel);
+                                apply_recording_state(app, recording);
+                            }
+                            Err(error) => {
+                                let _ = app.emit("recording-error", error);
+                            }
+                        }
                     }
                     "overview" => {
                         show_main_window(app);
@@ -199,7 +241,6 @@ pub fn run() {
             quit_app,
             activity::get_activity_snapshot,
             icons::commands::resolve_app_icon,
-            icons::commands::get_icon_cache_dir,
             keystats::get_key_stats_snapshot
         ])
         .run(tauri::generate_context!())

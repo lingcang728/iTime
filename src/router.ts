@@ -6,8 +6,6 @@ import TimelinePage from './pages/TimelinePage.vue'
 import InputFootprintPage from './pages/InputFootprintPage.vue'
 import GoalsPage from './pages/GoalsPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
-import AccountPage from './pages/AccountPage.vue'
-import ProPage from './pages/ProPage.vue'
 
 export const pageIds = ['home', 'ai', 'timeline', 'input', 'weekly', 'goals', 'settings'] as const
 export type PageId = typeof pageIds[number]
@@ -23,7 +21,6 @@ export const router = createRouter({
     { path: '/weekly', name: 'weekly', component: WeeklyPage },
     { path: '/goals', name: 'goals', component: GoalsPage },
     { path: '/settings', name: 'settings', component: SettingsPage },
-    { path: '/account', name: 'account', component: AccountPage },
-    { path: '/pro', name: 'pro', component: ProPage },
+    { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })

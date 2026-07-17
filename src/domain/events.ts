@@ -140,6 +140,7 @@ export interface DaySnapshot {
   range: TimeRange
   computerActivity: StatValue
   foregroundActivity: StatValue
+  aiInteraction: StatValue
   aiEffective: StatValue
   aiCoverage: StatValue
   parallelOverlap: StatValue

@@ -30,7 +30,7 @@ describe('AI agent surface', () => {
     const wrapper = mount(AiDetailDrawer, {
       global: { stubs: { ApplicationIcon: true, Transition: false } },
     })
-    expect(wrapper.text()).toContain('前台交互（估算）')
+    expect(wrapper.text()).toContain('前台活跃')
     expect(wrapper.text()).toContain('不读取提示词、对话、按键内容或文件正文')
     expect(wrapper.text()).toContain('不是工具的“知性度”')
     expect(wrapper.text()).toContain('检测置信度')
@@ -49,7 +49,7 @@ describe('AI agent surface', () => {
       },
     })
     expect(wrapper.text()).toContain('今日洞察')
-    expect(wrapper.text()).toContain('每一行对应当前数据源中的实际采样区间')
-    expect(wrapper.text()).toContain('不会读取交互内容')
+    expect(wrapper.text()).toContain('实心执行区间仅来自 Provider')
+    expect(wrapper.text()).toContain('没有 Provider 证据时')
   })
 })

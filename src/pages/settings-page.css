@@ -128,7 +128,7 @@
 
 .toggle input:checked + i { background: var(--accent-green); }
 .toggle input:checked + i::after { transform: translateX(20px); }
-.toggle input:focus-visible + i { outline: 3px solid var(--accent-blue-soft); }
+.toggle input:focus-visible + i { outline: 3px solid var(--border-focus); outline-offset: 2px; }
 .toggle input:disabled + i { cursor: progress; opacity: .55; }
 
 .privacy-note {
@@ -169,9 +169,9 @@
 .theme-options label:hover { border-color: var(--border-strong); background: var(--bg-hover); }
 .theme-options label.active { border-color: var(--accent-green); color: var(--accent-green-strong); background: var(--accent-green-soft); }
 .theme-options input { position: absolute; opacity: 0; }
-.theme-options label:has(input:focus-visible) { outline: 3px solid var(--accent-blue-soft); }
+.theme-options label:has(input:focus-visible) { outline: 3px solid var(--border-focus); outline-offset: 2px; }
 
-.source-card { position: sticky; top: 8px; }
+.source-card { position: static; }
 
 .source-status {
   display: flex;

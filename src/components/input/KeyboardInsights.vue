@@ -10,7 +10,7 @@ const props = defineProps<{
   shortcutsEnabled: boolean
 }>()
 
-const maximum = computed(() => Math.max(1, ...props.snapshot.singleKeys.map((key) => key.count)))
+const maximum = computed(() => props.snapshot.singleKeys.reduce((current, key) => Math.max(current, key.count), 1))
 const heatKeys = computed(() => props.snapshot.singleKeys.slice(0, 12))
 const rankedKeys = computed(() => props.snapshot.singleKeys.slice(0, 10))
 const visibleShortcuts = computed(() => props.snapshot.shortcuts.slice(0, 8))
@@ -49,7 +49,6 @@ function shortcutParts(shortcut: string): string[] {
           :key="key.key"
           class="key-cap"
           role="listitem"
-          tabindex="0"
           :style="heatStyle(key)"
           :aria-label="`${key.key}，${formatNumber(key.count)} 次`"
         >
@@ -110,16 +109,16 @@ function shortcutParts(shortcut: string): string[] {
 .keyboard-layout > article { min-width: 0; padding: 19px; }
 header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 h2 { margin: 0; font-size: 15px; letter-spacing: -.2px; }
-p { margin: 5px 0 0; color: var(--text-secondary); font-size: 9px; line-height: 1.5; }
-header > span { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 9px; }
+p { margin: 5px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
+header > span { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 10px; }
 .key-grid { display: grid; grid-template-columns: repeat(6, minmax(52px, 1fr)); gap: 7px; }
 .key-cap { --heat-fill: var(--bg-soft); min-height: 58px; display: grid; align-content: space-between; padding: 10px 11px 8px; border: 1px solid color-mix(in srgb, var(--accent-green) 22%, var(--border-strong)); border-bottom-width: 3px; border-radius: 9px; background: var(--heat-fill); box-shadow: inset 0 1px rgba(255, 255, 255, .45); transition: transform 150ms var(--ease-out), border-color 150ms ease; }
 .key-cap:hover,
 .key-cap:focus-visible { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent-green) 48%, var(--border-strong)); }
 kbd { overflow: hidden; color: var(--text-primary); font: 650 10px/1.2 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.key-cap strong { color: var(--text-secondary); font: 650 9px/1 var(--font-data); }
+.key-cap strong { color: var(--text-primary); font: 650 10px/1 var(--font-data); }
 .ranking-card ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.ranking-card li { display: grid; grid-template-columns: 20px 62px minmax(30px, 1fr) 50px; align-items: center; gap: 8px; font-size: 9px; }
+.ranking-card li { display: grid; grid-template-columns: 20px 62px minmax(30px, 1fr) 50px; align-items: center; gap: 8px; font-size: 10px; }
 .ranking-card li > span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .ranking-card li > kbd { padding: 6px 7px; border: 1px solid var(--border-soft); border-bottom-width: 2px; border-radius: 7px; background: var(--bg-soft); text-align: center; }
 .ranking-card li > i { height: 5px; overflow: hidden; border-radius: 999px; background: var(--bg-soft); }
@@ -130,7 +129,7 @@ kbd { overflow: hidden; color: var(--text-primary); font: 650 10px/1.2 var(--fon
 .shortcut-list > div:last-child { border-bottom: 0; }
 .shortcut-keys { min-width: 0; display: flex; align-items: center; gap: 4px; }
 .shortcut-keys kbd { min-width: 28px; padding: 6px 7px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--bg-soft); text-align: center; }
-.shortcut-keys i { color: var(--text-muted); font-size: 9px; font-style: normal; }
+.shortcut-keys i { color: var(--text-muted); font-size: 10px; font-style: normal; }
 .shortcut-list strong { font: 700 10px/1 var(--font-data); font-variant-numeric: tabular-nums; }
 .card-title-with-icon { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
 .card-title-icon { width: 26px; height: 26px; flex: 0 0 26px; margin-top: 1px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.1)); }

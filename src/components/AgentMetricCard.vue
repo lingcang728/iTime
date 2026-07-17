@@ -52,7 +52,7 @@ const tokens = computed(() => props.value.split(/(\d+(?:\.\d+)?)/).filter(Boolea
 }
 
 .metric__copy { min-width: 0; }
-.metric__label { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 9px; }
+.metric__label { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 10px; }
 
 .metric__info {
   width: 19px;
@@ -81,7 +81,7 @@ const tokens = computed(() => props.value.split(/(\d+(?:\.\d+)?)/).filter(Boolea
   color: var(--text-primary);
   background: var(--bg-card);
   box-shadow: var(--shadow-card);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   line-height: 1.55;
   text-align: left;
@@ -94,7 +94,7 @@ const tokens = computed(() => props.value.split(/(\d+(?:\.\d+)?)/).filter(Boolea
 
 .metric__value { display: block; margin-top: 12px; font-size: 12px; font-weight: 500; letter-spacing: -.3px; }
 .metric__value .number { font-size: 25px; font-weight: 760; font-variant-numeric: tabular-nums; }
-.metric small { display: block; margin-top: 7px; color: var(--text-muted); font-size: 8px; }
+.metric small { display: block; margin-top: 7px; color: var(--text-muted); font-size: 10px; }
 
 .metric__art {
   width: 58px;

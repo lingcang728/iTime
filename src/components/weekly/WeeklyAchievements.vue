@@ -26,9 +26,9 @@ function statusLabel(item: WeeklyAchievement): string {
 .achievements article { min-width: 0; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border-soft); border-radius: 11px; background: color-mix(in srgb, var(--bg-subtle) 74%, transparent); }
 .achievements__icon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: var(--text-muted); background: var(--bg-card); }
 .achievements__copy { min-width: 0; display: grid; gap: 2px; }
-.achievements__copy strong { color: var(--text-primary); font-size: 9px; font-weight: 680; }
-.achievements__copy small { overflow: hidden; color: var(--text-muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.achievements em { color: var(--text-muted); font-size: 8px; font-style: normal; white-space: nowrap; }
+.achievements__copy strong { color: var(--text-primary); font-size: 10px; font-weight: 680; }
+.achievements__copy small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.achievements em { color: var(--text-muted); font-size: 10px; font-style: normal; white-space: nowrap; }
 .achievements i { height: 3px; grid-column: 2 / 4; overflow: hidden; border-radius: 3px; background: var(--border-soft); }
 .achievements i span { display: block; height: 100%; border-radius: inherit; background: #9aa4b3; }
 .achievements article.unlocked { border-color: color-mix(in srgb, var(--accent-green) 34%, var(--border-soft)); background: color-mix(in srgb, var(--accent-green-soft) 72%, var(--bg-card)); }

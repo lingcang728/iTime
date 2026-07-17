@@ -20,11 +20,14 @@ const props = withDefaults(defineProps<{
   compact: false,
   tone: 'blue',
   primaryLabel: '电脑活动',
-  secondaryLabel: 'AI 代理工作',
+  secondaryLabel: 'AI 前台活跃',
 })
 
 const activeIndex = ref<number | null>(null)
-const maximum = computed(() => Math.max(1, ...props.points.flatMap((point) => [point.value ?? 0, point.secondary ?? 0])))
+const maximum = computed(() => props.points.reduce(
+  (current, point) => Math.max(current, point.value ?? 0, point.secondary ?? 0),
+  1,
+))
 const active = computed(() => activeIndex.value === null ? null : props.points[activeIndex.value])
 
 function height(value: number | null | undefined): string {
@@ -105,8 +108,8 @@ function valueLabel(value: number | null | undefined): string {
 .week-bars__bar--secondary { background: linear-gradient(180deg, #b3a5f2, #7562d7); box-shadow: 0 5px 16px color-mix(in srgb, #7562d7 18%, transparent); }
 .week-bars__item:hover .week-bars__bar { filter: saturate(1.12) brightness(1.02); }
 .week-bars__item strong { align-self: end; color: var(--text-primary); font-size: 10px; font-weight: 650; }
-.week-bars__item small { color: var(--text-muted); font-size: 8px; }
-.week-bars__readout { min-height: 26px; display: flex; align-items: center; gap: 14px; padding: 7px 12px 0; color: var(--text-muted); font-size: 9px; }
+.week-bars__item small { color: var(--text-muted); font-size: 10px; }
+.week-bars__readout { min-height: 26px; display: flex; align-items: center; gap: 14px; padding: 7px 12px 0; color: var(--text-muted); font-size: 10px; }
 .week-bars__readout strong { color: var(--text-primary); }
 .week-bars__readout span + span { padding-left: 14px; border-left: 1px solid var(--border-soft); }
 .week-bars--compact .week-bars__plot { height: 168px; }
