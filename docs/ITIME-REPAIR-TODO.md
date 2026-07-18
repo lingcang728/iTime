@@ -110,7 +110,7 @@
 - [x] 真实 Tauri/WebView2：当日 Provider 指标、执行时间线和工具统计有数据；键盘计数器写出分钟桶，页面只显示两个键盘指标。
 - [x] 最终 `npm run verify:full`：22 个前端测试文件 / 87 个测试、31 个 Rust 测试、生产构建、Clippy、交互矩阵与 28 张视觉回归图全部通过。
 - [x] 最终 `npm run package:release`：`release` 中恰好两个 EXE，均生成于本轮最终构建；便携版 SHA-256 `D9DC92491F212D91CC3927D2CFB8FFA104F336CC1BA9B0FDE1CF1B050D19B8C0`，安装包 SHA-256 `D9529CF02D96331552F5A345F79996F8AFF19466D0C2EF6ACED294A6ACA98E0B`，均与同次 Cargo/NSIS 源产物一致。
-- [ ] 完整 diff 与暂存范围审查、源码提交推送、远端一致及干净工作树。
+- [x] 完整 diff 与暂存范围审查、源码提交推送、远端一致及干净工作树。
 
 ## 仍然诚实暴露的能力边界
 
