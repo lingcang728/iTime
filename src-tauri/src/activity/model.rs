@@ -7,6 +7,7 @@ pub(super) const SAMPLE_INTERVAL_SECONDS: u64 = 10;
 pub(super) enum DeviceState {
     Active,
     Idle,
+    Locked,
     Unknown,
 }
 

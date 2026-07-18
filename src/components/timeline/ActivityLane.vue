@@ -21,7 +21,7 @@ const positioned = computed(() => {
     const end = Math.min(props.range.end, segment.end)
     if (end <= start) return []
     const left = (start - props.range.start) / duration * 100
-    const width = Math.min(100 - left, Math.max(.7, (end - start) / duration * 100))
+    const width = Math.min(100 - left, Math.max(.12, (end - start) / duration * 100))
     return [{
       ...segment,
       start,
@@ -84,15 +84,17 @@ const positioned = computed(() => {
 
 .lane-track {
   position: relative;
-  height: 40px;
-  background-image: linear-gradient(to right, color-mix(in srgb, var(--border-soft) 72%, transparent) 1px, transparent 1px);
-  background-size: 16.666% 100%;
+  height: 36px;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border-strong) 72%, transparent) 1px, transparent 1px),
+    linear-gradient(to right, color-mix(in srgb, var(--border-soft) 48%, transparent) 1px, transparent 1px);
+  background-size: 11.111% 100%, 2.777% 100%;
 }
 
 .lane-track::after {
   content: '';
   position: absolute;
-  inset: 20px 0 auto;
+  inset: 18px 0 auto;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -110,11 +112,11 @@ const positioned = computed(() => {
   --segment-color: var(--accent-green);
   position: absolute;
   z-index: 2;
-  top: 9px;
-  height: 22px;
-  min-width: 3px;
+  top: 8px;
+  height: 20px;
+  min-width: 2px;
   border: 1px solid color-mix(in srgb, var(--segment-color) 44%, transparent);
-  border-radius: 4px;
+  border-radius: 3px;
   background: color-mix(in srgb, var(--segment-color) 78%, var(--bg-card));
   cursor: help;
   transition: opacity 150ms ease, transform 150ms var(--ease-out), border-color 150ms ease;
@@ -130,8 +132,8 @@ const positioned = computed(() => {
 }
 
 .lane-segment.is-interaction {
-  top: 9px;
-  height: 22px;
+  top: 8px;
+  height: 20px;
   border-color: var(--accent-green);
   background: color-mix(in srgb, var(--accent-green-soft) 38%, transparent);
 }
@@ -164,7 +166,7 @@ const positioned = computed(() => {
   color: var(--text-inverse);
   font-size: 10px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 18px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;

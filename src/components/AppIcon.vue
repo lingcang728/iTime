@@ -6,6 +6,7 @@ import { embeddedAppIcons } from '../data/appIconAssets'
 import chromeIcon from '../assets/apps/chrome.svg'
 import claudeIcon from '../assets/apps/claude.svg'
 import vscodeIcon from '../assets/apps/vscode.svg'
+import itimeIcon from '../assets/logo.svg'
 import {
   peekAppIcon,
   resolveAppIcon,
@@ -37,6 +38,7 @@ const localIcons: Record<string, string> = {
   claude: claudeIcon,
   vscode: vscodeIcon,
   chrome: chromeIcon,
+  itime: itimeIcon,
 }
 
 const status = ref<IconStatus>('loading')

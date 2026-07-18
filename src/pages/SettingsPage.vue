@@ -2,11 +2,8 @@
 import { computed, onMounted } from 'vue'
 import {
   PhArrowClockwise,
-  PhBrowsers,
   PhChartBar,
   PhClock,
-  PhCommand,
-  PhDatabase,
   PhDesktop,
   PhHardDrives,
   PhKeyboard,
@@ -47,11 +44,10 @@ const inputFacts = computed(() => {
     none: '无历史序列',
   }[capabilities.historyGranularity]
   return [
-    { label: '连续监测时长', value: '今日实时统计', icon: PhClock },
-    { label: '今日输入事件', value: historyLabel, icon: PhPulse },
-    { label: '按键事件', value: capabilities.keyHeatmap ? '可用' : '数据源未提供', icon: PhKeyboard },
-    { label: '应用与网站', value: capabilities.functionalShortcuts ? '已启用聚合' : '仅活动记录', icon: PhBrowsers },
-    { label: '本地数据占用', value: capabilities.deleteByDate ? '本机授权读写' : '本机只读', icon: PhHardDrives },
+    { label: '统计方式', value: 'Windows 字符键按下计数', icon: PhKeyboard },
+    { label: '聚合粒度', value: historyLabel, icon: PhPulse },
+    { label: '输入内容', value: '从不保存', icon: PhShieldCheck },
+    { label: '本地存储', value: 'iTime Data · JSONL', icon: PhHardDrives },
   ]
 })
 
@@ -102,11 +98,7 @@ onMounted(() => void store.refreshAutostart())
           <header class="settings-group__header">
             <div><h2 id="privacy-title">输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
           </header>
-          <div class="settings-list">
-            <label class="control-row"><span class="control-icon"><PhKeyboard :size="20" /></span><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
-            <label class="control-row"><span class="control-icon"><PhCommand :size="20" /></span><div><strong>功能组合键</strong><span>仅显示 Ctrl+C 等明确功能组合的累计次数。</span></div><span class="toggle"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
-          </div>
-          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只读取本机聚合计数，不读取键盘文字、密码内容或剪贴板正文，也不会修改既有输入历史。</p></div>
+          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只累计字符键按下次数并按分钟保存数量；不保存具体键值、键盘文字、密码内容、语音输入或剪贴板正文。</p></div>
         </section>
 
         <section class="settings-group appearance-section" aria-labelledby="appearance-title">
@@ -125,7 +117,7 @@ onMounted(() => void store.refreshAutostart())
       <aside class="settings-side">
         <section class="source-panel" aria-labelledby="source-title">
           <header class="settings-group__header">
-            <div><h2 id="source-title">本机输入数据</h2><p>查看当前连接状态与可用统计能力。</p></div>
+            <div><h2 id="source-title">本机键盘计数</h2><p>查看 Windows 字符键计数器的当前状态。</p></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">
             <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
@@ -134,13 +126,13 @@ onMounted(() => void store.refreshAutostart())
             <div v-for="fact in inputFacts" :key="fact.label"><component :is="fact.icon" :size="19" /><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
           </dl>
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
-            <PhArrowClockwise :size="17" weight="regular" />重新读取本机记录
+            <PhArrowClockwise :size="17" weight="regular" />刷新键盘计数
           </button>
         </section>
 
         <section class="data-boundary">
           <PhPauseCircle :size="22" weight="regular" aria-hidden="true" />
-          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>输入页呈现本机已有聚合；应用与 AI 活动仅从 iTime 采集器启用后开始记录。</p></div>
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器，Provider 活动来自本机会话时间事件。</p></div>
         </section>
       </aside>
     </div>

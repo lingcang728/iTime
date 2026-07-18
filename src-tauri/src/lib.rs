@@ -1,10 +1,13 @@
 mod activity;
 mod icons;
-mod keystats;
+mod keyboard;
+mod provider_activity;
 mod settings;
 
 use activity::ActivityCollector;
 use icons::IconService;
+use keyboard::{KeyboardCollector, KeyboardService};
+use provider_activity::ProviderActivityService;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
@@ -124,6 +127,8 @@ pub fn run() {
             window_fitted: AtomicBool::new(false),
         })
         .manage(IconService::new())
+        .manage(KeyboardService::new())
+        .manage(ProviderActivityService::new())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -151,7 +156,14 @@ pub fn run() {
                     runtime.recording.load(Ordering::Acquire),
                 )
             };
-            app.manage(ActivityCollector::start(recording, generation));
+            let icons = (*app.state::<IconService>()).clone();
+            let keyboard = (*app.state::<KeyboardService>()).clone();
+            app.manage(ActivityCollector::start(
+                recording.clone(),
+                generation,
+                icons,
+            ));
+            app.manage(KeyboardCollector::start(keyboard, recording));
             let open = MenuItem::with_id(app, "open", "打开 iTime", true, None::<&str>)?;
             let toggle = MenuItem::with_id(
                 app,
@@ -240,8 +252,9 @@ pub fn run() {
             set_recording_state,
             quit_app,
             activity::get_activity_snapshot,
+            provider_activity::get_provider_activity_snapshot,
             icons::commands::resolve_app_icon,
-            keystats::get_key_stats_snapshot
+            keyboard::get_keyboard_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running iTime");

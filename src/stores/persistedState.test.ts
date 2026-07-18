@@ -29,7 +29,7 @@ describe('persisted state validation', () => {
 
   it('writes the current schema version', () => {
     savePersistedState(persistedDefaults)
-    expect(JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}').schemaVersion).toBe(2)
+    expect(JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}').schemaVersion).toBe(3)
   })
 
   it('drops persisted goal values outside the editable bounds', () => {

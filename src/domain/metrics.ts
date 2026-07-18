@@ -99,11 +99,13 @@ function deriveTools(work: AiWorkInterval[], interactions: AiInteractionInterval
     const workIntervals = work.filter((event) => canonicalToolId(event) === toolId)
     const interactionIntervals = interactions.filter((event) => canonicalToolId(event) === toolId)
     const effectiveDuration = summedDuration(workIntervals)
-    const evidence = evidenceFor([...workIntervals, ...interactionIntervals], '尚未检测到工具区间')
+    const evidence = evidenceFor(workIntervals.length ? workIntervals : interactionIntervals, '尚未检测到工具区间')
     return {
       toolId,
       toolName: workIntervals[0]?.toolName ?? interactionIntervals[0]?.toolName ?? toolId,
-      status: workIntervals.length ? 'completed' as const : 'waiting' as const,
+      status: workIntervals.length
+        ? (workIntervals.some((event) => event.status === 'running') ? 'running' as const : 'completed' as const)
+        : 'waiting' as const,
       iconKey: toolId,
       foregroundDuration: durationOf(interactionIntervals),
       effectiveDuration,

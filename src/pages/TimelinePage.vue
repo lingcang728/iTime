@@ -22,6 +22,7 @@ import type {
   MediaPlaybackInterval,
   TimeEvent,
 } from '../domain/events'
+import { coalesceRangesBy } from '../domain/intervals'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatDuration, formatRatio } from '../utils/format'
@@ -47,16 +48,32 @@ const displayRange = computed(() => {
   return { start: start.getTime(), end: end.getTime() }
 })
 
-const deviceSegments = computed<ActivitySegment[]>(() => byType<DeviceStateInterval>('device').map((event) => ({
+const deviceSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
+  byType<DeviceStateInterval>('device'),
+  (event) => event.state,
+  20_000,
+).map((event) => ({
   start: event.start, end: event.end, ...deviceStyles[event.state], title: deviceNames[event.state],
 })))
-const appSegments = computed<ActivitySegment[]>(() => byType<ForegroundAppInterval>('foreground').map((event) => ({
+const appSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
+  byType<ForegroundAppInterval>('foreground'),
+  (event) => event.appId,
+  20_000,
+).map((event) => ({
   start: event.start, end: event.end, color: 'var(--accent-strong)', kind: 'other', title: event.appName,
 })))
-const aiSegments = computed<ActivitySegment[]>(() => byType<AiInteractionInterval>('aiInteraction').map((event) => ({
+const aiSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
+  byType<AiInteractionInterval>('aiInteraction'),
+  (event) => event.toolId,
+  20_000,
+).map((event) => ({
   start: event.start, end: event.end, color: 'var(--accent-strong)', kind: 'interaction', title: event.toolName,
 })))
-const mediaSegments = computed<ActivitySegment[]>(() => byType<MediaPlaybackInterval>('media').map((event) => ({
+const mediaSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
+  byType<MediaPlaybackInterval>('media'),
+  (event) => `${event.appName}:${event.awayPlayback}`,
+  20_000,
+).map((event) => ({
   start: event.start, end: event.end, color: 'var(--text-secondary)', kind: 'media', variant: event.awayPlayback ? 'hatched' : 'solid', muted: event.awayPlayback, title: event.appName,
 })))
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
@@ -104,7 +121,10 @@ function durationParts(value: number | null): DurationPart[] {
       </header>
 
       <template v-if="activityDataAvailable">
-        <div class="timeline-axis"><span></span><span v-for="hour in 10" :key="hour">{{ String(hour + 8).padStart(2, '0') }}:00</span></div>
+        <div class="timeline-axis">
+          <span></span>
+          <div class="timeline-axis__ticks"><span v-for="hour in 10" :key="hour" :style="{ left: `${(hour - 1) / 9 * 100}%` }">{{ String(hour + 8).padStart(2, '0') }}:00</span></div>
+        </div>
         <div class="timeline-tracks">
           <ActivityLane label="设备状态" :icon="PhDesktop" :range="displayRange" :segments="deviceSegments" />
           <ActivityLane label="前台应用" :icon="PhSquaresFour" :range="displayRange" :segments="appSegments" />
@@ -113,7 +133,7 @@ function durationParts(value: number | null): DurationPart[] {
         </div>
         <div class="timeline-explanation">
           <PhInfo :size="20" />
-          <div><strong>说明</strong><p>时间线基于 1 分钟粒度记录，展示你在设备上的活动轨迹。<br>前台应用与 AI 前台仅在窗口处于前台时计为活跃时长。</p></div>
+          <div><strong>说明</strong><p>时间线按 10 秒采样，并把连续同类记录合并成区间；主刻度为 1 小时，细网格为 15 分钟。<br>前台应用与 AI 前台仅在窗口处于前台时计为活跃时长。</p></div>
           <span><PhCheckCircle :size="15" />{{ sourceLabel }}</span>
         </div>
       </template>

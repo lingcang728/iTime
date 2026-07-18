@@ -2,6 +2,10 @@
   padding-bottom: 32px;
 }
 
+.input-page .input-history-wrap {
+  min-width: 0;
+}
+
 @media (max-height: 800px) {
   .input-page { padding-bottom: 20px; }
 }

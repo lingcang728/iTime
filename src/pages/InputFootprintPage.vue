@@ -1,30 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  PhCursorClick,
-  PhKeyboard,
-  PhMouse,
-  PhMouseLeftClick,
-  PhMouseRightClick,
-  PhMouseScroll,
-} from '@phosphor-icons/vue'
+import { PhChartLineUp, PhKeyboard } from '@phosphor-icons/vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import InputHistoryPanel from '../components/input/InputHistoryPanel.vue'
-import KeyboardInsights from '../components/input/KeyboardInsights.vue'
 import { useAppStore } from '../stores/appStore'
 import { hasInputData } from '../stores/dataAvailability'
-import { formatDistance, formatNumber } from '../utils/format'
+import { formatNumber } from '../utils/format'
 
 const store = useAppStore()
 const snapshot = computed(() => store.input.value)
-const hasSplitClicks = computed(() => snapshot.value.cumulative.leftClicks !== null && snapshot.value.cumulative.rightClicks !== null)
 const inputDataAvailable = computed(() => hasInputData(store.state.inputDataStatus))
+const averageCharacters = computed(() => {
+  const activeMinutes = snapshot.value.history.filter((point) => point.keyStrokes > 0).length
+  return activeMinutes ? snapshot.value.cumulative.keyStrokes / activeMinutes : 0
+})
 const pageSubtitle = computed(() => ({
-  ready: '读取 iTime 本机聚合记录；不记录输入内容',
-  preview: '展示浏览器预览数据；不记录输入内容',
-  loading: '正在连接 iTime 本机输入记录',
-  unavailable: '本机输入记录暂时不可用',
+  ready: '直接统计 Windows 字符键敲击；不保存键值或输入内容',
+  preview: '展示浏览器预览数据；桌面版直接统计字符键敲击',
+  loading: '正在连接 iTime 键盘计数器',
+  unavailable: '键盘计数器暂时不可用',
 }[store.state.inputDataStatus]))
 const unavailableTitle = computed(() => store.state.inputDataStatus === 'loading' ? '正在读取输入记录' : '输入记录暂不可用')
 
@@ -39,17 +34,11 @@ function metricDetail(detail: string): string {
 
 <template>
   <section class="page input-page">
-    <PageHeader title="输入足迹" :subtitle="pageSubtitle" />
+    <PageHeader title="键盘输入统计" :subtitle="pageSubtitle" />
 
-    <div class="input-stat-strip" :class="{ 'input-stat-strip--four': !hasSplitClicks }">
-      <MetricCard label="键盘敲击" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期总量')" :icon="PhKeyboard" tone="accent" />
-      <template v-if="hasSplitClicks">
-        <MetricCard label="鼠标左键点击" :value="metricValue(formatNumber(snapshot.cumulative.leftClicks))" :detail="metricDetail('所选日期总量')" :icon="PhMouseLeftClick" tone="neutral" />
-        <MetricCard label="鼠标右键点击" :value="metricValue(formatNumber(snapshot.cumulative.rightClicks))" :detail="metricDetail('所选日期总量')" :icon="PhMouseRightClick" tone="neutral" />
-      </template>
-      <MetricCard v-else label="鼠标点击" :value="metricValue(formatNumber(snapshot.cumulative.combinedClicks))" :detail="metricDetail('历史记录仅提供合计')" :icon="PhCursorClick" tone="neutral" />
-      <MetricCard label="鼠标移动" :value="metricValue(formatDistance(snapshot.cumulative.mouseDistance))" :detail="metricDetail('聚合距离')" :icon="PhMouse" tone="neutral" />
-      <MetricCard label="滚动距离" :value="metricValue(formatNumber(snapshot.cumulative.scrollDistance))" :detail="metricDetail('数据源滚动单位')" :icon="PhMouseScroll" tone="neutral" />
+    <div class="input-stat-strip">
+      <MetricCard label="总输入字数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期字符键敲击总量')" :icon="PhKeyboard" tone="accent" />
+      <MetricCard label="平均输入字数" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有输入记录的分钟')" :icon="PhChartLineUp" tone="neutral" />
     </div>
 
     <div v-if="!inputDataAvailable" class="section-state input-source-state" :data-state="store.state.inputDataStatus">
@@ -59,12 +48,6 @@ function metricDetail(detail: string): string {
       <div class="input-history-wrap">
         <InputHistoryPanel :history="snapshot.history" :granularity="snapshot.capabilities.historyGranularity" />
       </div>
-
-      <KeyboardInsights
-        :snapshot="snapshot"
-        :heatmap-enabled="store.state.heatmapEnabled"
-        :shortcuts-enabled="store.state.shortcutsEnabled"
-      />
     </template>
   </section>
 </template>
@@ -72,12 +55,10 @@ function metricDetail(detail: string): string {
 <style scoped>
 .input-stat-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 2px;
   border-block: 1px solid var(--border-soft);
 }
-
-.input-stat-strip--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 .input-stat-strip :deep(.metric-card) {
   min-height: 112px;
@@ -98,19 +79,12 @@ function metricDetail(detail: string): string {
 }
 
 @media (max-width: 840px) {
-  .input-stat-strip,
-  .input-stat-strip--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-  .input-stat-strip :deep(.metric-card:nth-child(odd)) { border-left: 0; }
-  .input-stat-strip :deep(.metric-card:nth-child(n + 3)) { border-top: 1px solid var(--border-soft); }
-  .input-stat-strip:not(.input-stat-strip--four) :deep(.metric-card:last-child) { grid-column: 1 / -1; }
+  .input-stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
-  .input-stat-strip,
-  .input-stat-strip--four { grid-template-columns: 1fr; }
+  .input-stat-strip { grid-template-columns: 1fr; }
 
-  .input-stat-strip:not(.input-stat-strip--four) :deep(.metric-card:last-child) { grid-column: auto; }
   .input-stat-strip :deep(.metric-card + .metric-card) {
     border-top: 1px solid var(--border-soft);
     border-left: 0;

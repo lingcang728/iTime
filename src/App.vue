@@ -33,7 +33,7 @@ const navItems = [
   { id: 'home', label: '首页', icon: PhHouse },
   { id: 'ai', label: 'AI 代理', icon: PhSparkle },
   { id: 'timeline', label: '时间线', icon: PhClock },
-  { id: 'input', label: '输入足迹', icon: PhKeyboard },
+  { id: 'input', label: '键盘统计', icon: PhKeyboard },
   { id: 'weekly', label: '周报', icon: PhNotebook },
   { id: 'goals', label: '提醒与目标', icon: PhBell },
   { id: 'settings', label: '设置', icon: PhGearSix },

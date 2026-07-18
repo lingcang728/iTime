@@ -2,6 +2,7 @@ use super::extract::{extract_and_cache, try_cache_hit, ExtractRequest, IconSourc
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
@@ -9,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 const MAX_INFLIGHT: usize = 3;
 const MAX_QUEUED: usize = 256;
 const MAX_FAILURES: usize = 512;
+const MAX_PATH_HINTS: usize = 512;
 const FAILURE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, Serialize)]
@@ -29,6 +31,7 @@ struct FailureRecord {
     code: String,
 }
 
+#[derive(Clone)]
 pub struct IconService {
     inner: Arc<Mutex<IconServiceInner>>,
 }
@@ -38,6 +41,8 @@ struct IconServiceInner {
     queued: VecDeque<PendingJob>,
     failures: HashMap<String, FailureRecord>,
     active: usize,
+    path_hints: HashMap<String, PathBuf>,
+    hint_order: VecDeque<String>,
 }
 
 struct PendingJob {
@@ -46,6 +51,40 @@ struct PendingJob {
 }
 
 impl IconService {
+    pub(crate) fn register_executable_hint(&self, app_identity: String, path: PathBuf) {
+        if !path.is_file() {
+            return;
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard
+            .hint_order
+            .retain(|identity| identity != &app_identity);
+        guard.hint_order.push_back(app_identity.clone());
+        guard.path_hints.insert(app_identity, path);
+        while guard.hint_order.len() > MAX_PATH_HINTS {
+            if let Some(oldest) = guard.hint_order.pop_front() {
+                guard.path_hints.remove(&oldest);
+            }
+        }
+    }
+
+    fn apply_path_hint(&self, req: &mut ExtractRequest) {
+        if req.executable_path.is_some() {
+            return;
+        }
+        let guard = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        req.executable_path = guard
+            .path_hints
+            .get(&req.app_identity)
+            .map(|path| path.to_string_lossy().to_string());
+    }
+
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(IconServiceInner {
@@ -53,6 +92,8 @@ impl IconService {
                 queued: VecDeque::new(),
                 failures: HashMap::new(),
                 active: 0,
+                path_hints: HashMap::new(),
+                hint_order: VecDeque::new(),
             })),
         }
     }
@@ -61,8 +102,9 @@ impl IconService {
     pub fn try_get_cached_or_enqueue(
         &self,
         app: AppHandle,
-        req: ExtractRequest,
+        mut req: ExtractRequest,
     ) -> IconUpdateEvent {
+        self.apply_path_hint(&mut req);
         if let Some(hit) = try_cache_hit(&req) {
             return IconUpdateEvent {
                 app_identity: req.app_identity,

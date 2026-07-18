@@ -116,6 +116,28 @@ fn candidate_paths_for(key: &str) -> Vec<PathBuf> {
                     join(&pf, r"Tencent\WeChat\WeChat.exe"),
                     join(&pf86, r"Tencent\WeChat\WeChat.exe"),
                     join(&local, r"Tencent\WeChat\WeChat.exe"),
+                    join(&pf, r"Tencent\Weixin\Weixin.exe"),
+                    join(&pf86, r"Tencent\Weixin\Weixin.exe"),
+                    join(&local, r"Tencent\Weixin\Weixin.exe"),
+                ],
+            );
+        }
+        "windows-terminal" | "windowsterminal" | "terminal" => {
+            push(
+                &mut paths,
+                [
+                    join(&local, r"Microsoft\WindowsApps\wt.exe"),
+                    join(&local, r"Microsoft\WindowsApps\WindowsTerminal.exe"),
+                ],
+            );
+        }
+        "clash-verge" | "clashverge" => {
+            push(
+                &mut paths,
+                [
+                    join(&local, r"Programs\Clash Verge\clash-verge.exe"),
+                    join(&pf, r"Clash Verge\clash-verge.exe"),
+                    join(&pf86, r"Clash Verge\clash-verge.exe"),
                 ],
             );
         }

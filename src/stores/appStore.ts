@@ -2,6 +2,7 @@ import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { mockDates } from '../data/mockEvents'
 import type { TimeDataset } from '../domain/events'
 import { loadActivityData } from '../providers/activityAdapter'
+import { loadProviderActivityData } from '../providers/providerActivityAdapter'
 import type { AiToolDetail } from '../providers/prototypeDataProvider'
 import { dataProvider, dayRange, EventDataProvider } from '../providers/prototypeDataProvider'
 import {
@@ -10,7 +11,7 @@ import {
   type InputActivityProvider,
   type InputActivitySnapshot,
 } from '../providers/inputActivity'
-import { loadKeyStatsProvider } from '../providers/keyStatsAdapter'
+import { loadKeyboardData } from '../providers/keyboardAdapter'
 import { getAutostartEnabled, setDesktopAutostart } from '../platform/autostart'
 import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
@@ -37,6 +38,8 @@ const state = reactive({
   inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
+  providerDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
+  providerDataMessage: desktopRuntime ? '正在读取 Codex 与 Claude Code 本机会话' : '浏览器预览数据',
   autostartEnabled: false,
   autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   autostartMessage: desktopRuntime ? '正在读取 Windows 启动设置' : '仅桌面版可设置开机自启动',
@@ -49,7 +52,17 @@ const state = reactive({
   recording: true,
 })
 
-const liveDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
+const liveActivityDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
+const liveProviderDataset = shallowRef<TimeDataset>({ version: 'itime-local-provider-v1', events: [] })
+const liveKeyboardDataset = shallowRef<TimeDataset>({ version: 'itime-keyboard-v1', events: [] })
+const liveDataset = computed<TimeDataset>(() => ({
+  version: 'itime-local-combined-v1',
+  events: [
+    ...liveActivityDataset.value.events,
+    ...liveProviderDataset.value.events,
+    ...liveKeyboardDataset.value.events,
+  ],
+}))
 const runtimeDataProvider = computed(() => desktopRuntime
   ? new EventDataProvider(liveDataset.value)
   : dataProvider)
@@ -58,9 +71,10 @@ const week = computed(() => runtimeDataProvider.value.getWeek(state.selectedDate
 const liveInputProvider = shallowRef<InputActivityProvider | null>(null)
 const inputDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
 const activityDates = shallowRef<string[]>(desktopRuntime ? [localDate()] : [...mockDates])
+const providerDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
 
 function updateAvailableDates(): void {
-  const dates = [...new Set([...inputDates.value, ...activityDates.value])].sort()
+  const dates = [...new Set([...inputDates.value, ...activityDates.value, ...providerDates.value])].sort()
   state.availableDates = dates.length ? dates : [localDate()]
   if (!state.availableDates.includes(state.selectedDate)) {
     state.selectedDate = state.availableDates.at(-1) ?? localDate()
@@ -69,8 +83,8 @@ function updateAvailableDates(): void {
 const input = computed<InputActivitySnapshot>(() => {
   const range = dayRange(state.selectedDate)
   const snapshot = desktopRuntime
-    ? liveInputProvider.value?.getSnapshot(range, 'hour') ?? emptyInputSnapshot(range)
-    : inputActivityProvider.getSnapshot(range, 'hour')
+    ? liveInputProvider.value?.getSnapshot(range, 'minute') ?? emptyInputSnapshot(range)
+    : inputActivityProvider.getSnapshot(range, 'minute')
   if (!state.deletedInputDates.includes(state.selectedDate)) return snapshot
   return {
     ...snapshot,
@@ -99,8 +113,6 @@ function persist(): void {
     theme: state.theme,
     reminders: state.reminders,
     closePreference: state.closePreference,
-    heatmapEnabled: state.heatmapEnabled,
-    shortcutsEnabled: state.shortcutsEnabled,
     quietStart: state.quietStart,
     quietEnd: state.quietEnd,
     goals: state.goals,
@@ -114,8 +126,6 @@ watch([
   () => state.theme,
   () => state.reminders,
   () => state.closePreference,
-  () => state.heatmapEnabled,
-  () => state.shortcutsEnabled,
   () => state.quietStart,
   () => state.quietEnd,
   () => ({ ...state.goals }),
@@ -179,6 +189,7 @@ function deleteInputDate(date: string): void {
 
 let inputRequest = 0
 let activityRequest = 0
+let providerRequest = 0
 let toastRequest = 0
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -196,16 +207,30 @@ function errorMessage(error: unknown, fallback: string): string {
 async function refreshInputData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++inputRequest
+  const selectedEnd = dayRange(state.selectedDate).end
+  const startDate = new Date(selectedEnd)
+  startDate.setDate(startDate.getDate() - 32)
   try {
-    const provider = await loadKeyStatsProvider()
+    const result = await loadKeyboardData({ start: startDate.getTime(), end: selectedEnd })
     if (request !== inputRequest) return
-    const dates = provider.getAvailableDates()
-    liveInputProvider.value = provider
+    const dates = result.provider.getAvailableDates()
+    liveInputProvider.value = result.provider
+    liveKeyboardDataset.value = result.dataset
     inputDates.value = dates
     updateAvailableDates()
-    state.inputDataStatus = 'ready'
-    state.inputDataMessage = 'iTime 本机输入记录已连接'
-    state.migrationState = 'imported'
+    if (result.snapshot.health.lastError) {
+      state.inputDataStatus = 'unavailable'
+      state.inputDataMessage = result.snapshot.health.lastError
+    } else if (!result.snapshot.health.collectorRunning) {
+      state.inputDataStatus = 'unavailable'
+      state.inputDataMessage = 'Windows 键盘计数器未运行'
+    } else {
+      state.inputDataStatus = 'ready'
+      state.inputDataMessage = result.snapshot.buckets.length
+        ? 'iTime 键盘字符键计数已连接'
+        : '键盘计数已启动；从本次版本启用后开始记录'
+    }
+    state.migrationState = 'ready'
   } catch (error) {
     if (request !== inputRequest) return
     state.inputDataStatus = 'unavailable'
@@ -222,7 +247,7 @@ async function refreshActivityData(): Promise<void> {
   try {
     const result = await loadActivityData({ start: startDate.getTime(), end: selectedEnd })
     if (request !== activityRequest) return
-    liveDataset.value = result.dataset
+    liveActivityDataset.value = result.dataset
     activityDates.value = [...new Set([
       ...activityDates.value,
       ...result.dataset.events.map((event) => localDate(new Date(event.start))),
@@ -247,6 +272,38 @@ async function refreshActivityData(): Promise<void> {
     if (request !== activityRequest) return
     state.activityDataStatus = 'unavailable'
     state.activityDataMessage = errorMessage(error, 'iTime 本机活动记录暂时不可用')
+  }
+}
+
+async function refreshProviderData(): Promise<void> {
+  if (!desktopRuntime) return
+  const request = ++providerRequest
+  const selectedEnd = dayRange(state.selectedDate).end
+  const startDate = new Date(selectedEnd)
+  startDate.setDate(startDate.getDate() - 7)
+  try {
+    const result = await loadProviderActivityData({ start: startDate.getTime(), end: selectedEnd })
+    if (request !== providerRequest) return
+    liveProviderDataset.value = result.dataset
+    providerDates.value = [...new Set(result.dataset.events.map((event) => localDate(new Date(event.start))))].sort()
+    updateAvailableDates()
+    const connected = result.snapshot.capabilities.codexTaskEvents || result.snapshot.capabilities.claudeTurnEvents
+    if (!connected) {
+      state.providerDataStatus = 'unavailable'
+      state.providerDataMessage = '未找到 Codex 或 Claude Code 的本机会话目录'
+    } else if (result.snapshot.skippedFiles > 0) {
+      state.providerDataStatus = 'degraded'
+      state.providerDataMessage = `Provider 会话已连接；${result.snapshot.skippedFiles} 个记录文件无法读取`
+    } else {
+      state.providerDataStatus = 'ready'
+      state.providerDataMessage = result.snapshot.intervals.length
+        ? `已读取 ${result.snapshot.intervals.length} 个本机 Provider 执行区间`
+        : 'Provider 会话已连接；所选日期未检测到执行区间'
+    }
+  } catch (error) {
+    if (request !== providerRequest) return
+    state.providerDataStatus = 'unavailable'
+    state.providerDataMessage = errorMessage(error, 'Codex 与 Claude Code 本机会话暂时不可用')
   }
 }
 
@@ -304,6 +361,7 @@ export function useAppStore() {
     deleteInputDate,
     refreshInputData,
     refreshActivityData,
+    refreshProviderData,
     refreshAutostart,
     setAutostart,
     showToast,
@@ -321,10 +379,16 @@ observeSystemTheme(
 if (desktopRuntime) {
   void refreshInputData()
   void refreshActivityData()
+  void refreshProviderData()
   void refreshAutostart()
-  watch(() => state.selectedDate, () => void refreshActivityData())
+  watch(() => state.selectedDate, () => {
+    void refreshInputData()
+    void refreshActivityData()
+    void refreshProviderData()
+  })
   window.setInterval(() => {
     void refreshInputData()
     void refreshActivityData()
+    void refreshProviderData()
   }, 15_000)
 }

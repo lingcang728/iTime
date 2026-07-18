@@ -4,15 +4,13 @@ import type { ClosePreference } from './appStore'
 import type { ThemeMode } from './theme'
 
 const STORAGE_KEY = 'itime-prototype-state'
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 export interface PersistedState {
   schemaVersion: typeof SCHEMA_VERSION
   theme: ThemeMode
   reminders: boolean
   closePreference: ClosePreference
-  heatmapEnabled: boolean
-  shortcutsEnabled: boolean
   quietStart: string
   quietEnd: string
   goals: Record<string, number>
@@ -25,8 +23,6 @@ export const persistedDefaults: PersistedState = {
   theme: 'system',
   reminders: true,
   closePreference: 'ask',
-  heatmapEnabled: true,
-  shortcutsEnabled: true,
   quietStart: '22:00',
   quietEnd: '08:00',
   goals: { learning: 120, development: 180, ai: 180, continuous: 50 },
@@ -38,8 +34,6 @@ const storedSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   reminders: z.boolean().optional(),
   closePreference: z.enum(['ask', 'hide', 'quit']).optional(),
-  heatmapEnabled: z.boolean().optional(),
-  shortcutsEnabled: z.boolean().optional(),
   quietStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   quietEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   goals: z.record(z.string(), z.number().finite().nonnegative()).optional(),

@@ -34,6 +34,10 @@ const appNameAliases: Record<string, string> = {
   wechat: 'wechat',
   weixin: 'wechat',
   微信: 'wechat',
+  windowsterminal: 'windows-terminal',
+  terminal: 'windows-terminal',
+  clashverge: 'clash-verge',
+  clash: 'clash-verge',
   itime: 'itime',
 }
 

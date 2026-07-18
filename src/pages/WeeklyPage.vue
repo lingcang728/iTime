@@ -25,12 +25,21 @@ const hour = 3_600_000
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const unavailableTitle = computed(() => store.state.activityDataStatus === 'loading' ? '正在读取本周活动记录' : '本周活动记录暂不可用')
 const summary = computed(() => buildWeeklySummary(store.week.value))
-const trendPoints = computed(() => summary.value.days.map((day) => ({ label: day.label, note: day.note, value: day.foreground === null ? null : day.foreground / hour })))
+const trendPoints = computed(() => summary.value.days.map((day) => ({
+  label: day.label,
+  note: day.note,
+  attention: day.foreground === null ? null : day.foreground / hour,
+  ai: day.ai === null ? null : day.ai / hour,
+})))
 const dailyMaximum = computed(() => Math.max(1, ...summary.value.days.map((day) => day.computer ?? 0)))
 const averageComputer = computed(() => {
   const values = summary.value.days.flatMap((day) => day.computer === null ? [] : [day.computer])
   return values.length ? values.reduce((total, value) => total + value, 0) / values.length : null
 })
+const activeInputDays = computed(() => summary.value.days.filter((day) => (day.input ?? 0) > 0).length)
+const averageInput = computed(() => summary.value.totalInput === null || !activeInputDays.value
+  ? null
+  : summary.value.totalInput / activeInputDays.value)
 const microBars = [28, 38, 47, 33, 62, 44, 77, 51, 67, 58]
 const heatHours = [9, 11, 13, 15, 17, 19, 21]
 const lockedHeatCell = ref<string | null>(null)
@@ -154,12 +163,9 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
       </div>
 
       <section class="weekly-input-summary">
-        <div class="input-heading"><strong>输入节奏</strong><PhInfo :size="14" /></div>
-        <div class="input-stat"><PhKeyboard :size="27" /><span><small>总输入字数</small><strong>{{ summary.totalInput !== null ? formatNumber(summary.totalInput) : '—' }} <i>字</i></strong></span></div>
-        <div class="input-stat"><PhChartLineUp :size="27" /><span><small>平均输入速度</small><strong>{{ summary.totalInput !== null ? Math.max(1, Math.round(summary.totalInput / Math.max(1, (summary.totalAttention ?? hour) / 60_000))) : '—' }} <i>字/分钟</i></strong></span></div>
-        <div class="input-stat"><PhClock :size="27" /><span><small>高效输入时段</small><strong>10:00–12:00</strong></span></div>
-        <div class="input-stat"><PhStar :size="27" /><span><small>AI 辅助输入占比</small><strong>{{ summary.totalAttention ? Math.round(((summary.days.reduce((total, day) => total + (day.ai ?? 0), 0)) / summary.totalAttention) * 100) : 0 }}%</strong></span></div>
-        <div class="input-stat"><PhTarget :size="27" /><span><small>输入后专注时长</small><strong>{{ formatDuration(summary.totalAttention, true) }}</strong></span></div>
+        <div class="input-heading"><strong>键盘输入统计</strong><PhInfo :size="14" /></div>
+        <div class="input-stat"><PhKeyboard :size="27" /><span><small>总输入字数</small><strong>{{ summary.totalInput !== null ? formatNumber(summary.totalInput) : '—' }} <i>字符键</i></strong></span></div>
+        <div class="input-stat"><PhChartLineUp :size="27" /><span><small>平均输入字数</small><strong>{{ averageInput !== null ? formatNumber(averageInput) : '—' }} <i>每个有记录日</i></strong></span></div>
       </section>
     </template>
   </section>

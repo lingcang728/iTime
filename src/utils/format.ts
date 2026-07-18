@@ -1,6 +1,7 @@
 export function formatDuration(value: number | null, compact = false): string {
   if (value === null) return '暂无数据'
   const totalMinutes = Math.round(value / 60_000)
+  if (value > 0 && totalMinutes === 0) return compact ? '< 1 分钟' : '不足1分钟'
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   if (!hours) return compact ? `${minutes} 分钟` : `${minutes}分钟`

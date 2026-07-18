@@ -41,7 +41,7 @@ describe('AI agent surface', () => {
     wrapper.unmount()
   })
 
-  it('keeps the insight and real-interval language on the AI page', () => {
+  it('keeps the local provider evidence and insight windows on the AI page', () => {
     const wrapper = mount(AiAgentsPage, {
       global: {
         stubs: {
@@ -53,8 +53,10 @@ describe('AI agent surface', () => {
       },
     })
     expect(wrapper.text()).toContain('今日洞察')
-    expect(wrapper.text()).toContain('实心执行区间仅来自 Provider')
-    expect(wrapper.text()).toContain('没有 Provider 证据时')
+    expect(wrapper.text()).toContain('执行区间来自 Codex/Claude Code 本机会话时间事件')
+    expect(wrapper.text()).toContain('不读取会话内容')
+    expect(wrapper.text()).toContain('高效时段')
+    expect(wrapper.text()).toContain('最佳并发时段')
   })
 
   it('uses one flat evidence surface and a neutral timeline taxonomy', () => {

@@ -54,7 +54,33 @@ describe('activity adapter', () => {
       }],
     })
     const foreground = dataset.events.find((event) => event.type === 'foreground')
-    expect(foreground).toMatchObject({ appName: 'Chrome', category: '浏览' })
+    expect(foreground).toMatchObject({ appId: 'app:chrome', appName: 'Chrome', category: '浏览' })
+  })
+
+  it('maps historical product aliases to one stable application identity', () => {
+    const dataset = activityDataset({
+      ...base,
+      intervals: [
+        { version: 1, start: 1000, end: 2000, deviceState: 'active', appId: 'process:a', appName: 'Codex', aiTool: true },
+        { version: 1, start: 2000, end: 3000, deviceState: 'active', appId: 'process:b', appName: 'Codex', aiTool: true },
+        { version: 1, start: 3000, end: 4000, deviceState: 'active', appId: 'process:c', appName: 'Weixin', aiTool: false },
+      ],
+    })
+    const apps = dataset.events.filter((event) => event.type === 'foreground')
+    expect(apps.map((event) => event.appId)).toEqual(['app:codex', 'app:codex', 'app:wechat'])
+    expect(apps.at(-1)?.appName).toBe('微信')
+  })
+
+  it('turns LockApp history into a locked device interval instead of an application', () => {
+    const dataset = activityDataset({
+      ...base,
+      intervals: [{
+        version: 1, start: 1000, end: 2000, deviceState: 'active',
+        appId: 'process:lock', appName: 'LockApp', aiTool: false,
+      }],
+    })
+    expect(dataset.events).toHaveLength(1)
+    expect(dataset.events[0]).toMatchObject({ type: 'device', state: 'locked' })
   })
 
   it('rejects a payload claiming that content was captured', () => {

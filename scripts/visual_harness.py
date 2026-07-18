@@ -31,7 +31,6 @@ page_geometry_selectors = {
 geometry_threshold_css_px = 1
 focus_indicator_threshold = 3
 focus_targets = [
-    {"id": "inputRhythm", "page": "input", "selector": ".rhythm-bars button"},
     {
         "id": "weeklyTrend",
         "page": "weekly",
@@ -420,14 +419,12 @@ with sync_playwright() as playwright:
             input_points.count() > 1
             and page.locator(".spark-tooltip").count() == 1
         )
-        rhythm_points = page.locator(".rhythm-bars button")
-        rhythm_points.first.focus()
-        page.keyboard.press("Shift+Tab")
-        page.keyboard.press("Tab")
-        report["interactions"]["inputRhythmInteraction"] = (
-            rhythm_points.count() > 1
-            and rhythm_points.first.evaluate("element => element.matches(':focus-visible')")
-            and rhythm_points.first.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
+        report["interactions"]["inputKeyboardOnly"] = (
+            page.get_by_text("总输入字数", exact=True).count() == 1
+            and page.get_by_text("平均输入字数", exact=True).count() == 1
+            and page.get_by_text("输入节奏", exact=True).count() == 0
+            and page.get_by_text("鼠标移动", exact=True).count() == 0
+            and page.get_by_text("键盘热力图", exact=True).count() == 0
         )
 
         page.goto(url("timeline"))
@@ -545,8 +542,8 @@ with sync_playwright() as playwright:
         wait_ready(page)
         report["interactions"]["realSettingsSources"] = (
             page.get_by_text("开机自启动", exact=True).count() == 1
-            and page.get_by_text("本机输入数据", exact=True).count() == 1
-            and page.get_by_text("KeyStats 本机数据", exact=True).count() == 0
+            and page.get_by_text("本机键盘计数", exact=True).count() == 1
+            and page.get_by_text("Windows 字符键按下计数", exact=True).count() == 1
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 

@@ -11,7 +11,7 @@ import {
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { mergeRanges } from '../domain/intervals'
+import { coalesceRangesBy, mergeRanges } from '../domain/intervals'
 import type { ForegroundAppInterval } from '../domain/events'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
@@ -28,9 +28,11 @@ const store = useAppStore()
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
 const foregroundDuration = computed(() => store.day.value.foregroundActivity.value)
-const foregroundEvents = computed(() => store.day.value.events
-  .filter((event): event is ForegroundAppInterval => event.type === 'foreground')
-  .sort((first, second) => first.start - second.start))
+const foregroundEvents = computed(() => coalesceRangesBy(
+  store.day.value.events.filter((event): event is ForegroundAppInterval => event.type === 'foreground'),
+  (event) => event.appId,
+  20_000,
+))
 const totalAppDuration = computed(() => store.day.value.apps.reduce((total, app) => total + app.duration, 0))
 const maxAppDuration = computed(() => Math.max(1, ...store.day.value.apps.map((app) => app.duration)))
 const rankingRows = computed(() => [...store.day.value.apps]

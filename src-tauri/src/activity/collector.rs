@@ -3,6 +3,7 @@ use super::{
     model::{ActivitySlice, CollectorHealth, DeviceState, SAMPLE_INTERVAL_SECONDS},
     storage::append_slice,
 };
+use crate::icons::IconService;
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -92,7 +93,11 @@ fn write_previous(
 }
 
 impl ActivityCollector {
-    pub(crate) fn start(recording: Arc<AtomicBool>, generation: Arc<AtomicU64>) -> Self {
+    pub(crate) fn start(
+        recording: Arc<AtomicBool>,
+        generation: Arc<AtomicU64>,
+        icons: IconService,
+    ) -> Self {
         let health = Arc::new(HealthState {
             running: AtomicBool::new(false),
             last_write_at: AtomicU64::new(0),
@@ -120,6 +125,9 @@ impl ActivityCollector {
                     if recording.load(Ordering::Acquire) {
                         if let Some(now) = unix_millis() {
                             let current = capture_observation();
+                            if let Some((identity, path)) = current.icon_hint.clone() {
+                                icons.register_executable_hint(identity, path);
+                            }
                             let boundary = observation_boundary(&previous, &current, now);
                             write_previous(&mut previous, boundary, &thread_health);
                             previous = Some((boundary, current.observation));
@@ -220,6 +228,7 @@ mod tests {
                 ai_tool: false,
             },
             idle_millis: Some(IDLE_THRESHOLD_MILLIS + 3_000),
+            icon_hint: None,
         };
         assert_eq!(observation_boundary(&previous, &current, 20_000), 17_000);
     }

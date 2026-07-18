@@ -6,7 +6,7 @@ const intervalSchema = z.object({
   version: z.literal(1),
   start: z.number().int().nonnegative(),
   end: z.number().int().positive(),
-  deviceState: z.enum(['active', 'idle', 'unknown']),
+  deviceState: z.enum(['active', 'idle', 'locked', 'unknown']),
   appId: z.string().nullable(),
   appName: z.string().nullable(),
   aiTool: z.boolean(),
@@ -50,6 +50,9 @@ const categoryStyles: Record<string, { category: string; color: string }> = {
   duolingo: { category: '学习', color: '#d59548' },
   acrobat: { category: '学习', color: '#d59548' },
   sumatrapdf: { category: '学习', color: '#d59548' },
+  微信: { category: '沟通', color: '#56a06f' },
+  'windows terminal': { category: '开发', color: '#5f7e9a' },
+  'clash verge': { category: '效率工具', color: '#4e9680' },
 }
 
 const commonDisplayNames: Record<string, string> = {
@@ -59,10 +62,19 @@ const commonDisplayNames: Record<string, string> = {
   typeless: 'Typeless',
   codex: 'Codex',
   chatgpt: 'ChatGPT',
+  weixin: '微信',
+  wechat: '微信',
+  windowsterminal: 'Windows Terminal',
+  'clash-verge': 'Clash Verge',
 }
 
 function displayAppName(appName: string): string {
   return commonDisplayNames[appName.trim().toLocaleLowerCase()] ?? appName
+}
+
+function isSystemSurface(appName: string | null): boolean {
+  const compact = appName?.trim().toLocaleLowerCase().replace(/[\s._-]+/g, '')
+  return compact === 'lockapp' || compact === 'logonui'
 }
 
 function appStyle(appName: string, aiTool: boolean): { category: string; color: string } {
@@ -75,28 +87,31 @@ function eventsForInterval(
   source: string,
   index: number,
 ): TimeEvent[] {
+  const systemSurface = isSystemSurface(interval.appName)
   const device = {
     id: `device:${interval.start}:${index}`,
     type: 'device' as const,
     start: interval.start,
     end: interval.end,
-    state: interval.deviceState,
+    state: systemSurface ? 'locked' as const : interval.deviceState,
     source,
     accuracyLabel: 'precise' as const,
     basis: 'Windows 前台程序与最后输入时间的本机采样',
     confidence: 0.95,
     reviewState: 'confirmed' as const,
   }
-  if (!interval.appId || !interval.appName) return [device]
+  if (!interval.appId || !interval.appName || systemSurface) return [device]
   const appName = displayAppName(interval.appName)
-  const aiToolId = interval.aiTool ? canonicalAppKey(appName) ?? interval.appId : undefined
+  const canonicalKey = canonicalAppKey(appName)
+  const appId = canonicalKey ? `app:${canonicalKey}` : interval.appId
+  const aiToolId = interval.aiTool ? canonicalKey ?? interval.appId : undefined
   const style = appStyle(appName, interval.aiTool)
   const foreground = {
     id: `foreground:${interval.start}:${index}`,
     type: 'foreground' as const,
     start: interval.start,
     end: interval.end,
-    appId: interval.appId,
+    appId,
     appName,
     aiToolId,
     ...style,

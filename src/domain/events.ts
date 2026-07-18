@@ -42,6 +42,7 @@ export interface AiWorkInterval extends BaseInterval {
   toolId: string
   toolName: string
   taskId: string
+  status?: 'running' | 'completed'
 }
 
 export interface AiInteractionInterval extends BaseInterval {

@@ -39,6 +39,9 @@ describe('appIdentity', () => {
     expect(canonicalAppKey('文件资源管理器')).toBe('explorer')
     expect(canonicalAppKey('Claude Code')).toBe('claude')
     expect(canonicalAppKey('Codex')).toBe('codex')
+    expect(canonicalAppKey('WindowsTerminal')).toBe('windows-terminal')
+    expect(canonicalAppKey('clash-verge')).toBe('clash-verge')
+    expect(canonicalAppKey('Weixin')).toBe('wechat')
   })
 
   it('returns stable accent colors for the same identity', () => {

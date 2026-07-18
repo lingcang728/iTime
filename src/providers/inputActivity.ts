@@ -51,11 +51,6 @@ export interface InputActivityProvider {
   getSnapshot(range: TimeRange, granularity?: InputGranularity): InputActivitySnapshot
 }
 
-export interface LegacyKeyStatsAdapter {
-  inspect(): Promise<{ detected: boolean; version: string | null; partial: boolean }>
-  createProvider(): Promise<InputActivityProvider>
-}
-
 function aggregate(points: InputActivityMinuteBucket[], start: number, end: number): InputActivityPoint {
   return points.reduce<InputActivityPoint>((total, point) => ({
     start,
