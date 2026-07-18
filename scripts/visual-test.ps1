@@ -78,7 +78,9 @@ try {
   if ($UpdateBaseline) {
     $baseline = Join-Path $root 'tests\visual\baseline'
     New-Item -ItemType Directory -Force -Path $baseline | Out-Null
-    Get-ChildItem -LiteralPath $output -Filter 'wide-*.png' | Copy-Item -Destination $baseline -Force
+    @('wide-*.png', 'dark-*.png') | ForEach-Object {
+      Get-ChildItem -LiteralPath $output -Filter $_ | Copy-Item -Destination $baseline -Force
+    }
   }
   $compareArgs = @('scripts/compare-visual.mjs')
   if ($SkipReference) { $compareArgs += '--skip-reference' }
