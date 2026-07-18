@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="iTime：Windows 本地屏幕时间与 AI 前台活动记录。本地优先，隐私友好。" />
+  <meta name="theme-color" content="#0f1419" />
+  <meta property="og:title" content="iTime - 看清时间，也看清 AI" />
+  <meta property="og:description" content="本机记录屏幕时间，单独标出 AI 工具前台占用。数据只留在你电脑上。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="./assets/screenshots/home.png" />
+  <link rel="icon" type="image/png" href="./assets/icon.png" />
+  <title>iTime - 看清时间，也看清 AI</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="#top" aria-label="iTime 首页">
+        <img src="./assets/icon.png" width="32" height="32" alt="" />
+        <span>iTime</span>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a href="#product">介绍</a>
+        <a href="#features">功能</a>
+        <a href="#screenshots">截图</a>
+        <a href="#privacy">隐私</a>
+        <a href="#changelog">更新</a>
+        <a class="nav-cta" href="#download">下载</a>
+      </nav>
+      <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="打开菜单">
+        <span></span><span></span>
+      </button>
+    </div>
+    <div id="mobile-nav" class="mobile-nav" hidden>
+      <a href="#product">产品介绍</a>
+      <a href="#features">功能说明</a>
+      <a href="#screenshots">界面截图</a>
+      <a href="#privacy">隐私说明</a>
+      <a href="#changelog">更新日志</a>
+      <a href="#download">下载</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="top" class="hero">
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Windows 桌面 · 本地优先</p>
+          <h1>记录你的屏幕时间，也记录 AI 替你工作的时间</h1>
+          <p class="lede">自动记录前台应用占用，单独标出 AI 工具的前台时间。数据只留在本机，不上传云端。</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime_0.1.0_x64-setup.exe">下载安装包</a>
+            <a class="btn btn-ghost" href="#screenshots">查看界面</a>
+          </div>
+          <p class="hero-meta">当前版本 v0.1.0 · Windows 10 / 11 64 位 · 需 WebView2</p>
+        </div>
+        <figure class="hero-visual">
+          <img
+            src="./assets/screenshots/home.png"
+            width="1540"
+            height="944"
+            alt="iTime 首页：今日屏幕时间、应用排行与活动时间线"
+            fetchpriority="high"
+          />
+          <figcaption>界面预览使用演示数据，便于展示完整布局。</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="product" class="section">
+      <div class="shell">
+        <div class="section-head">
+          <h2>产品介绍</h2>
+          <p>一天开了十几个应用，又和 AI 工具来回切换。时间到底花在哪？iTime 帮你在本机看清节奏。</p>
+        </div>
+        <div class="product-grid">
+          <article class="product-card product-card--wide">
+            <h3>看清屏幕时间</h3>
+            <p>今日概览、应用分布与时间线，一眼知道时间去哪了。从启用后开始采样，不回填安装前的历史。</p>
+          </article>
+          <article class="product-card">
+            <h3>单独看 AI</h3>
+            <p>区分普通应用与 AI 工具的前台占用。无法可靠统计时标为「估算」或「暂无」，不用假数据凑满。</p>
+          </article>
+          <article class="product-card">
+            <h3>本地优先</h3>
+            <p>活动记录保存在你的电脑上。当前版本不把使用数据上传到服务器，也没有账号云同步。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section section--tint">
+      <div class="shell">
+        <div class="section-head">
+          <h2>功能说明</h2>
+          <p>围绕「本机时间记账」展开，而不是被算法推着走。</p>
+        </div>
+        <div class="feature-list">
+          <article class="feature-row">
+            <div class="feature-text">
+              <h3>首页与概览</h3>
+              <p>今日屏幕时间、节奏与重点应用。关键信息一目了然，适合每天打开看一眼。</p>
+            </div>
+            <ul class="feature-points">
+              <li>总使用时长与深度工作摘要</li>
+              <li>应用使用排行与占比</li>
+              <li>今日活动时间线</li>
+            </ul>
+          </article>
+          <article class="feature-row">
+            <div class="feature-text">
+              <h3>AI 代理</h3>
+              <p>聚焦 AI 相关工具的前台使用情况。统计的是「该工具是否在前台」，不等于后台 agent 真正跑了多久。</p>
+            </div>
+            <ul class="feature-points">
+              <li>AI 前台活跃与工具列表</li>
+              <li>活动时间线与置信度标注</li>
+              <li>诚实标注估算与数据边界</li>
+            </ul>
+          </article>
+          <article class="feature-row">
+            <div class="feature-text">
+              <h3>时间线与周报</h3>
+              <p>按时间顺序回看切换轨迹，用一周趋势复盘。适合周末快速整理节奏。</p>
+            </div>
+            <ul class="feature-points">
+              <li>前台应用与设备状态轨道</li>
+              <li>每日活动与专注热力图</li>
+              <li>Top 应用与本周成就摘要</li>
+            </ul>
+          </article>
+          <article class="feature-row">
+            <div class="feature-text">
+              <h3>输入足迹与目标</h3>
+              <p>有本机键鼠数据时展示活跃与节奏。目标与提醒帮你设定使用边界。</p>
+            </div>
+            <ul class="feature-points">
+              <li>只读接入 KeyStats 日级统计（可选）</li>
+              <li>不保存具体按键内容</li>
+              <li>主题、开机自启、暂停记录</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots" class="section">
+      <div class="shell">
+        <div class="section-head">
+          <h2>界面截图</h2>
+          <p>以下截图来自产品演示 / 烟测场景中的示例数据，用于展示界面结构，不代表你本机的真实记录。</p>
+        </div>
+        <div class="shot-grid">
+          <figure class="shot shot--hero">
+            <img src="./assets/screenshots/home.png" alt="iTime 首页截图" loading="lazy" width="1540" height="944" />
+            <figcaption>首页 · 今日概览与应用排行</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/ai.png" alt="iTime AI 代理页截图" loading="lazy" width="1540" height="944" />
+            <figcaption>AI 代理 · 前台活跃与工具明细</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/timeline.png" alt="iTime 时间线截图" loading="lazy" width="1540" height="944" />
+            <figcaption>时间线 · 切换轨迹与设备状态</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/weekly.png" alt="iTime 周报截图" loading="lazy" width="1540" height="944" />
+            <figcaption>周报 · 趋势、热力图与成就</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/input.png" alt="iTime 输入足迹截图" loading="lazy" width="1540" height="944" />
+            <figcaption>输入足迹 · 聚合活跃节奏</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="privacy" class="section section--tint">
+      <div class="shell privacy-layout">
+        <div class="section-head">
+          <h2>隐私说明</h2>
+          <p>iTime 把隐私当成默认选项，而不是附加条款。你可以把它当成只在本机的时间记账本。</p>
+        </div>
+        <div class="privacy-grid">
+          <div class="privacy-card privacy-yes">
+            <h3>我们做什么</h3>
+            <ul>
+              <li>在本机采样前台应用占用</li>
+              <li>把活动记录保存在本地数据目录</li>
+              <li>对 AI 工具前台时间做可标注的估算</li>
+              <li>在设置中提供暂停记录与自启控制</li>
+            </ul>
+          </div>
+          <div class="privacy-card privacy-no">
+            <h3>我们不做什么</h3>
+            <ul>
+              <li>不读取或保存窗口标题、文档名</li>
+              <li>不读取聊天内容、提示词或具体按键</li>
+              <li>不把使用数据上传到我们的服务器（当前版本）</li>
+              <li>不改动 KeyStats 文件或启动项（仅只读接入）</li>
+            </ul>
+          </div>
+        </div>
+        <p class="privacy-note">
+          完整说明见
+          <a href="https://github.com/lingcang728/iTime#-%E9%9A%90%E7%A7%81%E8%AF%B4%E6%98%8E" rel="noopener noreferrer" target="_blank">仓库 README 隐私章节</a>。
+          如有疑问欢迎
+          <a href="https://github.com/lingcang728/iTime/issues" rel="noopener noreferrer" target="_blank">提交 Issue</a>。
+        </p>
+      </div>
+    </section>
+
+    <section id="changelog" class="section">
+      <div class="shell">
+        <div class="section-head">
+          <h2>最新版本更新日志</h2>
+          <p>当前发布：<strong>v0.1.0</strong>（2026-07-18）</p>
+        </div>
+        <article class="changelog-card">
+          <header class="changelog-head">
+            <h3>iTime v0.1.0</h3>
+            <a class="text-link" href="https://github.com/lingcang728/iTime/releases/tag/v0.1.0" rel="noopener noreferrer" target="_blank">在 GitHub 查看</a>
+          </header>
+          <p>本地优先 Windows 桌面应用：前台屏幕时间 + AI 工具前台活动估算。</p>
+          <ul>
+            <li>首页概览、应用排行与今日时间线</li>
+            <li>AI 代理前台活跃与工具明细（诚实标注估算）</li>
+            <li>时间线、周报、输入足迹与目标提醒</li>
+            <li>主题、开机自启、暂停记录等设置</li>
+            <li>提供安装包与便携版两个下载形态</li>
+          </ul>
+          <div class="changelog-meta">
+            <span>技术栈：Tauri 2 · Vue 3 · TypeScript · Vite · Rust</span>
+            <span>活动数据从启用后开始采样，不回填历史</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="download" class="section section--download">
+      <div class="shell">
+        <div class="section-head">
+          <h2>下载</h2>
+          <p>请只从官方 GitHub Releases 获取安装包，避免第三方转载。</p>
+        </div>
+
+        <div class="download-grid">
+          <article class="download-card download-card--primary">
+            <p class="download-label">推荐</p>
+            <h3>安装版</h3>
+            <p class="download-file">iTime_0.1.0_x64-setup.exe</p>
+            <p>NSIS 安装包，当前用户模式，一般不需要管理员权限。可进入开始菜单。</p>
+            <a class="btn btn-primary" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime_0.1.0_x64-setup.exe">下载安装包</a>
+          </article>
+          <article class="download-card">
+            <p class="download-label">便携</p>
+            <h3>可执行文件</h3>
+            <p class="download-file">iTime.exe</p>
+            <p>双击即用，适合不想安装的场景。同样只建议从官方 Releases 下载。</p>
+            <a class="btn btn-ghost" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime.exe">下载便携版</a>
+          </article>
+        </div>
+
+        <div class="req-box">
+          <h3>系统要求</h3>
+          <ul>
+            <li>Windows 10 / 11（64 位）</li>
+            <li><a href="https://developer.microsoft.com/microsoft-edge/webview2/" rel="noopener noreferrer" target="_blank">WebView2</a>（多数电脑已自带）</li>
+            <li>安装包为「当前用户」模式</li>
+          </ul>
+          <p>
+            全部版本与历史资产：
+            <a href="https://github.com/lingcang728/iTime/releases" rel="noopener noreferrer" target="_blank">github.com/lingcang728/iTime/releases</a>
+          </p>
+        </div>
+
+        <div class="hash-box" id="checksums">
+          <div class="hash-head">
+            <h3>SHA-256 校验值</h3>
+            <p>下载后可用 PowerShell 校验，确认文件与发布一致。</p>
+          </div>
+          <div class="hash-rows">
+            <div class="hash-row">
+              <div class="hash-meta">
+                <span class="hash-name">iTime_0.1.0_x64-setup.exe</span>
+                <button type="button" class="copy-btn" data-copy="2577fe7b6ea082bab5a7f1d182ee06ed222eff46efc7fa09d3e5776e394fb7a9">复制</button>
+              </div>
+              <code class="hash-value">2577fe7b6ea082bab5a7f1d182ee06ed222eff46efc7fa09d3e5776e394fb7a9</code>
+            </div>
+            <div class="hash-row">
+              <div class="hash-meta">
+                <span class="hash-name">iTime.exe</span>
+                <button type="button" class="copy-btn" data-copy="ee180192e0acfdea36d9c16e160fbbb9ef184b9d43ccbf2410dd40d6d2ce75aa">复制</button>
+              </div>
+              <code class="hash-value">ee180192e0acfdea36d9c16e160fbbb9ef184b9d43ccbf2410dd40d6d2ce75aa</code>
+            </div>
+          </div>
+          <pre class="hash-cmd" tabindex="0"><code>Get-FileHash .\iTime_0.1.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\iTime.exe -Algorithm SHA256</code></pre>
+          <p class="hash-note">上述哈希对应 GitHub Release <strong>v0.1.0</strong> 资产。新版本发布后请以 Release 页面为准更新本站数值。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-brand">
+        <img src="./assets/icon.png" width="28" height="28" alt="" />
+        <div>
+          <strong>iTime</strong>
+          <p>看清时间，也看清 AI</p>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/lingcang728/iTime" rel="noopener noreferrer" target="_blank">GitHub</a>
+        <a href="https://github.com/lingcang728/iTime/releases" rel="noopener noreferrer" target="_blank">Releases</a>
+        <a href="https://github.com/lingcang728/iTime/issues" rel="noopener noreferrer" target="_blank">Issues</a>
+        <a href="#privacy">隐私</a>
+      </div>
+      <p class="footer-copy">开源桌面应用 · 本地优先 · 截图为演示数据</p>
+    </div>
+  </footer>
+
+  <script src="./main.js" defer></script>
+</body>
+</html>
