@@ -11,6 +11,7 @@ export interface AppIdentityInput {
   packageFamilyName?: string | null
   siteHost?: string | null
   appName?: string | null
+  processId?: number | null
 }
 
 const appNameAliases: Record<string, string> = {

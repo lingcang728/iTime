@@ -48,8 +48,10 @@ pub struct ExtractRequest {
     #[allow(dead_code)]
     pub identity_kind: AppIdentityKind,
     pub executable_path: Option<String>,
+    pub process_id: Option<u32>,
     pub aumid: Option<String>,
     pub package_full_name: Option<String>,
+    pub package_family_name: Option<String>,
     pub size: u32,
 }
 

@@ -24,7 +24,6 @@ pub(super) fn build_extract_request(input: ExtractRequestInput) -> ExtractReques
         site_host,
         requested_size,
     } = input;
-    let _ = process_id;
     let (identity, kind) = normalize_app_identity(
         app_identity.as_deref(),
         executable_path.as_deref(),
@@ -37,8 +36,10 @@ pub(super) fn build_extract_request(input: ExtractRequestInput) -> ExtractReques
         app_identity: identity,
         identity_kind: kind,
         executable_path,
+        process_id,
         aumid,
         package_full_name,
+        package_family_name,
         size: requested_size.unwrap_or(DEFAULT_ICON_SIZE),
     }
 }
@@ -69,5 +70,6 @@ mod tests {
         assert_eq!(request.app_identity, "app:vs-code");
         assert_eq!(request.identity_kind, AppIdentityKind::Logical);
         assert_eq!(request.size, DEFAULT_ICON_SIZE);
+        assert_eq!(request.process_id, None);
     }
 }

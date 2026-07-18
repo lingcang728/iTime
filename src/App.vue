@@ -1,23 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import {
-  PhChartBar,
+  PhBell,
+  PhClock,
+  PhCloudCheck,
   PhCopy,
-  PhDatabase,
   PhGearSix,
   PhHouse,
-  PhListBullets,
+  PhKeyboard,
   PhMinus,
-  PhMouse,
-  PhRobot,
+  PhNotebook,
+  PhSparkle,
   PhSquare,
-  PhTarget,
   PhX,
 } from '@phosphor-icons/vue'
 import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
-import { hasActivityData } from './stores/dataAvailability'
 import {
   hideWindow, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
   quitApplication, startWindowDragging, toggleMaximizeWindow,
@@ -25,7 +24,6 @@ import {
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import AppMark from './components/AppMark.vue'
 import CloseDialog from './components/CloseDialog.vue'
-import packageMetadata from '../package.json'
 
 const store = useAppStore()
 const route = useRoute()
@@ -33,39 +31,14 @@ const requestedTheme = new URLSearchParams(window.location.search).get('theme')
 const maximized = ref(false)
 const navItems = [
   { id: 'home', label: '首页', icon: PhHouse },
-  { id: 'ai', label: 'AI 代理', icon: PhRobot },
-  { id: 'timeline', label: '时间线', icon: PhListBullets },
-  { id: 'input', label: '输入足迹', icon: PhMouse },
-  { id: 'weekly', label: '周报', icon: PhChartBar },
-  { id: 'goals', label: '提醒与目标', icon: PhTarget },
+  { id: 'ai', label: 'AI 代理', icon: PhSparkle },
+  { id: 'timeline', label: '时间线', icon: PhClock },
+  { id: 'input', label: '输入足迹', icon: PhKeyboard },
+  { id: 'weekly', label: '周报', icon: PhNotebook },
+  { id: 'goals', label: '提醒与目标', icon: PhBell },
   { id: 'settings', label: '设置', icon: PhGearSix },
 ] as const
 const cleanups: Array<() => void> = []
-const learningDuration = computed(() => store.day.value.apps
-  .filter((app) => app.category === '学习')
-  .reduce((total, app) => total + app.duration, 0))
-const developmentDuration = computed(() => store.day.value.apps
-  .filter((app) => app.category === '开发')
-  .reduce((total, app) => total + app.duration, 0))
-const focusDuration = computed(() => learningDuration.value + developmentDuration.value)
-const focusTarget = computed(() => (store.state.goals.learning + store.state.goals.development) * 60_000)
-const agentDuration = computed(() => store.day.value.aiInteraction.value ?? 0)
-const agentTarget = computed(() => store.state.goals.ai * 60_000)
-const goalProgress = computed(() => {
-  const target = focusTarget.value + agentTarget.value
-  return target ? Math.min(100, Math.round((focusDuration.value + agentDuration.value) / target * 100)) : 0
-})
-const focusProgress = computed(() => focusTarget.value ? Math.min(100, Math.round(focusDuration.value / focusTarget.value * 100)) : 0)
-const agentProgress = computed(() => agentTarget.value ? Math.min(100, Math.round(agentDuration.value / agentTarget.value * 100)) : 0)
-const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
-const goalProgressLabel = computed(() => activityDataAvailable.value ? `${goalProgress.value}%` : '—')
-
-function formatGoalHours(value: number, target: number): string {
-  if (!activityDataAvailable.value) return store.state.activityDataStatus === 'loading' ? '正在读取' : '暂不可用'
-  const hours = (value / 3_600_000).toFixed(1)
-  const targetHours = (target / 3_600_000).toFixed(1)
-  return `${hours} / ${targetHours} 小时`
-}
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -149,7 +122,7 @@ onBeforeUnmount(() => {
     <aside class="sidebar">
       <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
         <AppMark :size="34" />
-        <div><strong>iTime</strong><span>v{{ packageMetadata.version }}</span></div>
+        <div><strong>iTime</strong></div>
       </div>
       <nav aria-label="主导航">
         <RouterLink v-for="item in navItems" :key="item.id" :to="`/${item.id}`" class="nav-item">
@@ -157,18 +130,9 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
-      <button class="profile-card" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
-        <PhDatabase :size="22" weight="regular" aria-hidden="true" />
-        <div><strong>本机数据</strong><small>仅保存在这台电脑</small></div>
-      </button>
-      <button class="goal-ring-card" type="button" aria-label="查看提醒与目标" @click="router.push({ name: 'goals' })">
-        <div class="goal-copy__header"><strong>今日目标</strong><b>{{ goalProgressLabel }}</b></div>
-        <div class="goal-copy">
-          <small><span>专注</span><b>{{ formatGoalHours(focusDuration, focusTarget) }}</b></small>
-          <span class="goal-meter"><i :style="{ width: `${activityDataAvailable ? focusProgress : 0}%` }"></i></span>
-          <small><span>AI 前台</span><b>{{ formatGoalHours(agentDuration, agentTarget) }}</b></small>
-          <span class="goal-meter"><i :style="{ width: `${activityDataAvailable ? agentProgress : 0}%` }"></i></span>
-        </div>
+      <button class="profile-card sync-status" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
+        <PhCloudCheck :size="24" weight="regular" aria-hidden="true" />
+        <div><strong>数据已同步</strong><small>刚刚</small></div>
       </button>
     </aside>
     <section class="app-surface">

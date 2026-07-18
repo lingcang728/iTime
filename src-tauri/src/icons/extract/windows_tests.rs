@@ -42,13 +42,37 @@ fn extracts_windows_rgba_when_known_vscode_path_is_installed() {
     assert_ne!(source, IconSource::Fallback);
 }
 
+#[test]
+fn extracts_an_installed_windows_shortcut_by_logical_name() {
+    for logical in ["notion", "microsoft-word", "antigravity", "wechat"] {
+        let req = ExtractRequest {
+            app_identity: format!("app:{logical}"),
+            identity_kind: AppIdentityKind::Logical,
+            executable_path: None,
+            process_id: None,
+            aumid: None,
+            package_full_name: None,
+            package_family_name: None,
+            size: 48,
+        };
+        if let Ok((image, source)) = windows::extract_rgba_windows(&req, None, 48) {
+            assert!(image.width() >= 16);
+            assert_eq!(source, IconSource::Shortcut);
+            return;
+        }
+    }
+    eprintln!("skip: no matching application shortcut installed on this machine");
+}
+
 fn vscode_request() -> ExtractRequest {
     ExtractRequest {
         app_identity: "app:vscode".into(),
         identity_kind: AppIdentityKind::Logical,
         executable_path: None,
+        process_id: None,
         aumid: None,
         package_full_name: None,
+        package_family_name: None,
         size: 64,
     }
 }

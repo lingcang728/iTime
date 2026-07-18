@@ -11,7 +11,7 @@ output = root / "artifacts" / "visual"
 output.mkdir(parents=True, exist_ok=True)
 base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:1420"
 pages = ["home", "ai", "timeline", "input", "weekly", "goals", "settings"]
-sizes = [(960, 680), (1024, 720), (1100, 720), (1180, 760), (1280, 800)]
+sizes = [(960, 680), (1024, 720), (1100, 720), (1180, 760), (1280, 800), (1540, 944)]
 fit_pages = {"home", "timeline"}
 base_geometry_selectors = [
     ".desktop-app",
@@ -24,23 +24,22 @@ page_geometry_selectors = {
     "ai": [".ai-metrics", ".ai-workspace-grid"],
     "timeline": [".timeline-overview", ".full-timeline"],
     "input": [".input-stat-strip", ".input-history-wrap"],
-    "weekly": [".weekly-section--activity", ".weekly-analysis-grid", ".weekly-secondary-grid"],
+    "weekly": [".weekly-daily-card", ".weekly-analysis-grid", ".weekly-secondary-grid"],
     "goals": [".goal-overview", ".goals-layout"],
     "settings": [".settings-layout"],
 }
 geometry_threshold_css_px = 1
 focus_indicator_threshold = 3
 focus_targets = [
-    {"id": "barChart", "page": "weekly", "selector": ".weekly-section--activity .week-bars__item"},
     {"id": "inputRhythm", "page": "input", "selector": ".rhythm-bars button"},
     {
         "id": "weeklyTrend",
         "page": "weekly",
-        "selector": ".insight-panel .trend g[role=\"img\"][tabindex=\"0\"]",
+        "selector": ".attention-panel .trend g[role=\"img\"][tabindex=\"0\"]",
         "indicator": "circle",
         "indicatorKind": "stroke",
     },
-    {"id": "focusHeatmap", "page": "weekly", "selector": ".heatmap-cell:not(.is-unavailable)"},
+    {"id": "focusHeatmap", "page": "weekly", "selector": ".heat-cell"},
     {"id": "timelineSegment", "page": "timeline", "selector": ".activity-lane .lane-segment"},
     {"id": "goalsInput", "page": "goals", "selector": ".target-form input"},
 ]
@@ -347,7 +346,7 @@ channel = os.environ.get("ITIME_BROWSER_CHANNEL", "chrome")
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(channel=channel, headless=True)
     try:
-        wide = browser.new_context(viewport={"width": 1180, "height": 760}, locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
+        wide = browser.new_context(viewport={"width": 1540, "height": 944}, locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
         page = wide.new_page()
         for page_id in pages:
             page.goto(url(page_id))
@@ -469,21 +468,49 @@ with sync_playwright() as playwright:
         ranking_rows = page.locator(".ranking-row")
         report["interactions"]["categoryTimeAndShare"] = (
             ranking_rows.count() > 0
-            and ranking_rows.first.locator(".rank-value strong").count() == 1
+            and ranking_rows.first.locator(".rank-duration").inner_text().strip() != ""
             and ranking_rows.first.locator(".rank-value b").inner_text().endswith("%")
         )
-        semantic_classes = page.locator(".today-timeline .timeline-segment, .home-timeline-band .timeline-segment").evaluate_all("elements => [...new Set(elements.flatMap(element => [...element.classList]))]")
-        axis_labels = page.locator(".today-timeline .time-axis span").all_inner_texts()
-        report["interactions"]["homeTimelineSemantics"] = all(value in semantic_classes for value in ["is-attention", "is-interaction", "is-media"]) and axis_labels == ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
+        activity_rows = page.locator(".home-activity-row")
+        activity_times = activity_rows.locator("time").all_inner_texts()
+        report["interactions"]["homeTimelineSemantics"] = (
+            activity_rows.count() > 0
+            and len(activity_times) == activity_rows.count()
+            and activity_times == sorted(activity_times)
+            and activity_rows.locator(".home-activity-card .app-icon").count() == activity_rows.count()
+        )
         home_metrics = page.locator(".metrics-grid--home, .metrics-strip").first
         home_metric_columns = home_metrics.evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
         home_data_columns = page.locator(".home-data-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
         report["interactions"]["homeSelectedFormat"] = (
             home_metrics.locator(".metric-card").count() == 4
-            and home_metrics.locator("[data-art]").count() == 0
+            and home_metrics.locator(".metric-card__art").count() == 4
             and home_metric_columns == 4
             and home_data_columns == 2
-            and page.locator(".home-timeline-band").count() == 6
+            and activity_rows.count() >= 4
+        )
+        reference_system = page.evaluate("""() => {
+          const sidebar = document.querySelector('.sidebar').getBoundingClientRect()
+          const pageBox = document.querySelector('.page')
+          const card = document.querySelector('.metric-card')
+          const metrics = document.querySelector('.metrics-grid--home')
+          const pageStyle = getComputedStyle(pageBox)
+          const cardStyle = getComputedStyle(card)
+          const metricsStyle = getComputedStyle(metrics)
+          return {
+            sidebarWidth: sidebar.width,
+            pagePadding: parseFloat(pageStyle.paddingLeft),
+            cardRadius: parseFloat(cardStyle.borderRadius),
+            metricGap: parseFloat(metricsStyle.columnGap),
+            cardBackground: cardStyle.backgroundColor,
+          }
+        }""")
+        report["interactions"]["referenceDesignSystem"] = (
+            abs(reference_system["sidebarWidth"] - 240) <= 1
+            and abs(reference_system["pagePadding"] - 32) <= 1
+            and reference_system["cardRadius"] >= 10
+            and abs(reference_system["metricGap"] - 16) <= 1
+            and reference_system["cardBackground"] not in ["rgb(255, 255, 255)", "rgb(0, 0, 0)"]
         )
         reminder = page.get_by_role("button", name="知道了")
         reminder_visible = reminder.count() == 1
@@ -496,7 +523,7 @@ with sync_playwright() as playwright:
         page.wait_for_url("**#/settings")
         page.goto(f"{base_url}/#/account")
         page.wait_for_url("**#/home")
-        report["interactions"]["localProfileOnly"] = page.get_by_text("本机数据", exact=True).count() == 1 and "#/home" in page.url
+        report["interactions"]["localProfileOnly"] = page.get_by_text("数据已同步", exact=True).count() == 1 and "#/home" in page.url
 
         page.goto(url("home"))
         wait_ready(page)
@@ -530,25 +557,26 @@ with sync_playwright() as playwright:
         weekly_analysis_order = page.locator(".weekly-analysis-grid > section").evaluate_all("elements => elements.map(element => [...element.classList].find(value => value.endsWith('-panel')))")
         weekly_secondary_order = page.locator(".weekly-secondary-grid > section").evaluate_all("elements => elements.map(element => [...element.classList].find(value => value.endsWith('-panel')))")
         report["interactions"]["weeklySelectedFormat"] = (
-            weekly_analysis_columns == 2
+            weekly_analysis_columns == 3
             and weekly_secondary_columns == 2
-            and weekly_analysis_order == ["focus-panel", "insight-panel"]
+            and weekly_analysis_order == ["focus-panel", "insight-panel", "top-apps-panel"]
             and weekly_secondary_order == ["attention-panel", "achievements-panel"]
-            and page.locator(".weekly-section--activity").count() == 1
+            and page.locator(".weekly-daily-card").count() == 1
             and page.locator(".top-apps-panel").count() == 1
-            and page.locator(".weekly-analysis-grid .top-apps-panel, .weekly-secondary-grid .top-apps-panel").count() == 0
+            and page.locator(".weekly-analysis-grid .top-apps-panel").count() == 1
+            and page.locator(".weekly-secondary-grid .top-apps-panel").count() == 0
         )
-        heatmap_cells = page.locator(".heatmap-cell")
+        heatmap_cells = page.locator(".heat-cell")
         heatmap_cells.first.focus()
-        page.wait_for_selector(".heatmap-tooltip")
+        page.wait_for_selector(".heat-cell:focus [role='tooltip']")
         first_label = heatmap_cells.first.get_attribute("aria-label")
         page.keyboard.press("ArrowRight")
-        focused_label = page.locator(".heatmap-cell:focus").get_attribute("aria-label")
-        page.locator(".heatmap-cell:focus").click()
-        report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 49 and first_label != focused_label and page.locator(".heatmap-cell.locked").count() == 1 and page.locator(".heatmap-tooltip").count() == 1
-        trend_points = page.locator('.insight-panel .trend g[role="img"]')
+        focused_label = page.locator(".heat-cell:focus").get_attribute("aria-label")
+        page.locator(".heat-cell:focus").click()
+        report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 49 and first_label != focused_label and page.locator(".heat-cell.locked").count() == 1 and page.locator(".heat-cell.locked [role='tooltip']").count() == 1
+        trend_points = page.locator('.attention-panel .trend g[role="img"]')
         trend_points.first.focus()
-        report["interactions"]["weeklyTrendInteraction"] = trend_points.count() == 7 and page.locator(".insight-panel .trend__tooltip").count() == 1
+        report["interactions"]["weeklyTrendInteraction"] = trend_points.count() == 7 and page.locator(".attention-panel .trend__tooltip").count() == 1
         report["focusIndicators"]["light"] = inspect_focus_indicators(page, "light")
         wide.close()
 
@@ -560,7 +588,7 @@ with sync_playwright() as playwright:
             compact_page.screenshot(path=output / f"reference-{page_id}.png")
         compact.close()
 
-        dark = browser.new_context(viewport={"width": 1180, "height": 760}, color_scheme="dark", locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
+        dark = browser.new_context(viewport={"width": 1540, "height": 944}, color_scheme="dark", locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
         dark_page = dark.new_page()
         for page_id in pages:
             dark_page.goto(url(page_id, "theme=dark"))

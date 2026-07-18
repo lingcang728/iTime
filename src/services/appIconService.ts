@@ -150,6 +150,7 @@ export async function resolveAppIcon(
           packageFullName: input.packageFullName ?? null,
           packageFamilyName: input.packageFamilyName ?? null,
           siteHost: input.siteHost ?? null,
+          processId: input.processId ?? null,
           requestedSize: input.requestedSize ?? DEFAULT_SIZE,
         },
       })

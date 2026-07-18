@@ -15,6 +15,7 @@ withDefaults(defineProps<{
   icon?: Component
   info?: string
   tone?: 'neutral' | 'accent' | 'warning' | 'danger'
+  visual?: 'bars' | 'ring'
 }>(), { tone: 'neutral' })
 </script>
 
@@ -40,11 +41,22 @@ withDefaults(defineProps<{
       </strong>
       <small>{{ detail }}</small>
     </div>
+    <span v-if="visual === 'bars'" class="metric-card__art metric-bars" aria-hidden="true">
+      <i v-for="height in [42, 66, 78, 46, 61, 96]" :key="height" :style="{ height: `${height}%` }"></i>
+    </span>
+    <svg v-else-if="visual === 'ring'" class="metric-card__art metric-ring" viewBox="0 0 44 44" aria-hidden="true">
+      <circle cx="22" cy="22" r="17" class="metric-ring__track" />
+      <circle cx="22" cy="22" r="17" class="metric-ring__value" />
+    </svg>
   </article>
 </template>
 
 <style scoped>
 .metric-card__header {
+  position: relative;
+}
+
+.metric-card {
   position: relative;
 }
 
@@ -57,6 +69,10 @@ withDefaults(defineProps<{
 
 .metric-card__body {
   min-width: 0;
+}
+
+.metric-card:has(.metric-card__art) .metric-card__body {
+  padding-right: 64px;
 }
 
 .metric-card__value {
@@ -134,5 +150,60 @@ withDefaults(defineProps<{
 .metric-info:focus [role="tooltip"] {
   opacity: 1;
   transform: translateY(0);
+}
+
+.metric-card__art {
+  position: absolute;
+  right: 18px;
+  bottom: 22px;
+  width: 56px;
+  height: 50px;
+}
+
+.metric-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.metric-bars i {
+  width: 5px;
+  min-height: 8px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 48%, var(--bg-soft));
+  transform-origin: bottom;
+  animation: metric-rise 360ms var(--ease-out) both;
+}
+
+.metric-bars i:nth-child(2) { animation-delay: 30ms; }
+.metric-bars i:nth-child(3) { animation-delay: 60ms; }
+.metric-bars i:nth-child(4) { animation-delay: 90ms; }
+.metric-bars i:nth-child(5) { animation-delay: 120ms; }
+.metric-bars i:nth-child(6) { animation-delay: 150ms; }
+
+.metric-ring {
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.metric-ring circle {
+  fill: none;
+  stroke-width: 4;
+}
+
+.metric-ring__track {
+  stroke: var(--bg-soft);
+}
+
+.metric-ring__value {
+  stroke: var(--accent-strong);
+  stroke-dasharray: 82 107;
+  stroke-linecap: round;
+}
+
+@keyframes metric-rise {
+  from { opacity: .3; transform: scaleY(.36); }
+  to { opacity: 1; transform: scaleY(1); }
 }
 </style>

@@ -16,8 +16,8 @@ use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, State, WindowEvent,
 };
 
-const DEFAULT_WINDOW_WIDTH: f64 = 1180.0;
-const DEFAULT_WINDOW_HEIGHT: f64 = 760.0;
+const DEFAULT_WINDOW_WIDTH: f64 = 1540.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 944.0;
 const MIN_WINDOW_WIDTH: f64 = 960.0;
 const MIN_WINDOW_HEIGHT: f64 = 680.0;
 const WORK_AREA_MARGIN: f64 = 16.0;
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn uses_default_size_when_work_area_is_large_enough() {
         let (size, minimum) = fitted_window_size(1920.0, 1040.0);
-        assert_eq!(size, LogicalSize::new(1180.0, 760.0));
+        assert_eq!(size, LogicalSize::new(1540.0, 944.0));
         assert_eq!(minimum, LogicalSize::new(960.0, 680.0));
     }
 

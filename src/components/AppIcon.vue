@@ -26,6 +26,7 @@ const props = withDefaults(
     packageFullName?: string
     packageFamilyName?: string
     siteHost?: string
+    processId?: number
     size?: number
   }>(),
   { size: 20 },
@@ -48,7 +49,9 @@ const displayKey = computed(() => canonicalAppKey(props.appName)
   ?? (props.appIdentity ?? props.iconKey ?? '').replace(/^app:/, '').toLowerCase())
 const resolverIdentity = computed(() => {
   const hasConcreteIdentity = Boolean(props.executablePath || props.aumid || props.packageFullName || props.packageFamilyName || props.siteHost)
-  return hasConcreteIdentity ? props.appIdentity ?? props.iconKey : displayKey.value || props.appIdentity || props.iconKey
+  if (hasConcreteIdentity) return props.appIdentity ?? props.iconKey ?? props.appName
+  const opaqueIdentity = /^(?:process|exe):/i.test(props.appIdentity ?? '')
+  return displayKey.value || (opaqueIdentity ? props.appName : null) || props.appIdentity || props.iconKey || props.appName
 })
 const identityInfo = computed(() =>
   buildAppIdentity({
@@ -108,6 +111,7 @@ async function refresh(): Promise<void> {
     packageFamilyName: props.packageFamilyName,
     siteHost: props.siteHost,
     requestedSize: Math.max(32, Math.round(props.size * 2)),
+    processId: props.processId,
   })
 
   if (!mounted || result.appIdentity !== identityInfo.value.identity) return
@@ -151,6 +155,7 @@ watch(
     props.packageFamilyName,
     props.siteHost,
     props.size,
+    props.processId,
   ],
   () => {
     void refresh()

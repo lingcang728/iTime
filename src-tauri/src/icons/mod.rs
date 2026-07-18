@@ -18,5 +18,5 @@ mod request;
 
 pub use queue::IconService;
 
-pub const ICON_RESOLVER_VERSION: u32 = 1;
+pub const ICON_RESOLVER_VERSION: u32 = 2;
 pub const DEFAULT_ICON_SIZE: u32 = 64;

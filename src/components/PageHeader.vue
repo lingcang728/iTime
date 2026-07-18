@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
+import { PhCalendarBlank, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
 import { formatDateLabel } from '../utils/format'
 import { useAppStore } from '../stores/appStore'
 
@@ -18,8 +18,9 @@ const canGoNext = computed(() => selectedIndex.value >= 0 && selectedIndex.value
       <p>{{ subtitle }}</p>
     </div>
     <div class="date-switcher" aria-label="日期选择">
-      <button class="icon-button" type="button" aria-label="前一天" :disabled="!canGoPrevious" @click="store.stepDate(-1)"><PhCaretLeft :size="16" /></button>
+      <span class="date-switcher__calendar" aria-hidden="true"><PhCalendarBlank :size="19" weight="regular" /></span>
       <strong>{{ rangeLabel ?? formatDateLabel(store.state.selectedDate) }}</strong>
+      <button class="icon-button" type="button" aria-label="前一天" :disabled="!canGoPrevious" @click="store.stepDate(-1)"><PhCaretLeft :size="16" /></button>
       <button class="icon-button" type="button" aria-label="后一天" :disabled="!canGoNext" @click="store.stepDate(1)"><PhCaretRight :size="16" /></button>
     </div>
   </header>

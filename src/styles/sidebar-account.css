@@ -1,5 +1,4 @@
-.profile-card,
-.goal-ring-card {
+.profile-card {
   appearance: none;
   color: inherit;
   font: inherit;
@@ -11,19 +10,15 @@
   text-align: left;
 }
 
-.profile-card:hover,
-.goal-ring-card:hover {
-  border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+.profile-card:hover {
+  background: var(--bg-hover);
 }
 
-.profile-card:active,
-.goal-ring-card:active {
+.profile-card:active {
   transform: scale(0.985);
 }
 
-.profile-card:focus-visible,
-.goal-ring-card:focus-visible {
+.profile-card:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }

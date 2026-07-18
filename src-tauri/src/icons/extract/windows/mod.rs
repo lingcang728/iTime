@@ -31,6 +31,15 @@ pub(super) fn extract_rgba_windows(
         }
     }
 
+    if let Some(shortcut) = shortcuts::find_shortcut_by_identity(&req.app_identity) {
+        if let Ok(image) = shell::shell_item_image_from_path(&shortcut, size) {
+            return Ok((image, IconSource::Shortcut));
+        }
+        if let Ok(image) = shell::sh_get_file_info_image(&shortcut, size) {
+            return Ok((image, IconSource::Shortcut));
+        }
+    }
+
     if let Some(path) = path {
         if let Ok(image) = shell::shell_item_image_from_path(path, size) {
             return Ok((image, IconSource::ShellItem));
@@ -52,7 +61,11 @@ pub(super) fn extract_rgba_windows(
     }
 
     Err(ExtractError::NotFound(format!(
-        "no icon source for {}",
-        req.app_identity
+        "no icon source for {}{}",
+        req.app_identity,
+        req.package_family_name
+            .as_deref()
+            .map(|family| format!(" ({family})"))
+            .unwrap_or_default()
     )))
 }

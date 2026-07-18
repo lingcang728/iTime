@@ -11,6 +11,7 @@ withDefaults(
     appName?: string
     executablePath?: string
     aumid?: string
+    processId?: number
     size?: number
   }>(),
   { size: 20 },
@@ -24,6 +25,7 @@ withDefaults(
     :app-name="appName"
     :executable-path="executablePath"
     :aumid="aumid"
+    :process-id="processId"
     :size="size"
   />
 </template>

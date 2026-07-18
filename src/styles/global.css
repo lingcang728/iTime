@@ -3,8 +3,6 @@
 @import './components/core.css';
 @import './pages/home.css';
 @import './components/timeline.css';
-@import './pages/ai-metrics.css';
-@import './pages/ai-tools.css';
 @import './pages/weekly.css';
 @import './pages/input-rhythm.css';
 @import './pages/coming.css';

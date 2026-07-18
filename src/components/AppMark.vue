@@ -1,23 +1,30 @@
 <script setup lang="ts">
+import { PhHourglassHigh } from '@phosphor-icons/vue'
+
 withDefaults(defineProps<{ size?: number }>(), { size: 34 })
 </script>
 
 <template>
-  <svg class="app-mark" :width="size" :height="size" viewBox="0 0 36 36" aria-hidden="true">
-    <circle cx="18" cy="19" r="13" fill="none" stroke="currentColor" stroke-width="2.25" />
-    <path d="M18 11v8l5 3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" />
-    <path d="M11 4.8 8.6 7.2M25 4.8l2.4 2.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.25" />
-    <circle class="app-mark__accent" cx="28.3" cy="8.2" r="2.35" />
-  </svg>
+  <span class="app-mark" :style="{ width: `${size}px`, height: `${size}px` }" aria-hidden="true">
+    <PhHourglassHigh :size="Math.round(size * 0.64)" weight="regular" />
+  </span>
 </template>
 
 <style scoped>
 .app-mark {
-  display: block;
-  color: var(--text-secondary);
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 8px;
+  color: #f4f6f8;
+  background: #131a22;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 3px 8px rgba(20, 28, 37, .16);
 }
 
-.app-mark__accent {
-  fill: var(--accent);
+:global(html[data-theme="dark"]) .app-mark {
+  color: #f2f5f7;
+  background: #11161c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 3px 10px rgba(0, 0, 0, .24);
 }
 </style>
