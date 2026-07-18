@@ -1,224 +1,92 @@
 # iTime
 
-本地优先的 Windows 桌面应用：记录前台屏幕时间，并区分 AI 工具前台活动。  
-栈：**Tauri 2 · Vue 3 · TypeScript · Vite · Rust**。
+记录你的屏幕时间，也记录 AI 替你工作的时间。
 
-当前版本 `0.1.0`。可执行包见 [GitHub Releases](https://github.com/lingcang728/iTime/releases)，不要把 `release/*.exe` 提交进 Git。
+iTime 是一款运行在 Windows 上的本地桌面应用。它帮你看清一天里时间花在了哪些应用上，并单独标出 AI 工具占用的前台时间——数据都留在你自己的电脑上，不上传云端。
 
----
-
-## 目录
-
-- [架构速览](#架构速览)
-- [数据契约](#数据契约)
-- [仓库结构](#仓库结构)
-- [环境要求](#环境要求)
-- [开发](#开发)
-- [验证与视觉门禁](#验证与视觉门禁)
-- [打包与发布](#打包与发布)
-- [窗口与运行时约定](#窗口与运行时约定)
+**当前版本：0.1.0**
 
 ---
 
-## 架构速览
+## 能做什么
 
-| 层 | 路径 | 职责 |
-| --- | --- | --- |
-| UI 页面 | `src/pages` | 七个一级页：首页、AI 代理、时间线、输入足迹、周报、目标、设置；另有账户 / Pro 预留 |
-| 领域模型 | `src/domain` | 事件类型、区间代数、指标聚合、目标模型 |
-| 适配层 | `src/providers` | KeyStats 只读适配、活动数据适配、浏览器预览数据 |
-| 状态 | `src/stores` | 主题、持久化、数据可用性等前端状态 |
-| 桌面壳 | `src-tauri` | 前台采样、JSONL 落盘、原生图标、托盘、自启动、单实例、关闭流程 |
-| 脚本 | `scripts` | 完整打包、共享 Playwright 视觉门禁、截图对比 |
-
-浏览器 `npm run dev` 可走预览数据做 UI 开发；**Tauri 桌面运行时不使用预览记录**，只接本机真实数据源。
-
----
-
-## 数据契约
-
-开发时务必遵守这些边界，避免“假数据”或越权读写：
-
-| 源 | 路径 / 行为 | 规则 |
-| --- | --- | --- |
-| KeyStats | `%APPDATA%\keystats\keystats-data.json` | **只读**；严格类型适配。提供日级键鼠累计、今日键位、功能组合键。不修改文件，不改 KeyStats 启动项。 |
-| 活动采样 | `%LOCALAPPDATA%\iTime\Data\activity-v1.jsonl` | 启用后每 **10s** 采样前台可执行程序与本会话输入活跃。接入前历史**不回填**。 |
-| 隐私 | — | 不读不写窗口标题、文档名、对话/键入内容、PID、完整可执行路径、用户名。应用身份用本机路径截断 **SHA-256**。 |
-| AI 前台时长 | 进程采样 | 仅估算，**不等于**后台 agent 执行时长。无可靠证据的指标标为估算或暂无数据。 |
-| KeyStats 局限 | — | 无小时/分钟桶；历史点击无法拆左右键。对应能力标为不可用，**禁止**伪造 0 或模拟曲线。 |
-| 自启动 | Tauri autostart | 只管理 iTime 自己的当前用户启动项。 |
-
----
-
-## 仓库结构
-
-```text
-iTime/
-├── src/                 # Vue 前端
-│   ├── pages/           # 路由页面
-│   ├── components/      # UI 组件
-│   ├── domain/          # 纯领域逻辑（优先单测）
-│   ├── providers/       # 数据源适配
-│   ├── stores/          # 前端状态
-│   ├── styles/          # design tokens 与页面样式
-│   └── platform/        # 桌面桥接（autostart 等）
-├── src-tauri/           # Rust / Tauri
-│   └── src/             # 采集、图标、设置、命令
-├── scripts/             # package-release、visual-test、compare-visual
-├── tests/visual/baseline/  # 已认可视觉基线（需版本化）
-├── docs/                # 资产来源、修复清单等工程文档
-├── release/             # 本地打包输出（gitignore，勿提交）
-└── package.json
-```
-
-本地工具目录（`.claude/`、`.omo/`、`artifacts/`、`output/` 等）与 `CLAUDE.md` 均已忽略，仅留本机。
-
----
-
-## 环境要求
-
-- **Node.js** 22+（与当前 lockfile / Vite 7 匹配）
-- **Rust** stable + Windows 桌面目标（MSVC）
-- **WebView2**（Windows 自带或运行时）
-- 可选：共享 **Playwright**（视觉门禁，见下；项目**不**自带 Playwright 依赖）
-
-```powershell
-npm install
-```
-
----
-
-## 开发
-
-```powershell
-# 浏览器 UI（含明确标记的预览数据）
-npm run dev
-
-# 桌面壳 + 真实数据路径
-npm run tauri:dev
-
-# 单元测试（Vitest）
-npm test
-
-# 前端 typecheck + production build
-npm run build
-```
-
-常用脚本：
-
-| 命令 | 说明 |
+| 页面 | 你能看到什么 |
 | --- | --- |
-| `npm run dev` | Vite，端口 `1420` |
-| `npm run tauri:dev` | Tauri 开发窗口 |
-| `npm test` / `npm run test:watch` | 前端单测 |
-| `npm run verify` | 单测 + 前端 build + `cargo fmt/clippy/test` |
-| `npm run verify:full` | `verify` + 视觉门禁 |
-| `npm run package:release` | 完整验证后强制重打包到 `release/` |
-| `npm run tauri:build` | 底层 Tauri 构建（一般走 `package:release`） |
+| **首页** | 今日概览：屏幕时间、节奏与重点应用 |
+| **AI 代理** | AI 相关工具的前台使用情况（估算） |
+| **时间线** | 按时间顺序浏览应用切换 |
+| **输入足迹** | 键鼠活跃与输入节奏（若本机有可用数据） |
+| **周报** | 一周趋势、常用应用与成就感摘要 |
+| **目标** | 为自己设定使用提醒与目标 |
+| **设置** | 主题、自启动、暂停记录等偏好 |
+
+另有账户与 Pro 相关入口预留，当前版本以本机功能为主。
 
 ---
 
-## 验证与视觉门禁
+## 下载与安装
 
-### 逻辑 / 编译门禁
+到 [Releases](https://github.com/lingcang728/iTime/releases) 下载最新版：
 
-```powershell
-npm run verify
-```
-
-覆盖：Vitest、`vue-tsc` + Vite build、Rust `fmt --check`、`clippy -D warnings`、`cargo test`。
-
-### 视觉门禁
-
-不安装项目内 Playwright。脚本按序查找：
-
-1. 环境变量 `ITIME_PLAYWRIGHT`
-2. 系统 `playwright`
-3. `py -m playwright`
-4. `PLAYWRIGHT_BROWSERS_PATH` 共享浏览器缓存  
-
-并优先复用系统 **Chrome / Edge**。未配置时**失败并提示**，不静默跳过。
-
-```powershell
-$env:ITIME_PLAYWRIGHT = 'C:\path\to\playwright.exe'
-npm run test:visual
-```
-
-门禁范围概要：
-
-- 七页 `1280×820` 布局
-- 从 `960×680` 起的最小窗口矩阵
-- 125% / 150% / 200% DPI
-- 深色对比度与关键交互
-- 参考页结构对比 + 已认可基线回归
-
-阈值（摘要）：
-
-- 参考结构 SSIM：在 12 CSS px 低频布局层计算，**≥ 0.90**；主要边界锚点偏差 **≤ 4 CSS px**
-- 基线回归：差异比例 **≤ 0.5%**，单像素颜色阈值 **0.12**
-- 报告保留 `rawSsim`、差异像素比例与差异图
-
-手动对比辅助：`npm run visual:compare`。
-
----
-
-## 打包与发布
-
-### 本地产物
-
-```powershell
-npm run package:release
-```
-
-行为：
-
-1. 先跑 `npm run verify`，失败则拒绝打包  
-2. 校验 `package.json` / `tauri.conf.json` / Cargo 版本一致  
-3. 强制 `tauri build`，拒绝复用旧 EXE  
-4. 同步写入（且仅保留这两个文件）：
-   - `release/iTime.exe` — 可直接运行  
-   - `release/iTime_<version>_x64-setup.exe` — NSIS 安装包  
-
-`release/` **整目录 gitignore**，仅作本机输出。
-
-### GitHub Release（正式分发）
-
-仓库的 Releases 页才是安装包入口；历史上把 EXE 塞进 Git 树**不会**出现在 Releases。
-
-在已推送的 `main` 上创建示例：
-
-```powershell
-gh release create "v0.1.0" `
-  "release/iTime.exe" `
-  "release/iTime_0.1.0_x64-setup.exe" `
-  --title "iTime v0.1.0" `
-  --notes "Release notes here."
-```
-
-上传前确认两个文件的修改时间与 SHA-256 属于本轮 `package:release` 构建。
-
----
-
-## 窗口与运行时约定
-
-| 项 | 值 |
+| 文件 | 适合谁 |
 | --- | --- |
-| 默认窗口 | 1180 × 760 |
-| 最小尺寸 | 960 × 680 |
-| 装饰 | 无系统边框（自定义壳） |
-| 标识符 | `com.itime.desktop` |
-| 安装包 | NSIS，`currentUser` |
+| **iTime_0.1.0_x64-setup.exe** | 推荐。安装到当前用户，可从开始菜单打开 |
+| **iTime.exe** | 想免安装、直接双击运行时用 |
+
+系统要求：
+
+- Windows 10 / 11（64 位）
+- 已安装 [Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)（多数电脑已自带）
+
+安装包使用「当前用户」模式，一般不需要管理员权限。
 
 ---
 
-## 相关文档
+## 使用前请了解
 
-- `docs/ASSET_SOURCES.md` — 应用图标与 Phosphor 资产来源  
-- `docs/ITIME-REPAIR-TODO.md` — 修复 / 债项清单  
-- `AGENTS.md` — 本仓库自动化代理的发布与提交约定  
+**从启用后开始记。**  
+iTime 不会回填安装之前的屏幕时间。打开并保持运行后，才会持续采样你的前台应用。
+
+**AI 时长是估算。**  
+页面上的 AI 相关时间来自「该 AI 工具是否在前台」，不能等同于后台 agent 真正跑了多久。没有把握的指标会标成估算，或显示暂无数据——不会用假数字凑满。
+
+**键鼠数据来自本机（如已安装 KeyStats）。**  
+若你本机有 KeyStats 的数据文件，iTime 会只读接入日级键鼠统计；不会改写 KeyStats 的文件或启动项。历史里做不到的细项（例如按小时拆分、左右键拆分）会如实标为不可用。
+
+**可以随时暂停。**  
+在设置里可暂停记录，也可以配置是否开机自启动。自启动只影响 iTime 自己，不会改动其他软件。
 
 ---
 
-## License
+## 隐私
 
-Private / unpublished unless otherwise stated.
+iTime 为**本地优先**设计：
+
+- 活动记录保存在你的电脑上
+- **不**读取或保存：窗口标题、文档名、对话内容、你具体敲了什么字
+- **不**保存完整程序路径、用户名等敏感标识；应用身份经本地处理后再使用
+- **不**把使用数据上传到我们的服务器（当前版本无账号同步）
+
+你可以把 iTime 当成「只在本机记账本」来用。
+
+---
+
+## 常见问题
+
+**为什么装完几乎是空的？**  
+数据从启用后开始累积。用一段时间再回来看首页和周报会更有意义。
+
+**为什么有的数字写着「估算」或「暂无」？**  
+没有可靠来源时，iTime 宁可空着或标明估算，也不伪造曲线和 0 值。
+
+**关闭窗口后还在记吗？**  
+可按设置与托盘行为决定是退出还是后台保留。需要完整记录时，请保持应用按你期望的方式运行，并确认未处于「暂停记录」。
+
+**安全吗？从哪下载？**  
+请只从本仓库的 [Releases](https://github.com/lingcang728/iTime/releases) 获取安装包。
+
+---
+
+## 反馈
+
+使用中遇到问题或有想法，欢迎在 GitHub 仓库提交 [Issue](https://github.com/lingcang728/iTime/issues)。
