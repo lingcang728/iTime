@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import type { ClosePreference, ThemeMode } from './appStore'
+import { goalDefinitions } from '../domain/goals'
+import type { ClosePreference } from './appStore'
+import type { ThemeMode } from './theme'
 
 const STORAGE_KEY = 'itime-prototype-state'
 const SCHEMA_VERSION = 2
@@ -20,7 +22,7 @@ export interface PersistedState {
 
 export const persistedDefaults: PersistedState = {
   schemaVersion: SCHEMA_VERSION,
-  theme: 'light',
+  theme: 'system',
   reminders: true,
   closePreference: 'ask',
   heatmapEnabled: true,
@@ -52,7 +54,10 @@ export function loadPersistedState(): PersistedState {
     if (!parsed.success) return { ...persistedDefaults }
     const value = parsed.data
     const goals = Object.fromEntries(Object.entries(value.goals ?? {})
-      .filter(([key]) => key in persistedDefaults.goals))
+      .filter(([key, goal]) => {
+        const definition = goalDefinitions.find((item) => item.id === key)
+        return definition && Number.isInteger(goal) && goal >= definition.min && goal <= definition.max
+      }))
     return {
       ...persistedDefaults,
       ...value,

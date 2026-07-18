@@ -2,14 +2,17 @@
 import { computed, onMounted } from 'vue'
 import {
   PhArrowClockwise,
+  PhDatabase,
   PhDesktop,
+  PhGear,
+  PhKeyboard,
+  PhMonitor,
   PhMoon,
   PhPauseCircle,
   PhShieldCheck,
   PhSun,
 } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
-import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
 
 const store = useAppStore()
@@ -64,54 +67,58 @@ onMounted(() => void store.refreshAutostart())
   <section class="page settings-page">
     <PageHeader title="设置" subtitle="管理启动方式、记录范围、提醒与本地数据" />
     <div class="settings-layout">
-      <main class="settings-main">
-        <article class="card settings-section">
-          <header class="section-heading">
-            <span class="section-icon blue section-icon--art"><img :src="uiIcons.pageSettings" alt="" draggable="false" /></span>
-            <div><h2>启动与窗口</h2><p>这些选项会影响 iTime 在 Windows 中的实际运行方式。</p></div>
+      <div class="settings-main">
+        <section class="settings-group" aria-labelledby="startup-title">
+          <header class="settings-group__header">
+            <span class="settings-group__icon"><PhGear :size="20" weight="regular" aria-hidden="true" /></span>
+            <div><h2 id="startup-title">启动与窗口</h2><p>这些选项会影响 iTime 在 Windows 中的实际运行方式。</p></div>
           </header>
-          <label class="control-row">
-            <div><strong>开机自启动</strong><span>登录 Windows 后自动启动 iTime，不必手动打开。</span><small :class="['system-status', store.state.autostartStatus]">{{ autostartStatusLabel }}</small></div>
-            <span class="toggle"><input :checked="store.state.autostartEnabled" :disabled="store.state.autostartStatus === 'loading'" type="checkbox" @change="updateAutostart"><i></i></span>
-          </label>
-          <label class="control-row">
-            <div><strong>关闭窗口时隐藏到托盘</strong><span>保留本机记录进程，可从托盘再次打开。</span></div>
-            <span class="toggle"><input :checked="store.state.closePreference === 'hide'" type="checkbox" @change="updateClosePreference"><i></i></span>
-          </label>
-          <label class="control-row">
-            <div><strong>活动记录</strong><span>{{ store.state.recording ? '正在记录启用后的本机活动' : '当前已暂停记录' }}</span></div>
-            <span class="toggle"><input :checked="store.state.recording" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
-          </label>
-        </article>
+          <div class="settings-list">
+            <label class="control-row">
+              <div><strong>开机自启动</strong><span>登录 Windows 后自动启动 iTime，不必手动打开。</span><small :class="['system-status', store.state.autostartStatus]">{{ autostartStatusLabel }}</small></div>
+              <span class="toggle"><input :checked="store.state.autostartEnabled" :disabled="store.state.autostartStatus === 'loading'" type="checkbox" @change="updateAutostart"><i></i></span>
+            </label>
+            <label class="control-row">
+              <div><strong>关闭窗口时隐藏到托盘</strong><span>保留本机记录进程，可从托盘再次打开。</span></div>
+              <span class="toggle"><input :checked="store.state.closePreference === 'hide'" type="checkbox" @change="updateClosePreference"><i></i></span>
+            </label>
+            <label class="control-row">
+              <div><strong>活动记录</strong><span>{{ store.state.recording ? '正在记录启用后的本机活动' : '当前已暂停记录' }}</span></div>
+              <span class="toggle"><input :checked="store.state.recording" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
+            </label>
+          </div>
+        </section>
 
-        <article class="card settings-section">
-          <header class="section-heading">
-            <span class="section-icon green section-icon--art"><img :src="uiIcons.inputKeystrokes" alt="" draggable="false" /></span>
-            <div><h2>输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
+        <section class="settings-group" aria-labelledby="privacy-title">
+          <header class="settings-group__header">
+            <span class="settings-group__icon"><PhKeyboard :size="20" weight="regular" aria-hidden="true" /></span>
+            <div><h2 id="privacy-title">输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
           </header>
-          <label class="control-row"><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
-          <label class="control-row"><div><strong>功能组合键</strong><span>仅显示 Ctrl+C 等明确功能组合的累计次数。</span></div><span class="toggle"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
-          <div class="privacy-note"><PhShieldCheck :size="23" weight="duotone" /><p>iTime 只读取本机聚合计数，不读取键盘文字、密码内容或剪贴板正文，也不会修改既有输入历史。</p></div>
-        </article>
+          <div class="settings-list">
+            <label class="control-row"><div><strong>键盘热力图</strong><span>显示数据源提供的单键累计次数。</span></div><span class="toggle"><input v-model="store.state.heatmapEnabled" type="checkbox"><i></i></span></label>
+            <label class="control-row"><div><strong>功能组合键</strong><span>仅显示 Ctrl+C 等明确功能组合的累计次数。</span></div><span class="toggle"><input v-model="store.state.shortcutsEnabled" type="checkbox"><i></i></span></label>
+          </div>
+          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只读取本机聚合计数，不读取键盘文字、密码内容或剪贴板正文，也不会修改既有输入历史。</p></div>
+        </section>
 
-        <article class="card settings-section appearance-section">
-          <header class="section-heading">
-            <span class="section-icon violet section-icon--art"><img :src="uiIcons.metricComputer" alt="" draggable="false" /></span>
-            <div><h2>外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
+        <section class="settings-group appearance-section" aria-labelledby="appearance-title">
+          <header class="settings-group__header">
+            <span class="settings-group__icon"><PhMonitor :size="20" weight="regular" aria-hidden="true" /></span>
+            <div><h2 id="appearance-title">外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
           </header>
           <div class="theme-options" role="radiogroup" aria-label="主题">
-            <label :class="{ active: store.state.theme === 'light' }"><input v-model="store.state.theme" type="radio" value="light"><PhSun :size="20" /><span>浅色</span></label>
-            <label :class="{ active: store.state.theme === 'dark' }"><input v-model="store.state.theme" type="radio" value="dark"><PhMoon :size="20" /><span>深色</span></label>
-            <label :class="{ active: store.state.theme === 'system' }"><input v-model="store.state.theme" type="radio" value="system"><PhDesktop :size="20" /><span>跟随系统</span></label>
+            <label :class="{ active: store.state.theme === 'light' }"><input v-model="store.state.theme" type="radio" value="light"><PhSun :size="18" weight="regular" /><span>浅色</span></label>
+            <label :class="{ active: store.state.theme === 'dark' }"><input v-model="store.state.theme" type="radio" value="dark"><PhMoon :size="18" weight="regular" /><span>深色</span></label>
+            <label :class="{ active: store.state.theme === 'system' }"><input v-model="store.state.theme" type="radio" value="system"><PhDesktop :size="18" weight="regular" /><span>跟随系统</span></label>
           </div>
-        </article>
-      </main>
+        </section>
+      </div>
 
       <aside class="settings-side">
-        <article class="card source-card">
-          <header class="section-heading">
-            <span class="section-icon orange section-icon--art"><img :src="uiIcons.inputDataSource" alt="" draggable="false" /></span>
-            <div><h2>本机输入数据</h2><p>查看当前连接状态与可用统计能力。</p></div>
+        <section class="source-panel" aria-labelledby="source-title">
+          <header class="settings-group__header">
+            <span class="settings-group__icon"><PhDatabase :size="20" weight="regular" aria-hidden="true" /></span>
+            <div><h2 id="source-title">本机输入数据</h2><p>查看当前连接状态与可用统计能力。</p></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">
             <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
@@ -120,14 +127,14 @@ onMounted(() => void store.refreshAutostart())
             <div v-for="fact in inputFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
           </dl>
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
-            <PhArrowClockwise :size="17" />重新读取本机记录
+            <PhArrowClockwise :size="17" weight="regular" />重新读取本机记录
           </button>
-        </article>
+        </section>
 
-        <article class="card data-boundary-card">
-          <PhPauseCircle :size="26" weight="duotone" />
+        <section class="data-boundary">
+          <PhPauseCircle :size="22" weight="regular" aria-hidden="true" />
           <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>输入页呈现本机已有聚合；应用与 AI 活动仅从 iTime 采集器启用后开始记录。</p></div>
-        </article>
+        </section>
       </aside>
     </div>
   </section>

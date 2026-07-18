@@ -4,7 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="记录你的屏幕时间，也记录 AI 替你工作的时间。" />
-    <meta name="theme-color" content="#f7f5f2" />
+    <meta name="theme-color" content="#f7f7f4" />
+    <style>
+      html, body { background: #f7f7f4; }
+      html[data-theme="dark"], html[data-theme="dark"] body { background: #151817; }
+    </style>
+    <script>
+      (() => {
+        let mode = new URLSearchParams(location.search).get('theme')
+        if (mode !== 'light' && mode !== 'dark') {
+          try {
+            const saved = JSON.parse(localStorage.getItem('itime-prototype-state') || '{}').theme
+            mode = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system'
+          } catch {
+            mode = 'system'
+          }
+        }
+        const theme = mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : mode === 'dark' ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#151817' : '#f7f7f4'
+      })()
+    </script>
     <title>iTime</title>
   </head>
   <body>
@@ -13,4 +34,3 @@
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
-

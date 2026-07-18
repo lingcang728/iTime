@@ -12,6 +12,7 @@ interface SegmentView extends TimeRange {
   label: string
   left: string
   width: string
+  edge: 'left' | 'center' | 'right'
 }
 
 interface LaneView {
@@ -29,11 +30,23 @@ const props = defineProps<{
 
 const ticks = [0, 4, 8, 12, 16, 20, 24]
 
-function segment(id: string, kind: SegmentKind, interval: TimeRange, label: string): SegmentView {
+function segment(id: string, kind: SegmentKind, interval: TimeRange, label: string): SegmentView[] {
   const duration = Math.max(1, props.range.end - props.range.start)
-  const left = Math.max(0, Math.min(100, (interval.start - props.range.start) / duration * 100))
-  const right = Math.max(left, Math.min(100, (interval.end - props.range.start) / duration * 100))
-  return { ...interval, id, kind, label, left: `${left}%`, width: `${Math.min(100 - left, Math.max(.45, right - left))}%` }
+  const start = Math.max(props.range.start, interval.start)
+  const end = Math.min(props.range.end, interval.end)
+  if (end <= start) return []
+  const left = (start - props.range.start) / duration * 100
+  const width = Math.min(100 - left, Math.max(.45, (end - start) / duration * 100))
+  return [{
+    start,
+    end,
+    id,
+    kind,
+    label: `${label} · ${timeLabel({ start, end })}`,
+    left: `${left}%`,
+    width: `${width}%`,
+    edge: left < 14 ? 'left' : left + width > 86 ? 'right' : 'center',
+  }]
 }
 
 function timeLabel(interval: TimeRange): string {
@@ -45,13 +58,13 @@ const lanes = computed<LaneView[]>(() => {
     id: 'human',
     label: '人的前台活动',
     meta: `${props.foreground.length} 个区间`,
-    segments: props.foreground.map((item) => segment(item.id, 'human', item, `${item.appName} · ${timeLabel(item)}`)),
+    segments: props.foreground.flatMap((item) => segment(item.id, 'human', item, item.appName)),
   }
   const tools = props.tools.map((tool): LaneView => {
-    const work = tool.workIntervals.map((item) => segment(`work:${item.id}`, 'work', item, `Provider 执行 · ${timeLabel(item)}`))
-    const interactions = tool.interactionIntervals.map((item) => segment(`interaction:${item.id}`, 'interaction', item, `AI 前台活跃 · ${timeLabel(item)}`))
-    const waits = tool.waitIntervals.map((item, index) => segment(`${tool.toolId}-wait-${index}`, 'wait', item, `静默等待 · ${timeLabel(item)}`))
-    const overlap = intersectRanges(tool.workIntervals, props.foreground).map((item, index) => segment(`${tool.toolId}-overlap-${index}`, 'overlap', item, `并行重叠 · ${timeLabel(item)}`))
+    const work = tool.workIntervals.flatMap((item) => segment(`work:${item.id}`, 'work', item, 'Provider 执行'))
+    const interactions = tool.interactionIntervals.flatMap((item) => segment(`interaction:${item.id}`, 'interaction', item, 'AI 前台活跃'))
+    const waits = tool.waitIntervals.flatMap((item, index) => segment(`${tool.toolId}-wait-${index}`, 'wait', item, '静默等待'))
+    const overlap = intersectRanges(tool.workIntervals, props.foreground).flatMap((item, index) => segment(`${tool.toolId}-overlap-${index}`, 'overlap', item, '并行重叠'))
     return {
       id: tool.toolId,
       label: tool.toolName,
@@ -78,7 +91,7 @@ const lanes = computed<LaneView[]>(() => {
           :key="item.id"
           type="button"
           class="timeline__segment"
-          :class="`is-${item.kind}`"
+          :class="[`is-${item.kind}`, `edge-${item.edge}`]"
           :style="{ left: item.left, width: item.width }"
           :aria-label="item.label"
         >
@@ -94,65 +107,246 @@ const lanes = computed<LaneView[]>(() => {
 </template>
 
 <style scoped>
-.timeline { margin-top: 8px; }
-.timeline__axis, .timeline__lane { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
-.timeline__axis { align-items: end; height: 24px; color: var(--text-muted); font-size: 10px; }
-.timeline__axis > div { height: 18px; position: relative; }
-.timeline__axis i { position: absolute; bottom: 0; font-style: normal; transform: translateX(-50%); }
+.timeline {
+  margin-top: var(--space-3);
+}
+
+.timeline__axis,
+.timeline__lane {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.timeline__axis {
+  align-items: end;
+  height: 24px;
+  color: var(--text-muted);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline__axis > div {
+  height: 18px;
+  position: relative;
+}
+
+.timeline__axis i {
+  position: absolute;
+  bottom: 0;
+  font-style: normal;
+  transform: translateX(-50%);
+}
+
 .timeline__axis i:first-child { transform: none; }
 .timeline__axis i:last-child { transform: translateX(-100%); }
 
-.timeline__lane { align-items: center; min-height: 40px; border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent); }
-.timeline__name { min-width: 0; display: grid; gap: 2px; }
-.timeline__name strong { overflow: hidden; color: var(--text-primary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.timeline__name span { color: var(--text-muted); font-size: 10px; }
+.timeline__lane {
+  align-items: center;
+  min-height: 42px;
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+}
+
+.timeline__lane:last-of-type {
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+}
+
+.timeline__name {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.timeline__name strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline__name span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .timeline__track {
-  height: 27px;
+  height: 28px;
   position: relative;
-  border-radius: 7px;
-  background-image: linear-gradient(90deg, color-mix(in srgb, var(--border-soft) 65%, transparent) 1px, transparent 1px);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--border-soft) 72%, transparent) 1px, transparent 1px);
   background-size: calc(100% / 6) 100%;
 }
-.timeline__track::after { content: ''; position: absolute; inset: 13px 0 auto; border-top: 1px solid var(--border-soft); }
 
-.timeline__segment { min-width: 3px; position: absolute; z-index: 2; top: 8px; height: 11px; padding: 0; border: 0; border-radius: 4px; background: var(--accent-violet); cursor: crosshair; }
-.timeline__segment.is-human { top: 10px; height: 7px; background: color-mix(in srgb, var(--accent-green) 74%, white); }
-.timeline__segment.is-interaction { z-index: 4; top: 5px; height: 17px; border: 1px solid var(--accent-blue); background: transparent; }
-.timeline__segment.is-wait { top: 11px; height: 5px; border: 1px dashed color-mix(in srgb, var(--accent-violet) 68%, var(--border-soft)); background: var(--bg-card); }
-.timeline__segment.is-overlap { z-index: 5; top: 9px; height: 9px; background: repeating-linear-gradient(90deg, var(--accent-violet) 0 3px, var(--accent-green) 3px 6px); }
-.timeline__segment:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.timeline__track::after {
+  content: '';
+  position: absolute;
+  inset: 14px 0 auto;
+  border-top: 1px solid var(--border-soft);
+}
+
+.timeline__segment {
+  min-width: 3px;
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--accent-green);
+  cursor: help;
+  transition: opacity 150ms ease, transform 150ms var(--ease-out), border-color 150ms ease;
+}
+
+.timeline__segment.is-human {
+  top: 10px;
+  height: 8px;
+  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.timeline__segment.is-interaction {
+  z-index: 4;
+  top: 5px;
+  height: 18px;
+  border-color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green-soft) 42%, transparent);
+}
+
+.timeline__segment.is-wait {
+  top: 10px;
+  height: 8px;
+  border: 1px dashed color-mix(in srgb, var(--text-muted) 74%, var(--border-soft));
+  background: transparent;
+}
+
+.timeline__segment.is-overlap {
+  z-index: 5;
+  top: 8px;
+  height: 12px;
+  border-color: color-mix(in srgb, var(--accent-green) 72%, var(--border-soft));
+  background: repeating-linear-gradient(135deg, var(--accent-green) 0 3px, color-mix(in srgb, var(--accent-green-soft) 74%, var(--bg-card)) 3px 6px);
+}
+
+.timeline__segment:hover,
+.timeline__segment:focus-visible {
+  z-index: 6;
+  opacity: .88;
+  transform: translateY(-1px);
+}
+
+.timeline__segment:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
 .timeline__segment [role="tooltip"] {
   width: max-content;
-  max-width: 190px;
+  max-width: 210px;
   position: absolute;
   z-index: 10;
   left: 50%;
   bottom: calc(100% + 7px);
   padding: 6px 8px;
-  border: 1px solid var(--border-soft);
-  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  background: var(--bg-card);
-  box-shadow: var(--shadow-card);
-  font-size: 10px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-xs);
+  font-weight: 550;
   line-height: 1.4;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 3px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition: opacity 140ms ease, transform 140ms ease;
 }
-.timeline__segment:hover [role="tooltip"], .timeline__segment:focus [role="tooltip"] { opacity: 1; transform: translate(-50%, 0); }
 
-.timeline__legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 9px; color: var(--text-muted); font-size: 10px; }
-.timeline__legend span::before { content: ''; width: 9px; height: 5px; display: inline-block; margin-right: 5px; border-radius: 2px; background: var(--accent-violet); vertical-align: 1px; }
-.timeline__legend .is-human::before { background: var(--accent-green); }
-.timeline__legend .is-interaction::before { border: 1px solid var(--accent-blue); background: transparent; }
-.timeline__legend .is-wait::before { border: 1px dashed var(--accent-violet); background: transparent; }
-.timeline__legend .is-overlap::before { background: linear-gradient(90deg, var(--accent-violet) 50%, var(--accent-green) 50%); }
-.timeline__empty { margin: 18px 0 8px 124px; color: var(--text-muted); font-size: 10px; }
+.timeline__segment.edge-left [role="tooltip"] {
+  left: 0;
+  transform: translate(0, 3px);
+}
+
+.timeline__segment.edge-right [role="tooltip"] {
+  right: 0;
+  left: auto;
+  transform: translate(0, 3px);
+}
+
+.timeline__segment:hover [role="tooltip"],
+.timeline__segment:focus [role="tooltip"] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.timeline__segment.edge-left:hover [role="tooltip"],
+.timeline__segment.edge-left:focus [role="tooltip"],
+.timeline__segment.edge-right:hover [role="tooltip"],
+.timeline__segment.edge-right:focus [role="tooltip"] {
+  transform: translate(0, 0);
+}
+
+.timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.timeline__legend span::before {
+  content: '';
+  width: 11px;
+  height: 6px;
+  display: inline-block;
+  margin-right: 5px;
+  border-radius: 2px;
+  background: var(--accent-green);
+  vertical-align: 1px;
+}
+
+.timeline__legend .is-human::before {
+  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.timeline__legend .is-interaction::before {
+  border: 1px solid var(--accent-green);
+  background: transparent;
+}
+
+.timeline__legend .is-wait::before {
+  border: 1px dashed var(--text-muted);
+  background: transparent;
+}
+
+.timeline__legend .is-overlap::before {
+  border: 1px solid color-mix(in srgb, var(--accent-green) 72%, var(--border-soft));
+  background: repeating-linear-gradient(135deg, var(--accent-green) 0 3px, var(--accent-green-soft) 3px 6px);
+}
+
+.timeline__empty {
+  margin: var(--space-4) 0 var(--space-2) 124px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 
 @media (max-width: 840px) {
-  .timeline__axis, .timeline__lane { grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
-  .timeline__legend { justify-content: flex-start; padding-left: 96px; }
+  .timeline__axis,
+  .timeline__lane {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .timeline__legend {
+    justify-content: flex-start;
+    padding-left: 96px;
+  }
+
+  .timeline__empty {
+    margin-left: 96px;
+  }
 }
 </style>

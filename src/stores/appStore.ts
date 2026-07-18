@@ -14,14 +14,17 @@ import { loadKeyStatsProvider } from '../providers/keyStatsAdapter'
 import { getAutostartEnabled, setDesktopAutostart } from '../platform/autostart'
 import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
+import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark, type ResolvedTheme, type ThemeMode } from './theme'
 
-export type ThemeMode = 'light' | 'dark' | 'system'
+export type { ThemeMode } from './theme'
 export type MigrationState = 'notFound' | 'partial' | 'ready' | 'imported'
 export type ClosePreference = 'ask' | 'hide' | 'quit'
 
 const persisted = loadPersistedState()
 const desktopRuntime = isTauriRuntime()
 const themeRevision = ref(0)
+const requestedTheme = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('theme')
+const previewTheme: ResolvedTheme | undefined = requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined
 
 function localDate(value = new Date()): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -121,14 +124,13 @@ watch([
 ], persist, { deep: true })
 
 function applyTheme(preview?: 'light' | 'dark'): void {
-  if (preview) {
-    document.documentElement.dataset.theme = preview
+  const override = preview ?? previewTheme
+  if (override) {
+    applyDocumentTheme(override)
     themeRevision.value += 1
     return
   }
-  const systemDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
-  const resolved = state.theme === 'system' ? (systemDark ? 'dark' : 'light') : state.theme
-  document.documentElement.dataset.theme = resolved
+  applyDocumentTheme(resolveTheme(state.theme, systemPrefersDark()))
   themeRevision.value += 1
 }
 
@@ -308,11 +310,13 @@ export function useAppStore() {
   }
 }
 
-if (typeof matchMedia !== 'undefined') {
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (state.theme === 'system') applyTheme()
-  })
-}
+observeSystemTheme(
+  () => state.theme,
+  (theme) => {
+    applyDocumentTheme(previewTheme ?? theme)
+    themeRevision.value += 1
+  },
+)
 
 if (desktopRuntime) {
   void refreshInputData()

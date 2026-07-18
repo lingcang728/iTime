@@ -35,6 +35,7 @@ body,
 
 body {
   font-family: var(--font-ui);
+  font-weight: 500;
   color: var(--text-primary);
   background: var(--bg-app);
   -webkit-font-smoothing: antialiased;
@@ -78,7 +79,7 @@ button {
   transform: translateY(-150%);
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--text-inverse);
   background: var(--accent-blue);
 }
 

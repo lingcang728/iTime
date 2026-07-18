@@ -1,17 +1,3 @@
-.input-rhythm-card {
-  min-height: 82px;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 210px;
-  align-items: center;
-  gap: 14px;
-  margin-top: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  box-shadow: var(--shadow-card);
+.input-page .input-history-wrap {
+  min-width: 0;
 }
-
-.input-rhythm-card h2 { margin: 0; font-size: 14px; }
-.input-rhythm-card p { margin: 0; color: var(--text-secondary); font-size: 10px; }
-.input-mini-chart .sparkline { margin: 0; }

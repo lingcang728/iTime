@@ -4,7 +4,7 @@
   min-height: 0;
   max-height: 100%;
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
+  grid-template-columns: 188px minmax(0, 1fr);
   overflow: hidden;
   background: var(--bg-surface);
   box-shadow: var(--shadow-window);
@@ -18,39 +18,17 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 22px 12px 16px;
+  padding: 20px 14px 16px;
   border-right: 1px solid var(--border-soft);
   background: var(--bg-sidebar);
-  backdrop-filter: blur(22px);
 }
 
 .brand-block {
-  min-height: 56px;
+  min-height: 54px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 10px 12px;
-}
-
-.brand-block img {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.12));
-}
-
-.nav-item img.nav-icon {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.1));
-}
-
-html[data-theme="dark"] .brand-block img,
-html[data-theme="dark"] .nav-item img.nav-icon,
-html[data-theme="dark"] .profile-card img {
-  filter: saturate(.76) brightness(.78) contrast(1.06);
+  padding: 0 10px 10px;
 }
 
 .brand-block div {
@@ -60,33 +38,38 @@ html[data-theme="dark"] .profile-card img {
 
 .brand-block strong {
   font-size: 15px;
-  letter-spacing: -0.2px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
 }
 
 .brand-block span {
-  font-size: 10px;
   color: var(--text-muted);
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 
 .sidebar nav {
   display: grid;
-  gap: 5px;
-  margin-top: 20px;
+  gap: 4px;
+  margin-top: 14px;
 }
 
 .nav-item {
   height: 42px;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   padding: 0 12px;
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  transition: background 180ms var(--ease-out), color 180ms var(--ease-out), transform 180ms var(--ease-out);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.nav-icon {
+  flex: 0 0 auto;
 }
 
 .nav-item:hover {
@@ -99,126 +82,111 @@ html[data-theme="dark"] .profile-card img {
 }
 
 .nav-item.router-link-active {
-  color: var(--accent-blue-strong);
-  background: color-mix(in srgb, var(--accent-blue-soft) 72%, var(--bg-card));
+  color: var(--accent-strong);
+  background: var(--accent-soft);
 }
 
 .sidebar-spacer {
   flex: 1;
 }
 
-.profile-card {
+.profile-card,
+.goal-ring-card {
   width: 100%;
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px;
-  border-radius: var(--radius-md);
   border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+  border-radius: var(--radius-lg);
+  background: transparent;
 }
 
-.profile-card img {
-  width: 38px;
-  height: 38px;
+.profile-card {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+}
+
+.profile-card > svg {
   flex: 0 0 auto;
-  border-radius: 12px;
+  color: var(--text-secondary);
 }
 
 .profile-card > div {
   min-width: 0;
   display: grid;
-  gap: 1px;
+  gap: 2px;
 }
 
 .profile-card strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--text-sm);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .profile-card small {
   color: var(--text-muted);
-  font-size: 10px;
-}
-
-.pro-badge {
-  margin-left: auto;
-  padding: 3px 6px;
-  border-radius: 999px;
-  color: #6450c5;
-  background: linear-gradient(135deg, #eee9ff, #e4efff);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: .2px;
-}
-
-html[data-theme="dark"] .pro-badge {
-  color: var(--accent-violet-strong);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-violet-soft) 88%, #1a1830), var(--accent-blue-soft));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 28%, transparent);
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .goal-ring-card {
   display: grid;
-  justify-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-top: 10px;
-  padding: 12px 8px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bg-card) 86%, transparent);
-  border: 1px solid var(--border-soft);
-  text-align: center;
+  padding: 12px;
+  text-align: left;
 }
 
-.goal-ring {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: conic-gradient(var(--accent-green) 0 75%, var(--bg-soft) 75% 100%);
-  position: relative;
-}
-
-.goal-ring::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: inherit;
-  background: var(--bg-card);
-}
-
-.goal-ring span {
-  position: relative;
-  z-index: 1;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.goal-ring-card > div:last-child {
-  display: grid;
-  gap: 3px;
-}
-
-.goal-ring-card strong {
-  font-size: 11px;
-}
-
-.goal-ring-card small {
+.goal-copy__header,
+.goal-copy small {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  font-size: 10px;
-  color: var(--text-secondary);
+  gap: 8px;
 }
 
-.goal-ring-card small b {
+.goal-copy__header strong {
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.goal-copy__header b {
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.goal-copy small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.goal-copy small b {
   color: var(--text-primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.goal-meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-soft);
+}
+
+.goal-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-strong);
 }
 
 .app-surface {
@@ -227,7 +195,7 @@ html[data-theme="dark"] .pro-badge {
   height: 100%;
   max-height: 100%;
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: 36px minmax(0, 1fr);
   overflow: hidden;
   background: var(--bg-surface);
 }
@@ -252,10 +220,10 @@ html[data-theme="dark"] .pro-badge {
   display: grid;
   place-items: center;
   border: 0;
-  background: transparent;
   color: var(--text-secondary);
+  background: transparent;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .window-controls button:hover {
@@ -264,6 +232,46 @@ html[data-theme="dark"] .pro-badge {
 }
 
 .window-controls button.close:hover {
-  color: white;
-  background: #d84f4f;
+  color: #ffffff;
+  background: #c94f4f;
+}
+
+@media (max-width: 1110px) {
+  .desktop-app {
+    grid-template-columns: 164px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-height: 740px) {
+  .sidebar {
+    padding-block: 12px 10px;
+  }
+
+  .brand-block {
+    min-height: 46px;
+    padding-bottom: 6px;
+  }
+
+  .sidebar nav {
+    gap: 2px;
+    margin-top: 8px;
+  }
+
+  .nav-item {
+    height: 36px;
+  }
+
+  .profile-card {
+    min-height: 48px;
+    padding-block: 7px;
+  }
+
+  .goal-ring-card {
+    gap: 6px;
+    padding-block: 8px;
+  }
 }

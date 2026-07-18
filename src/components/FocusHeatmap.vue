@@ -99,29 +99,30 @@ function moveFocus(event: KeyboardEvent, day: HeatmapDay): void {
 </template>
 
 <style scoped>
-.focus-calendar { --heat-empty: #dde2de; --heat-0: #e9f0eb; --heat-1: #d1ead9; --heat-2: #add9bc; --heat-3: #7cc796; --heat-4: #4caf72; --heat-5: #218c56; min-width: 0; }
+.focus-calendar { --heat-empty: var(--bg-soft); --heat-0: color-mix(in srgb, var(--accent-green) 7%, var(--bg-inset)); --heat-1: color-mix(in srgb, var(--accent-green) 17%, var(--bg-inset)); --heat-2: color-mix(in srgb, var(--accent-green) 30%, var(--bg-inset)); --heat-3: color-mix(in srgb, var(--accent-green) 45%, var(--bg-inset)); --heat-4: color-mix(in srgb, var(--accent-green) 64%, var(--bg-inset)); --heat-5: color-mix(in srgb, var(--accent-green) 82%, var(--bg-inset)); min-width: 0; }
 .focus-calendar__meta { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 10px; }
 .focus-calendar__meta strong { color: var(--accent-green-strong); font-weight: 650; }
 .focus-calendar__body { min-width: 0; position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-rows: 16px minmax(0, 1fr); gap: 5px 7px; margin-top: 10px; }
 .focus-calendar__week-labels { grid-column: 2; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .focus-calendar__day-labels { grid-row: 2; display: grid; grid-template-rows: repeat(7, 1fr); align-items: center; color: var(--text-muted); font-size: 10px; }
 .focus-calendar__grid { min-width: 0; grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(7, minmax(0, 1fr)); gap: 5px; }
-.focus-calendar__cell { min-width: 0; height: 23px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: var(--heat-0); cursor: pointer; transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease; }
+.focus-calendar__cell { min-width: 0; height: 23px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: var(--heat-0); cursor: pointer; transition: transform 160ms var(--ease-out), border-color 160ms ease; }
 .focus-calendar__cell:hover,
-.focus-calendar__cell:focus-visible { transform: translateY(-1px) scale(1.04); outline: none; box-shadow: 0 4px 12px color-mix(in srgb, #26955f 24%, transparent); }
-.focus-calendar__cell.is-locked { border-color: #1d6f49; box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3px #3aa66d; }
+.focus-calendar__cell:focus-visible { transform: translateY(-1px) scale(1.03); border-color: var(--accent-green-strong); }
+.focus-calendar__cell:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.focus-calendar__cell:active { transform: scale(.98); }
+.focus-calendar__cell.is-locked { border-color: var(--accent-green-strong); box-shadow: 0 0 0 2px var(--bg-surface, var(--bg-card)), 0 0 0 3px var(--accent-green); }
 .focus-calendar__cell.is-unavailable { border-color: color-mix(in srgb, var(--border-soft) 70%, transparent); background: var(--heat-empty); opacity: .38; }
 .focus-calendar__cell.intensity-1 { background: var(--heat-1); }
 .focus-calendar__cell.intensity-2 { background: var(--heat-2); }
 .focus-calendar__cell.intensity-3 { background: var(--heat-3); }
 .focus-calendar__cell.intensity-4 { background: var(--heat-4); }
 .focus-calendar__cell.intensity-5 { background: var(--heat-5); }
-.focus-calendar__tooltip { min-width: 164px; position: absolute; z-index: 4; left: 42%; top: 12%; display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 9px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-card); font-size: 10px; pointer-events: none; }
+.focus-calendar__tooltip { min-width: 164px; position: absolute; z-index: 4; left: 42%; top: 12%; display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 9px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-popover); font-size: 10px; pointer-events: none; }
 .focus-calendar__tooltip.at-left { right: 4px; left: auto; }
 .focus-calendar__tooltip.at-top { top: auto; bottom: 4px; }
 .focus-calendar__tooltip span,
 .focus-calendar__tooltip small { color: var(--text-secondary); font-size: 10px; }
 .focus-calendar__scale { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-muted); font-size: 10px; }
 .focus-calendar__scale i { flex: 1; height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--heat-0), var(--heat-1), var(--heat-2), var(--heat-3), var(--heat-4), var(--heat-5)); }
-:global(html[data-theme="dark"]) .focus-calendar { --heat-empty: #222925; --heat-0: #24312a; --heat-1: #284132; --heat-2: #2f5a40; --heat-3: #36734d; --heat-4: #43935f; --heat-5: #62bd7e; }
 </style>

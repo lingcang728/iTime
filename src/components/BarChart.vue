@@ -18,7 +18,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   unit: '',
   compact: false,
-  tone: 'blue',
+  tone: 'green',
   primaryLabel: '电脑活动',
   secondaryLabel: 'AI 前台活跃',
 })
@@ -99,15 +99,16 @@ function valueLabel(value: number | null | undefined): string {
   cursor: pointer;
 }
 .week-bars__item:hover,
-.week-bars__item:focus-visible { background: color-mix(in srgb, var(--accent-blue-soft) 46%, transparent); outline: none; }
+.week-bars__item:focus-visible { background: color-mix(in srgb, var(--accent-green-soft) 42%, transparent); }
+.week-bars__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .week-bars__value { width: 100%; display: flex; justify-content: center; gap: 5px; color: var(--text-primary); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .week-bars__value i { width: min(28px, 38%); overflow: hidden; font-style: normal; text-align: center; }
-.week-bars__value i.secondary { color: var(--accent-violet-strong); }
+.week-bars__value i.secondary { color: var(--text-muted); }
 .week-bars__columns { width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 5px; }
-.week-bars__bar { width: min(28px, 38%); border-radius: 7px 7px 2px 2px; transition: filter 140ms ease, height 220ms ease; }
-.week-bars__bar--primary { background: var(--accent-blue); }
+.week-bars__bar { width: min(28px, 38%); border-radius: 6px 6px 2px 2px; transition: filter 160ms ease; }
+.week-bars__bar--primary,
 .week-bars--green .week-bars__bar--primary { background: var(--accent-green); }
-.week-bars__bar--secondary { background: var(--accent-violet); }
+.week-bars__bar--secondary { background: color-mix(in srgb, var(--text-muted) 62%, var(--bg-soft)); }
 .week-bars__item:hover .week-bars__bar { filter: brightness(1.06); }
 .week-bars__item strong { align-self: end; color: var(--text-primary); font-size: 10px; font-weight: 650; }
 .week-bars__item small { color: var(--text-muted); font-size: 10px; }

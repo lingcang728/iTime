@@ -20,7 +20,7 @@ const store = useAppStore()
 const drawer = ref<HTMLElement | null>(null)
 const tool = computed(() => store.selectedTool.value)
 const executionAvailable = computed(() => store.day.value.aiEffective.value !== null)
-const statusLabels: Record<AiToolStatus, string> = { running: '采样中', completed: '已记录', waiting: '等待中' }
+const statusLabels: Record<AiToolStatus, string> = { running: '采样中', completed: '有执行证据', waiting: '仅前台采样' }
 let returnFocus: HTMLElement | null = null
 
 const intervalRows = computed<IntervalRow[]>(() => {

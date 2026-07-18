@@ -8,7 +8,7 @@ const props = withDefaults(defineProps<{
   valueSuffix?: string
   ariaLabel?: string
 }>(), {
-  color: 'var(--accent-blue)',
+  color: 'var(--accent-green)',
   labels: () => [],
   valueSuffix: '',
   ariaLabel: '数据趋势',
@@ -104,17 +104,17 @@ svg {
 }
 
 .spark-point {
-  --point-color: var(--accent-blue);
+  --point-color: var(--accent-green);
   position: absolute;
   z-index: 1;
   width: 12px;
   height: 12px;
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 4px solid var(--bg-card);
+  border: 4px solid var(--bg-surface, var(--bg-card));
   border-radius: 50%;
   background: var(--point-color);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--point-color) 52%, var(--border-strong));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--point-color) 56%, var(--border-strong));
   cursor: crosshair;
   opacity: .7;
   transition: transform 150ms var(--ease-out), opacity 150ms var(--ease-out);
@@ -134,7 +134,7 @@ svg {
   border-radius: 7px;
   color: var(--text-primary);
   background: var(--bg-elevated);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-popover);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 1.3;

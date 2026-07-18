@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { PhCommand, PhKeyboard, PhKey } from '@phosphor-icons/vue'
 import type { InputActivitySnapshot } from '../../providers/inputActivity'
-import { uiIcons } from '../../data/uiIcons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps<{
@@ -84,7 +84,7 @@ function heatStyle(key: KeyboardKey): Record<string, string> {
   const count = keyCount(key)
   const ratio = count / maximum.value
   return {
-    '--heat-fill': `color-mix(in srgb, var(--accent-green) ${Math.round(4 + ratio * 52)}%, var(--bg-soft))`,
+    '--heat-fill': `color-mix(in srgb, var(--accent-green) ${Math.round(4 + ratio * 34)}%, var(--bg-soft))`,
     '--key-units': String(key.units ?? 1),
   }
 }
@@ -96,43 +96,43 @@ function shortcutParts(shortcut: string): string[] {
 
 <template>
   <section class="keyboard-insights">
-    <article class="card heatmap-card">
-      <header>
-        <div class="card-title-with-icon">
-          <img class="card-title-icon" :src="uiIcons.inputHeatmap" alt="" draggable="false" />
+    <section class="keyboard-feature-section">
+      <header class="keyboard-section-heading">
+        <div class="keyboard-heading-copy">
+          <PhKeyboard class="keyboard-heading-icon" :size="19" weight="regular" />
           <div><h2>键盘热力图</h2><p>按真实 Windows 键盘分区排列；颜色越亮，使用越频繁</p></div>
         </div>
-        <span>{{ canShowKeys ? '今日键位' : '无明细' }}</span>
+        <span class="keyboard-status">{{ canShowKeys ? '今日键位' : '无明细' }}</span>
       </header>
       <div v-if="canShowKeys" class="keyboard-board" role="group" aria-label="今日真实键盘布局热力图">
         <section v-for="section in keyboardSections" :key="section.id" class="keyboard-section" :class="`keyboard-section--${section.id}`">
           <span>{{ section.label }}</span>
           <div class="keyboard-rows">
             <div v-for="(row, rowIndex) in section.rows" :key="rowIndex" class="keyboard-row">
-              <button
+              <span
                 v-for="(key, keyIndex) in row"
                 :key="`${rowIndex}-${key.label}-${keyIndex}`"
-                type="button"
                 class="key-cap"
                 :class="{ 'has-activity': keyCount(key) > 0 }"
                 :style="heatStyle(key)"
                 :aria-label="`${key.label}，${formatNumber(keyCount(key))} 次`"
-              ><kbd>{{ key.label }}</kbd><small v-if="keyCount(key)">{{ formatNumber(keyCount(key)) }}</small></button>
+                role="img"
+              ><kbd>{{ key.label }}</kbd><small v-if="keyCount(key)">{{ formatNumber(keyCount(key)) }}</small></span>
             </div>
           </div>
         </section>
         <div class="keyboard-scale" aria-hidden="true"><span>较少</span><i></i><span>较多</span></div>
       </div>
       <div v-else class="detail-empty">
-        <img class="detail-empty__art" :src="uiIcons.inputHeatmap" alt="" draggable="false" />
+        <span class="detail-empty__icon"><PhKeyboard :size="22" weight="regular" /></span>
         <div><strong>{{ heatmapEnabled ? '此日期没有键位明细' : '键盘热力图已关闭' }}</strong><p>{{ heatmapEnabled ? unavailableMessage : '可在设置中重新开启本地键位聚合。' }}</p></div>
       </div>
-    </article>
+    </section>
 
     <div class="keyboard-support-grid">
-      <article class="card ranking-card">
-        <header>
-          <div class="card-title-with-icon"><img class="card-title-icon" :src="uiIcons.inputTopKeys" alt="" draggable="false" /><div><h2>Top 键位</h2><p>横向比较今天使用最多的 10 个键位</p></div></div>
+      <section class="ranking-section">
+        <header class="keyboard-section-heading">
+          <div class="keyboard-heading-copy"><PhKey class="keyboard-heading-icon" :size="19" weight="regular" /><div><h2>Top 键位</h2><p>比较今天使用最多的 10 个键位</p></div></div>
         </header>
         <ol v-if="canShowKeys">
           <li v-for="(key, index) in rankedKeys" :key="key.key">
@@ -141,11 +141,11 @@ function shortcutParts(shortcut: string): string[] {
           </li>
         </ol>
         <div v-else class="compact-empty">历史日期不提供 Top 键位</div>
-      </article>
+      </section>
 
-      <article class="card shortcut-card">
-        <header>
-          <div class="card-title-with-icon"><img class="card-title-icon" :src="uiIcons.inputShortcuts" alt="" draggable="false" /><div><h2>功能组合键</h2><p>常用功能组合横向排列，便于快速比较</p></div></div>
+      <section class="shortcut-section">
+        <header class="keyboard-section-heading">
+          <div class="keyboard-heading-copy"><PhCommand class="keyboard-heading-icon" :size="19" weight="regular" /><div><h2>功能组合键</h2><p>常用功能组合按使用次数归纳</p></div></div>
         </header>
         <div v-if="canShowShortcuts" class="shortcut-list">
           <div v-for="shortcut in visibleShortcuts" :key="shortcut.shortcut">
@@ -154,97 +154,329 @@ function shortcutParts(shortcut: string): string[] {
           </div>
         </div>
         <div v-else class="detail-empty detail-empty--small">
-          <img class="detail-empty__art" :src="uiIcons.inputShortcuts" alt="" draggable="false" />
+          <span class="detail-empty__icon"><PhCommand :size="20" weight="regular" /></span>
           <div><strong>{{ shortcutsEnabled ? '此日期没有组合键明细' : '组合键统计已关闭' }}</strong><p>{{ shortcutsEnabled ? unavailableMessage : '可在设置中重新开启。' }}</p></div>
         </div>
-      </article>
+      </section>
     </div>
   </section>
 </template>
 
 <style scoped>
-.keyboard-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(240px, .72fr) minmax(230px, .68fr); gap: 12px; margin-top: 12px; }
-.keyboard-layout > article { min-width: 0; padding: 19px; }
-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
-h2 { margin: 0; font-size: 15px; letter-spacing: -.2px; }
-p { margin: 5px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
-header > span { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: var(--accent-green-strong); background: var(--accent-green-soft); font-size: 10px; }
-.key-grid { display: grid; grid-template-columns: repeat(6, minmax(52px, 1fr)); gap: 7px; }
-.key-cap { --heat-fill: var(--bg-soft); min-height: 58px; display: grid; align-content: space-between; padding: 10px 11px 8px; border: 1px solid color-mix(in srgb, var(--accent-green) 22%, var(--border-strong)); border-bottom-width: 3px; border-radius: 9px; background: var(--heat-fill); box-shadow: inset 0 1px rgba(255, 255, 255, .45); transition: transform 150ms var(--ease-out), border-color 150ms ease; }
-.key-cap:hover,
-.key-cap:focus-visible { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent-green) 48%, var(--border-strong)); }
-kbd { overflow: hidden; color: var(--text-primary); font: 650 10px/1.2 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.key-cap strong { color: var(--text-primary); font: 650 10px/1 var(--font-data); }
-.ranking-card ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.ranking-card li { display: grid; grid-template-columns: 20px 62px minmax(30px, 1fr) 50px; align-items: center; gap: 8px; font-size: 10px; }
-.ranking-card li > span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.ranking-card li > kbd { padding: 6px 7px; border: 1px solid var(--border-soft); border-bottom-width: 2px; border-radius: 7px; background: var(--bg-soft); text-align: center; }
-.ranking-card li > i { height: 5px; overflow: hidden; border-radius: 999px; background: var(--bg-soft); }
-.ranking-card li > i em { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-blue), color-mix(in srgb, var(--accent-blue) 58%, var(--accent-cyan))); }
-.ranking-card li > strong { text-align: right; font-variant-numeric: tabular-nums; }
-.shortcut-list { display: grid; gap: 9px; }
-.shortcut-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--border-soft); }
-.shortcut-list > div:last-child { border-bottom: 0; }
-.shortcut-keys { min-width: 0; display: flex; align-items: center; gap: 4px; }
-.shortcut-keys kbd { min-width: 28px; padding: 6px 7px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--bg-soft); text-align: center; }
-.shortcut-keys i { color: var(--text-muted); font-size: 10px; font-style: normal; }
-.shortcut-list strong { font: 700 10px/1 var(--font-data); font-variant-numeric: tabular-nums; }
-.card-title-with-icon { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
-.card-title-icon { width: 26px; height: 26px; flex: 0 0 26px; margin-top: 1px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(34, 38, 45, 0.1)); }
-.detail-empty__art { width: 36px; height: 36px; flex: 0 0 36px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(34, 38, 45, 0.1)); opacity: 0.92; }
-.detail-empty { min-height: 146px; display: flex; align-items: center; justify-content: center; gap: 11px; padding: 14px; border: 1px dashed var(--border-strong); border-radius: 11px; color: var(--text-muted); background: var(--bg-soft); }
-.detail-empty strong { display: block; color: var(--text-primary); font-size: 11px; }
-.detail-empty p { max-width: 250px; }
-.detail-empty--small { min-height: 120px; }
-.compact-empty { display: grid; place-items: center; min-height: 148px; border-radius: 10px; color: var(--text-muted); background: var(--bg-soft); font-size: 10px; }
-@media (max-width: 1080px) { .keyboard-layout { grid-template-columns: 1fr 1fr; } .heatmap-card { grid-column: 1 / -1; } }
-@media (max-width: 760px) { .keyboard-layout { grid-template-columns: 1fr; } .heatmap-card { grid-column: auto; } .key-grid { grid-template-columns: repeat(4, minmax(52px, 1fr)); } }
+.keyboard-insights {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+}
 
-.keyboard-insights { display: grid; gap: 12px; margin-top: 12px; }
-.keyboard-insights > .card,
-.keyboard-support-grid > .card { min-width: 0; padding: 17px 18px; }
-.keyboard-board { display: grid; grid-template-columns: minmax(0, 4.5fr) minmax(150px, 1fr) minmax(180px, 1.25fr); gap: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 12px; background: color-mix(in srgb, var(--bg-inset) 72%, var(--bg-card)); }
-.keyboard-section { min-width: 0; display: grid; grid-template-rows: 13px minmax(0, 1fr); gap: 6px; }
-.keyboard-section > span { color: var(--text-muted); font-size: 8px; font-weight: 650; letter-spacing: .08em; }
+.keyboard-feature-section,
+.keyboard-support-grid {
+  min-width: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.keyboard-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.keyboard-heading-copy {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.keyboard-heading-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent-green-strong);
+}
+
+h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -.2px;
+}
+
+p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.keyboard-status {
+  flex: 0 0 auto;
+  color: var(--accent-green-strong);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.keyboard-board {
+  display: grid;
+  grid-template-columns: minmax(0, 4.5fr) minmax(150px, 1fr) minmax(180px, 1.25fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg-inset);
+}
+
+.keyboard-section {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 13px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.keyboard-section > span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  letter-spacing: .08em;
+}
+
 .keyboard-section--function { grid-column: 1 / -1; }
 .keyboard-rows { display: grid; gap: 5px; }
 .keyboard-row { min-width: 0; display: flex; gap: 5px; }
 .keyboard-section--function .keyboard-row { gap: 7px; }
 .keyboard-section--navigation .keyboard-row:nth-child(3) { justify-content: center; padding-inline: calc(33.333% + 2px); }
 .keyboard-section--navigation .keyboard-row:nth-child(4) { justify-content: center; }
-.keyboard-board .key-cap { --heat-fill: var(--bg-soft); min-width: 0; min-height: 31px; flex: var(--key-units) 1 0; display: grid; place-items: center; align-content: center; gap: 2px; padding: 4px 3px; border: 1px solid color-mix(in srgb, var(--accent-green) 14%, var(--border-strong)); border-bottom-width: 2px; border-radius: 6px; color: var(--text-secondary); background: var(--heat-fill); box-shadow: inset 0 1px rgba(255, 255, 255, .035); cursor: default; transition: transform 150ms var(--ease-out), border-color 150ms ease, filter 150ms ease; }
+
+.key-cap {
+  --heat-fill: var(--bg-soft);
+  min-width: 0;
+  min-height: 31px;
+  flex: var(--key-units) 1 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 4px 3px;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 14%, var(--border-strong));
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--heat-fill);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--text-inverse) 5%, transparent);
+  cursor: default;
+  transition: transform 160ms var(--ease-out), border-color 160ms ease, filter 160ms ease;
+}
+
 .keyboard-section--function .key-cap { min-height: 27px; }
-.keyboard-board .key-cap.has-activity { color: var(--text-primary); border-color: color-mix(in srgb, var(--accent-green) 42%, var(--border-strong)); cursor: help; }
-.keyboard-board .key-cap:hover,
-.keyboard-board .key-cap:focus-visible { transform: translateY(-2px); filter: brightness(1.06); outline: none; }
-.keyboard-board .key-cap kbd { max-width: 100%; font-size: 8px; font-weight: 650; }
-.keyboard-board .key-cap small { color: color-mix(in srgb, var(--text-primary) 78%, transparent); font: 700 7px/1 var(--font-data); }
-.keyboard-scale { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 8px; }
-.keyboard-scale i { width: 150px; height: 5px; border-radius: 99px; background: linear-gradient(90deg, var(--bg-soft), color-mix(in srgb, var(--accent-green) 72%, var(--bg-soft))); }
-.keyboard-support-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(0, .82fr); gap: 12px; }
-.keyboard-support-grid header { margin-bottom: 13px; }
-.keyboard-support-grid .ranking-card ol { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
-.keyboard-support-grid .ranking-card li { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--bg-subtle); }
-.keyboard-support-grid .ranking-card li > span { align-self: center; font-size: 8px; }
-.keyboard-support-grid .ranking-card li > kbd { min-width: 0; overflow: hidden; padding: 0; border: 0; background: transparent; text-align: left; text-overflow: ellipsis; }
-.keyboard-support-grid .ranking-card li > strong { font-size: 9px; }
-.keyboard-support-grid .ranking-card li > i { height: 3px; grid-column: 1 / -1; }
-.keyboard-support-grid .shortcut-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
-.keyboard-support-grid .shortcut-list > div { min-width: 0; display: grid; gap: 8px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--bg-subtle); }
-.keyboard-support-grid .shortcut-keys { flex-wrap: wrap; }
-.keyboard-support-grid .shortcut-list strong { justify-self: end; color: var(--text-secondary); }
-.keyboard-support-grid .detail-empty--small,
-.keyboard-support-grid .compact-empty { min-height: 84px; }
+
+.key-cap.has-activity {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent-green) 42%, var(--border-strong));
+}
+
+.key-cap kbd {
+  max-width: 100%;
+  overflow: hidden;
+  color: currentColor;
+  font: 650 var(--text-xs)/1.2 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-cap small {
+  color: var(--text-primary);
+  font: 700 var(--text-xs)/1 var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.keyboard-scale {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.keyboard-scale i {
+  width: 150px;
+  height: 5px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--bg-soft), color-mix(in srgb, var(--accent-green) 72%, var(--bg-soft)));
+}
+
+.keyboard-support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(280px, .82fr);
+}
+
+.ranking-section {
+  min-width: 0;
+  padding-right: 24px;
+}
+
+.shortcut-section {
+  min-width: 0;
+  padding-left: 24px;
+  border-left: 1px solid var(--border-soft);
+}
+
+.ranking-section ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking-section li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 20px 46px minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ranking-section li > span {
+  color: var(--text-muted);
+  font: 600 var(--text-xs)/1 var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-section li > kbd {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font: 650 10px/1.2 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-section li > i {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-soft);
+}
+
+.ranking-section li > i em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-green);
+}
+
+.ranking-section li > strong {
+  color: var(--text-secondary);
+  font: 650 10px/1 var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.shortcut-list {
+  display: grid;
+}
+
+.shortcut-list > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.shortcut-keys {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.shortcut-keys kbd {
+  min-width: 28px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-inset);
+  font: 650 var(--text-xs)/1 var(--font-ui);
+  text-align: center;
+}
+
+.shortcut-keys i {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-style: normal;
+}
+
+.shortcut-list strong {
+  color: var(--text-secondary);
+  font: 650 10px/1 var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-empty {
+  min-height: 146px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  color: var(--text-muted);
+  background: var(--bg-inset);
+}
+
+.detail-empty__icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-green-strong);
+}
+
+.detail-empty strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.detail-empty p { max-width: 280px; }
+.detail-empty--small,
+.compact-empty { min-height: 108px; }
+
+.compact-empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
 @media (max-width: 1120px) {
   .keyboard-board { grid-template-columns: minmax(0, 3fr) minmax(140px, .8fr); }
   .keyboard-section--numpad { display: none; }
-  .keyboard-support-grid .ranking-card ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .keyboard-support-grid .shortcut-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 760px) {
-  .keyboard-board,
   .keyboard-support-grid { grid-template-columns: 1fr; }
+  .ranking-section { padding-right: 0; }
+  .shortcut-section { margin-top: 20px; padding: 20px 0 0; border-top: 1px solid var(--border-soft); border-left: 0; }
+  .shortcut-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
+}
+
+@media (max-width: 760px) {
+  .keyboard-board { grid-template-columns: 1fr; }
   .keyboard-section--function { display: none; }
   .keyboard-section--navigation { grid-column: auto; }
+  .ranking-section ol,
+  .shortcut-list { grid-template-columns: 1fr; }
 }
 </style>

@@ -81,4 +81,18 @@ describe('AiActivityTimeline', () => {
     })
     expect(wrapper.text()).toContain('尚未采集到 AI 工具活动')
   })
+
+  it('clips evidence to the visible range and omits intervals outside it', () => {
+    const wrapper = mount(AiActivityTimeline, {
+      props: {
+        range: { start: start + 9.5 * hour, end: start + 10.5 * hour },
+        foreground,
+        tools,
+      },
+    })
+    const labels = wrapper.findAll('button.timeline__segment').map((item) => item.attributes('aria-label'))
+    expect(labels).toContain('Editor · 09:30–10:30')
+    expect(labels).toContain('Provider 执行 · 10:00–10:30')
+    expect(labels.some((label) => label?.includes('静默等待'))).toBe(false)
+  })
 })

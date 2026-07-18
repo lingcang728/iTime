@@ -37,7 +37,7 @@ const positioned = computed(() => {
 <template>
   <div class="activity-lane">
     <span class="lane-label">{{ label }}</span>
-    <div class="lane-track">
+    <div class="lane-track" role="list" :aria-label="`${label}时间区间`">
       <span v-if="!positioned.length" class="lane-empty">无记录</span>
       <span
         v-for="segment in positioned"
@@ -45,7 +45,7 @@ const positioned = computed(() => {
         class="lane-segment"
         :class="[`is-${segment.kind ?? 'other'}`, `is-${segment.variant ?? 'solid'}`, `edge-${segment.edge}`, { muted: segment.muted }]"
         :style="{ left: segment.left, width: segment.width, '--segment-color': segment.color }"
-        role="img"
+        role="listitem"
         tabindex="0"
         :aria-label="segment.accessibleLabel"
       >
@@ -56,23 +56,157 @@ const positioned = computed(() => {
 </template>
 
 <style scoped>
-.activity-lane { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 40px; }
-.lane-label { color: var(--text-secondary); font-size: 10px; font-weight: 600; }
-.lane-track { position: relative; height: 31px; border: 1px solid var(--border-soft); border-radius: 8px; background-color: color-mix(in srgb, var(--bg-soft) 66%, var(--bg-card)); background-image: linear-gradient(to right, var(--border-soft) 1px, transparent 1px); background-size: 16.666% 100%; }
-.lane-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-muted); font-size: 10px; }
-.lane-segment { --segment-color: var(--accent-blue); position: absolute; top: 5px; bottom: 5px; min-width: 3px; border: 1px solid color-mix(in srgb, var(--segment-color) 48%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--segment-color) 82%, var(--bg-card)); box-shadow: 0 1px 2px color-mix(in srgb, var(--segment-color) 20%, transparent); cursor: help; transition: filter 150ms ease, transform 150ms var(--ease-out); }
-.lane-segment.muted { opacity: .42; filter: saturate(.55); }
-.lane-segment.is-outline { background: color-mix(in srgb, var(--segment-color) 16%, var(--bg-card)); }
-.lane-segment.is-hatched { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--segment-color) 62%, var(--bg-card)) 0 3px, color-mix(in srgb, var(--segment-color) 18%, var(--bg-card)) 3px 6px); }
+.activity-lane {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+}
+
+.lane-label {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.lane-track {
+  position: relative;
+  height: 30px;
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--border-soft) 72%, transparent) 1px, transparent 1px);
+  background-size: 16.666% 100%;
+}
+
+.lane-track::after {
+  content: '';
+  position: absolute;
+  inset: 15px 0 auto;
+  border-top: 1px solid var(--border-soft);
+}
+
+.lane-empty {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.lane-segment {
+  --segment-color: var(--accent-green);
+  position: absolute;
+  z-index: 2;
+  top: 9px;
+  height: 12px;
+  min-width: 3px;
+  border: 1px solid color-mix(in srgb, var(--segment-color) 44%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--segment-color) 78%, var(--bg-card));
+  cursor: help;
+  transition: opacity 150ms ease, transform 150ms var(--ease-out), border-color 150ms ease;
+}
+
+.lane-segment.is-attention {
+  background: var(--accent-green);
+}
+
+.lane-segment.is-other {
+  background: color-mix(in srgb, var(--accent-green) 68%, transparent);
+}
+
+.lane-segment.is-interaction {
+  top: 6px;
+  height: 18px;
+  border-color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green-soft) 38%, transparent);
+}
+
+.lane-segment.is-media {
+  border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-soft));
+  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.lane-segment.is-waiting {
+  border-color: color-mix(in srgb, var(--text-muted) 58%, var(--border-soft));
+}
+
+.lane-segment.muted {
+  opacity: .56;
+}
+
+.lane-segment.is-outline {
+  background: transparent;
+}
+
+.lane-segment.is-hatched {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--segment-color) 48%, transparent) 0 3px, transparent 3px 6px);
+}
+
 .lane-segment:hover,
 .lane-segment:focus,
-.lane-segment:focus-visible { z-index: 3; opacity: 1; filter: saturate(1.08); transform: translateY(-2px); }
-.lane-segment > span { position: absolute; left: 50%; bottom: calc(100% + 8px); display: grid; gap: 2px; min-width: 108px; padding: 7px 9px; transform: translateX(-50%); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-secondary); background: var(--bg-elevated); box-shadow: var(--shadow-card); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; pointer-events: none; }
-.lane-segment > span strong { color: var(--text-primary); font-size: 10px; }
-.lane-segment.edge-left > span { left: 0; transform: none; }
-.lane-segment.edge-right > span { right: 0; left: auto; transform: none; }
+.lane-segment:focus-visible {
+  z-index: 4;
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.lane-segment:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.lane-segment > span {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  display: grid;
+  gap: 2px;
+  min-width: 116px;
+  padding: 7px 9px;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.lane-segment > span strong {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.lane-segment.edge-left > span {
+  left: 0;
+  transform: none;
+}
+
+.lane-segment.edge-right > span {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
 .lane-segment:hover > span,
 .lane-segment:focus > span,
-.lane-segment:focus-visible > span { opacity: 1; }
-@media (max-width: 720px) { .activity-lane { grid-template-columns: 72px minmax(0, 1fr); gap: 8px; } }
+.lane-segment:focus-visible > span {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .activity-lane {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+}
 </style>

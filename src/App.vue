@@ -1,16 +1,30 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
-import { PhCopy, PhMinus, PhSquare, PhX } from '@phosphor-icons/vue'
+import {
+  PhChartBar,
+  PhCopy,
+  PhDatabase,
+  PhGearSix,
+  PhHouse,
+  PhListBullets,
+  PhMinus,
+  PhMouse,
+  PhRobot,
+  PhSquare,
+  PhTarget,
+  PhX,
+} from '@phosphor-icons/vue'
 import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
+import { hasActivityData } from './stores/dataAvailability'
 import {
   hideWindow, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
   quitApplication, startWindowDragging, toggleMaximizeWindow,
 } from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
+import AppMark from './components/AppMark.vue'
 import CloseDialog from './components/CloseDialog.vue'
-import { uiIcons } from './data/uiIcons'
 import packageMetadata from '../package.json'
 
 const store = useAppStore()
@@ -18,13 +32,13 @@ const route = useRoute()
 const requestedTheme = new URLSearchParams(window.location.search).get('theme')
 const maximized = ref(false)
 const navItems = [
-  { id: 'home', label: '首页', icon: uiIcons.pageHome },
-  { id: 'ai', label: 'AI 代理', icon: uiIcons.pageAi },
-  { id: 'timeline', label: '时间线', icon: uiIcons.pageTimeline },
-  { id: 'input', label: '输入足迹', icon: uiIcons.pageInput },
-  { id: 'weekly', label: '周报', icon: uiIcons.pageWeekly },
-  { id: 'goals', label: '提醒与目标', icon: uiIcons.pageGoals },
-  { id: 'settings', label: '设置', icon: uiIcons.pageSettings },
+  { id: 'home', label: '首页', icon: PhHouse },
+  { id: 'ai', label: 'AI 代理', icon: PhRobot },
+  { id: 'timeline', label: '时间线', icon: PhListBullets },
+  { id: 'input', label: '输入足迹', icon: PhMouse },
+  { id: 'weekly', label: '周报', icon: PhChartBar },
+  { id: 'goals', label: '提醒与目标', icon: PhTarget },
+  { id: 'settings', label: '设置', icon: PhGearSix },
 ] as const
 const cleanups: Array<() => void> = []
 const learningDuration = computed(() => store.day.value.apps
@@ -41,8 +55,13 @@ const goalProgress = computed(() => {
   const target = focusTarget.value + agentTarget.value
   return target ? Math.min(100, Math.round((focusDuration.value + agentDuration.value) / target * 100)) : 0
 })
+const focusProgress = computed(() => focusTarget.value ? Math.min(100, Math.round(focusDuration.value / focusTarget.value * 100)) : 0)
+const agentProgress = computed(() => agentTarget.value ? Math.min(100, Math.round(agentDuration.value / agentTarget.value * 100)) : 0)
+const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
+const goalProgressLabel = computed(() => activityDataAvailable.value ? `${goalProgress.value}%` : '—')
 
 function formatGoalHours(value: number, target: number): string {
+  if (!activityDataAvailable.value) return store.state.activityDataStatus === 'loading' ? '正在读取' : '暂不可用'
   const hours = (value / 3_600_000).toFixed(1)
   const targetHours = (target / 3_600_000).toFixed(1)
   return `${hours} / ${targetHours} 小时`
@@ -129,25 +148,26 @@ onBeforeUnmount(() => {
   <div class="desktop-app">
     <aside class="sidebar">
       <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
-        <img :src="uiIcons.brandItime" alt="iTime" />
+        <AppMark :size="34" />
         <div><strong>iTime</strong><span>v{{ packageMetadata.version }}</span></div>
       </div>
       <nav aria-label="主导航">
         <RouterLink v-for="item in navItems" :key="item.id" :to="`/${item.id}`" class="nav-item">
-          <img class="nav-icon" :src="item.icon" alt="" draggable="false" /><span>{{ item.label }}</span>
+          <component :is="item.icon" class="nav-icon" :size="20" weight="regular" aria-hidden="true" /><span>{{ item.label }}</span>
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
       <button class="profile-card" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
-        <img :src="uiIcons.pageSettings" alt="" />
+        <PhDatabase :size="22" weight="regular" aria-hidden="true" />
         <div><strong>本机数据</strong><small>仅保存在这台电脑</small></div>
       </button>
       <button class="goal-ring-card" type="button" aria-label="查看提醒与目标" @click="router.push({ name: 'goals' })">
-        <div class="goal-ring" :style="{ '--goal-progress': goalProgress }"><span>{{ goalProgress }}%</span></div>
+        <div class="goal-copy__header"><strong>今日目标</strong><b>{{ goalProgressLabel }}</b></div>
         <div class="goal-copy">
-          <strong>今日目标</strong>
           <small><span>专注</span><b>{{ formatGoalHours(focusDuration, focusTarget) }}</b></small>
+          <span class="goal-meter"><i :style="{ width: `${activityDataAvailable ? focusProgress : 0}%` }"></i></span>
           <small><span>AI 前台</span><b>{{ formatGoalHours(agentDuration, agentTarget) }}</b></small>
+          <span class="goal-meter"><i :style="{ width: `${activityDataAvailable ? agentProgress : 0}%` }"></i></span>
         </div>
       </button>
     </aside>
@@ -171,7 +191,7 @@ onBeforeUnmount(() => {
     </section>
     <AiDetailDrawer />
     <CloseDialog />
-    <Transition name="toast"><div v-if="store.state.toast" class="toast">{{ store.state.toast }}</div></Transition>
+    <Transition name="toast"><div v-if="store.state.toast" class="toast" role="status" aria-live="polite">{{ store.state.toast }}</div></Transition>
   </div>
 </template>
 

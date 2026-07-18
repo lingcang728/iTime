@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { hideWindow, quitApplication } from '../platform/desktop'
 import { useAppStore } from '../stores/appStore'
+import AppMark from './AppMark.vue'
 const store = useAppStore()
 const dialog = ref<HTMLElement | null>(null)
 let returnFocus: HTMLElement | null = null
@@ -61,7 +62,7 @@ async function choose(choice: 'hide' | 'quit') {
   <Transition name="modal">
     <div v-if="store.state.closeDialogOpen" class="modal-backdrop" @click.self="closeDialog">
       <section ref="dialog" class="close-dialog" role="dialog" aria-modal="true" aria-labelledby="close-title" tabindex="-1" @keydown="handleKeydown">
-        <div class="brand-mark brand-mark--small"><span></span></div>
+        <div class="close-dialog__mark"><AppMark :size="32" /></div>
         <h2 id="close-title">继续在托盘中运行？</h2>
         <p>隐藏窗口后，iTime 会继续保持当前记录状态。你可以随时从系统托盘重新打开。</p>
         <label class="check-row"><input v-model="store.state.rememberCloseChoice" type="checkbox" />记住我的选择</label>

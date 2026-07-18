@@ -69,18 +69,18 @@ function valueLabel(value: number | null): string {
 <style scoped>
 .trend { min-width: 0; margin-top: 14px; }
 .trend__legend { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 10px; }
-.trend__legend i { width: 7px; height: 7px; border-radius: 2px; background: var(--accent-blue); }
+.trend__legend i { width: 16px; height: 4px; border-radius: 99px; background: var(--accent-green); }
 .trend__legend small { margin-left: auto; color: var(--text-muted); font-size: 10px; }
 .trend__plot { position: relative; height: 100px; margin-top: 4px; }
 .trend__plot svg { width: 100%; height: 100%; overflow: visible; }
 .trend__grid { stroke: color-mix(in srgb, var(--border-soft) 76%, transparent); stroke-width: .4; vector-effect: non-scaling-stroke; }
-.trend__line { fill: none; stroke: var(--accent-blue); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.trend circle { fill: var(--bg-card); stroke: var(--accent-blue); stroke-width: 1.7; vector-effect: non-scaling-stroke; cursor: pointer; transition: r 120ms ease, fill 120ms ease; }
-.trend circle.endpoint { fill: var(--accent-blue); }
+.trend__line { fill: none; stroke: var(--accent-green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trend circle { fill: var(--bg-surface, var(--bg-card)); stroke: var(--accent-green); stroke-width: 1.7; vector-effect: non-scaling-stroke; cursor: pointer; transition: r 160ms ease, fill 160ms ease; }
+.trend circle.endpoint { fill: var(--accent-green); }
 .trend g:hover circle,
-.trend g:focus-visible circle { r: 2.6; fill: var(--accent-blue); outline: none; }
-.trend g:focus-visible { outline: none; }
-.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 1px; transform: translate(-50%, -110%); padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-card); font-size: 10px; pointer-events: none; white-space: nowrap; }
+.trend g:focus-visible circle { r: 2.6; fill: var(--accent-green); }
+.trend g:focus-visible circle { stroke: var(--border-focus); stroke-width: 3; }
+.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 1px; transform: translate(-50%, -110%); padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-popover); font-size: 10px; pointer-events: none; white-space: nowrap; }
 .trend__tooltip span { color: var(--text-secondary); }
 .trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); color: var(--text-muted); font-size: 10px; text-align: center; }
 .trend__empty { height: 100px; display: grid; place-items: center; margin-top: 4px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: 10px; }

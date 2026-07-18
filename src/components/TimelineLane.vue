@@ -63,7 +63,7 @@ const positioned = computed(() => {
 
 .timeline-segment {
   border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
-  box-shadow: 0 2px 7px color-mix(in srgb, var(--segment-color, var(--accent-blue)) 16%, transparent);
+  box-shadow: none;
   cursor: help;
   transition: filter 150ms ease, opacity 150ms ease, transform 150ms ease;
 }
@@ -75,7 +75,7 @@ const positioned = computed(() => {
   filter: saturate(1.08);
   opacity: 1;
   transform: translateY(-1px);
-  outline: 2px solid color-mix(in srgb, var(--text-primary) 24%, transparent);
+  outline: 2px solid var(--border-focus);
   outline-offset: 1px;
 }
 
@@ -92,7 +92,7 @@ const positioned = computed(() => {
   border-radius: 7px;
   color: var(--text-primary);
   background: var(--bg-card);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-popover);
   font-size: 10px;
   font-weight: 600;
   line-height: 1.3;

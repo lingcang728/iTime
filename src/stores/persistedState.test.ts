@@ -4,6 +4,10 @@ import { loadPersistedState, savePersistedState, persistedDefaults } from './per
 describe('persisted state validation', () => {
   beforeEach(() => localStorage.clear())
 
+  it('defaults new profiles to the system theme', () => {
+    expect(loadPersistedState().theme).toBe('system')
+  })
+
   it('falls back safely when stored data has the wrong shape', () => {
     localStorage.setItem('itime-prototype-state', JSON.stringify({ theme: { malicious: true }, goals: 'bad' }))
     expect(loadPersistedState()).toEqual(persistedDefaults)
@@ -26,5 +30,12 @@ describe('persisted state validation', () => {
   it('writes the current schema version', () => {
     savePersistedState(persistedDefaults)
     expect(JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}').schemaVersion).toBe(2)
+  })
+
+  it('drops persisted goal values outside the editable bounds', () => {
+    localStorage.setItem('itime-prototype-state', JSON.stringify({
+      goals: { learning: 0, development: 1_441, ai: 180.5, continuous: 9 },
+    }))
+    expect(loadPersistedState().goals).toEqual(persistedDefaults.goals)
   })
 })

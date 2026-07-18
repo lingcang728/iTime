@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import { PhCheck } from '@phosphor-icons/vue'
+import { computed, markRaw, reactive, ref, type Component } from 'vue'
+import {
+  PhBell,
+  PhBookOpen,
+  PhCheck,
+  PhCode,
+  PhFloppyDisk,
+  PhMoon,
+  PhRobot,
+  PhTarget,
+  PhTimer,
+} from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
-import { uiIcons } from '../data/uiIcons'
 import { useAppStore } from '../stores/appStore'
+import { hasActivityData } from '../stores/dataAvailability'
 import { formatDuration } from '../utils/format'
 import { goalDefinitions, validateGoalDraft, validateQuietRange, type GoalDraft, type GoalId } from './goalsForm'
 
@@ -19,13 +29,14 @@ const goalDraft = reactive<GoalDraft>({
   continuous: String(store.state.goals.continuous),
 })
 const quietDraft = reactive({ start: store.state.quietStart, end: store.state.quietEnd })
-const icons = {
-  learning: uiIcons.goalLearning,
-  development: uiIcons.goalDevelopment,
-  ai: uiIcons.goalAi,
-  continuous: uiIcons.goalContinuous,
+const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
+const unavailableTitle = computed(() => store.state.activityDataStatus === 'loading' ? '正在读取目标进度' : '目标进度暂不可用')
+const goalIcons: Record<GoalId, Component> = {
+  learning: markRaw(PhBookOpen),
+  development: markRaw(PhCode),
+  ai: markRaw(PhRobot),
+  continuous: markRaw(PhTimer),
 }
-const colors = { learning: '#50a874', development: '#4c79e8', ai: '#7664d8', continuous: '#d99538' }
 
 function currentDuration(id: GoalId): number {
   if (id === 'learning') return store.day.value.apps.filter((app) => app.category === '学习').reduce((sum, app) => sum + app.duration, 0)
@@ -36,10 +47,11 @@ function currentDuration(id: GoalId): number {
 
 const progressGoals = computed(() => goalDefinitions.filter((definition) => definition.id !== 'continuous').map((definition) => {
   const current = currentDuration(definition.id)
-  const target = store.state.goals[definition.id] * 60_000
-  return { ...definition, current, target, icon: icons[definition.id], color: colors[definition.id] }
+  const target = Math.max(1, store.state.goals[definition.id]) * 60_000
+  const progress = Math.min(100, current / target * 100)
+  return { ...definition, current, target, progress, percentage: Math.round(progress), icon: goalIcons[definition.id] }
 }))
-const overallProgress = computed(() => Math.round(progressGoals.value.reduce((total, goal) => total + Math.min(100, goal.current / goal.target * 100), 0) / progressGoals.value.length))
+const overallProgress = computed(() => Math.round(progressGoals.value.reduce((total, goal) => total + goal.progress, 0) / progressGoals.value.length))
 const reachedCount = computed(() => progressGoals.value.filter((goal) => goal.current >= goal.target).length)
 
 function saveTargets(): void {
@@ -65,30 +77,41 @@ function saveQuietHours(): void {
 <template>
   <section class="page goals-page">
     <PageHeader title="提醒与目标" subtitle="按你的节奏设定边界；所有目标都可随时调整" />
-    <div class="goal-hero">
-      <div><span>今日目标</span><h1>{{ reachedCount ? `${reachedCount} 个目标已经达成` : '按自己的节奏继续' }}</h1><p>进度来自本机活动记录，只用于提醒，不评价工作效率。</p></div>
-      <div class="hero-target"><img class="hero-target__icon" :src="uiIcons.goalSave" alt="" draggable="false" /><strong>{{ overallProgress }}%</strong><span>综合进度</span></div>
-    </div>
+    <section v-if="activityDataAvailable" class="goal-overview" aria-labelledby="goal-overview-title">
+      <div class="goal-overview__copy">
+        <span>今日目标</span>
+        <h2 id="goal-overview-title">{{ reachedCount ? `${reachedCount} 个目标已经达成` : '按自己的节奏继续' }}</h2>
+        <p>进度来自本机活动记录，只用于提醒，不评价工作效率。</p>
+      </div>
+      <div class="goal-overview__progress" aria-label="综合进度">
+        <PhTarget :size="24" weight="regular" aria-hidden="true" />
+        <strong>{{ overallProgress }}%</strong>
+        <span>综合进度</span>
+        <div class="goal-progress" aria-hidden="true"><i :style="{ width: `${overallProgress}%` }"></i></div>
+      </div>
+    </section>
 
-    <div class="goal-grid">
-      <article v-for="goal in progressGoals" :key="goal.id" class="card goal-card">
-        <div class="goal-card__top">
-          <span class="goal-icon goal-icon--art" :style="{ background: `${goal.color}16` }">
-            <img :src="goal.icon" alt="" draggable="false" />
-          </span>
-          <small>{{ Math.min(100, Math.round(goal.current / goal.target * 100)) }}%</small>
-        </div>
-        <span>{{ goal.label }}</span><strong>{{ formatDuration(goal.current, true) }} <i>/ {{ formatDuration(goal.target, true) }}</i></strong>
-        <div class="goal-progress"><i :style="{ width: `${Math.min(100, goal.current / goal.target * 100)}%`, background: goal.color }"></i></div>
+    <section v-if="activityDataAvailable" class="goal-stats" aria-label="今日目标进度">
+      <article v-for="goal in progressGoals" :key="goal.id" class="goal-stat">
+        <header>
+          <span class="goal-stat__icon"><component :is="goal.icon" :size="19" weight="regular" aria-hidden="true" /></span>
+          <span>{{ goal.label }}</span>
+          <small>{{ goal.percentage }}%</small>
+        </header>
+        <strong>{{ formatDuration(goal.current, true) }} <i>/ {{ formatDuration(goal.target, true) }}</i></strong>
+        <div class="goal-progress" aria-hidden="true"><i :style="{ width: `${goal.progress}%` }"></i></div>
         <p>{{ goal.current >= goal.target ? '今天已达到设定目标' : `还差 ${formatDuration(goal.target - goal.current, true)}` }}</p>
       </article>
+    </section>
+    <div v-else class="section-state goals-source-state" :data-state="store.state.activityDataStatus">
+      <strong>{{ unavailableTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
     </div>
 
     <div class="goals-layout">
-      <article class="card editor-card">
+      <section class="goal-editor" aria-labelledby="goal-editor-title">
         <header>
-          <div><span>目标编辑</span><h2>设置每天想投入的分钟数</h2><p>保存后会同步到首页目标环和提醒。</p></div>
-          <img class="editor-card__icon" :src="uiIcons.goalSave" alt="" draggable="false" />
+          <span class="section-line-icon"><PhFloppyDisk :size="20" weight="regular" aria-hidden="true" /></span>
+          <div><span>目标编辑</span><h2 id="goal-editor-title">设置每天想投入的分钟数</h2><p>保存后会同步到首页目标进度和提醒。</p></div>
         </header>
         <div class="target-form">
           <label v-for="definition in goalDefinitions" :key="definition.id">
@@ -98,23 +121,23 @@ function saveQuietHours(): void {
           </label>
         </div>
         <div class="form-footer"><p :class="{ error: targetError }" role="status" aria-live="polite">{{ targetMessage || '请输入整数分钟；超出合理范围时不会保存。' }}</p><button class="save-button" type="button" @click="saveTargets"><PhCheck :size="17" />保存目标</button></div>
-      </article>
+      </section>
 
-      <div class="reminder-stack">
-        <article class="card reminder-card">
-          <span class="reminder-icon green reminder-icon--art"><img :src="uiIcons.goalContinuous" alt="" draggable="false" /></span>
+      <aside class="reminder-panel" aria-label="提醒设置">
+        <section class="reminder-row">
+          <span class="section-line-icon"><PhBell :size="20" weight="regular" aria-hidden="true" /></span>
           <div><span>连续使用提醒</span><h2>每 {{ store.state.goals.continuous }} 分钟提醒休息</h2><p>达到阈值后显示一次温和提醒。</p></div>
-          <label class="toggle"><input v-model="store.state.reminders" type="checkbox"><i></i></label>
-        </article>
-        <article class="card quiet-card">
+          <label class="toggle"><input v-model="store.state.reminders" type="checkbox" aria-label="启用连续使用休息提醒"><i></i></label>
+        </section>
+        <section class="quiet-section">
           <header>
-            <span class="reminder-icon violet reminder-icon--art"><img :src="uiIcons.goalQuiet" alt="" draggable="false" /></span>
+            <span class="section-line-icon"><PhMoon :size="20" weight="regular" aria-hidden="true" /></span>
             <div><span>安静时段</span><h2>记录继续，通知暂停</h2></div>
           </header>
           <div class="time-range"><label><span>开始</span><input v-model="quietDraft.start" type="time"></label><b>至</b><label><span>结束</span><input v-model="quietDraft.end" type="time"></label></div>
           <div class="quiet-footer"><p :class="{ error: quietError }" role="status" aria-live="polite">{{ quietMessage || '支持跨午夜时段，例如 22:30 至 08:00。' }}</p><button type="button" @click="saveQuietHours">保存时段</button></div>
-        </article>
-      </div>
+        </section>
+      </aside>
     </div>
   </section>
 </template>

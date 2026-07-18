@@ -4,7 +4,7 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms var(--ease-out);
 }
 
 .profile-card {
@@ -13,8 +13,8 @@
 
 .profile-card:hover,
 .goal-ring-card:hover {
-  border-color: color-mix(in srgb, var(--accent-blue) 30%, var(--border-soft));
-  background: color-mix(in srgb, var(--accent-blue-soft) 24%, var(--bg-card));
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
 }
 
 .profile-card:active,
@@ -24,34 +24,6 @@
 
 .profile-card:focus-visible,
 .goal-ring-card:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent-blue) 54%, transparent);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
-}
-
-.pro-badge {
-  color: var(--text-secondary);
-  background: var(--bg-soft);
-  box-shadow: inset 0 0 0 1px var(--border-soft);
-}
-
-:global(html[data-theme="dark"]) .pro-badge {
-  color: var(--text-secondary);
-  background: var(--bg-soft);
-  box-shadow: inset 0 0 0 1px var(--border-soft);
-}
-
-.goal-ring-card {
-  width: 100%;
-  color: inherit;
-}
-
-.goal-ring {
-  background: conic-gradient(
-    var(--accent-green) 0 calc(var(--goal-progress, 0) * 1%),
-    var(--bg-soft) calc(var(--goal-progress, 0) * 1%) 100%
-  );
-}
-
-.goal-copy {
-  width: 100%;
 }
