@@ -11,6 +11,8 @@ export interface WeeklyDayPoint {
   computer: number | null
   foreground: number | null
   ai: number | null
+  providerExecution: number | null
+  providerCoverage: number | null
   input: number | null
 }
 
@@ -32,6 +34,9 @@ export interface WeeklySummary {
   focusSamples: FocusSample[]
   bestDay: WeeklyDayPoint | null
   totalAttention: number | null
+  totalComputer: number | null
+  totalProviderExecution: number | null
+  totalProviderCoverage: number | null
   totalInput: number | null
   peakInputDay: WeeklyDayPoint | null
   improvementPercent: number | null
@@ -53,7 +58,9 @@ function dayPoint(day: DaySnapshot): WeeklyDayPoint {
     note: `${date.getMonth() + 1}/${date.getDate()}`,
     computer: value(day.computerActivity),
     foreground: value(day.foregroundActivity),
-    ai: value(day.aiInteraction),
+    ai: value(day.aiEffective),
+    providerExecution: value(day.aiEffective),
+    providerCoverage: value(day.aiCoverage),
     input: value(day.inputKeyStrokes),
   }
 }
@@ -90,7 +97,9 @@ export function buildWeeklySummary(days: DaySnapshot[], previousDays?: DaySnapsh
   const points = days.map(dayPoint)
   const topApps = aggregateApps(days)
   const totalAttention = sumAvailable(points.map((day) => day.foreground))
-  const totalAi = sumAvailable(points.map((day) => day.ai))
+  const totalComputer = sumAvailable(points.map((day) => day.computer))
+  const totalAi = sumAvailable(points.map((day) => day.providerExecution))
+  const totalProviderCoverage = sumAvailable(points.map((day) => day.providerCoverage))
   const totalInput = sumAvailable(points.map((day) => day.input))
   const bestDay = points
     .filter((day): day is WeeklyDayPoint & { foreground: number } => day.foreground !== null)
@@ -121,6 +130,9 @@ export function buildWeeklySummary(days: DaySnapshot[], previousDays?: DaySnapsh
     focusSamples: points.map((day) => ({ date: day.date, duration: day.foreground })),
     bestDay,
     totalAttention,
+    totalComputer,
+    totalProviderExecution: totalAi,
+    totalProviderCoverage,
     totalInput,
     peakInputDay,
     improvementPercent,
@@ -128,7 +140,7 @@ export function buildWeeklySummary(days: DaySnapshot[], previousDays?: DaySnapsh
     achievements: [
       { id: 'focus', title: '深度专注', detail: '主动注意力累计 20 小时', unlocked: (totalAttention ?? 0) >= 20 * hour, available: totalAttention !== null, progress: progress(totalAttention, 20 * hour) },
       { id: 'rhythm', title: '稳定节奏', detail: '至少 5 天专注超过 30 分钟', unlocked: activeDays >= 5, available: totalAttention !== null, progress: Math.min(1, activeDays / 5) },
-      { id: 'ai', title: 'AI 工具使用', detail: 'AI 前台活跃累计 8 小时', unlocked: (totalAi ?? 0) >= 8 * hour, available: totalAi !== null, progress: progress(totalAi, 8 * hour) },
+      { id: 'ai', title: 'AI 使用', detail: 'Provider 执行累计 8 小时', unlocked: (totalAi ?? 0) >= 8 * hour, available: totalAi !== null, progress: progress(totalAi, 8 * hour) },
       { id: 'apps', title: '应用版图', detail: '本周使用 8 个不同应用', unlocked: topApps.length >= 8, available: points.some((day) => day.foreground !== null), progress: Math.min(1, topApps.length / 8) },
     ],
   }

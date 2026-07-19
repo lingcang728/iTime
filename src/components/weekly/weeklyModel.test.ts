@@ -13,6 +13,9 @@ describe('weekly summary', () => {
     expect(summary.topApps.map((app) => app.appId)).toEqual(expect.arrayContaining(['vscode', 'explorer']))
     expect(summary.focusSamples).toHaveLength(7)
     expect(summary.achievements).toHaveLength(4)
+    expect(summary.totalComputer).not.toBeNull()
+    expect(summary.totalProviderExecution).not.toBeNull()
+    expect(summary.totalProviderCoverage).not.toBeNull()
   })
 
   it('labels the best-day comparison as a peer-day baseline when prior-week data is absent', () => {

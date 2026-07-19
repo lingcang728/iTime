@@ -21,33 +21,33 @@
   --text-title: 26px;
   --text-metric: 30px;
 
-  --bg-app: #eef0f3;
-  --bg-sidebar: #f2f3f5;
-  --bg-surface: #f7f8fa;
-  --bg-card: #fdfdff;
-  --bg-soft: #e5e9ee;
-  --bg-subtle: #f0f2f5;
-  --bg-hover: #e8ebef;
-  --bg-elevated: #ffffff;
-  --bg-inset: #f1f3f6;
+  --bg-app: #efede8;
+  --bg-sidebar: #f4f2ed;
+  --bg-surface: #f7f6f2;
+  --bg-card: #fffefa;
+  --bg-soft: #e9e5de;
+  --bg-subtle: #f2f0eb;
+  --bg-hover: #e9e6df;
+  --bg-elevated: #fffefa;
+  --bg-inset: #f1efe9;
 
-  --text-primary: #17202d;
-  --text-secondary: #536071;
-  --text-muted: #5b6777;
-  --text-inverse: #f7f9fb;
+  --text-primary: #252522;
+  --text-secondary: #62615c;
+  --text-muted: #6f6d67;
+  --text-inverse: #fffefa;
 
-  --border-soft: rgba(52, 65, 82, 0.14);
-  --border-strong: rgba(52, 65, 82, 0.28);
-  --control-border: #6f7b88;
-  --border-focus: #50657b;
+  --border-soft: rgba(61, 57, 50, 0.12);
+  --border-strong: rgba(61, 57, 50, 0.23);
+  --control-border: #8d877e;
+  --border-focus: #9e7955;
 
-  --accent: #62778e;
-  --accent-soft: #e5eaf0;
-  --accent-strong: #4b6076;
-  --accent-muted: #9aa8b6;
-  --neutral-series: #667586;
-  --warning: #9a5b20;
-  --warning-soft: #f3e8dc;
+  --accent: #b8946d;
+  --accent-soft: #eee3d5;
+  --accent-strong: #80603f;
+  --accent-muted: #cbb69e;
+  --neutral-series: #6f706d;
+  --warning: #85532e;
+  --warning-soft: #f2e4d6;
   --danger: #a94d55;
   --danger-soft: #f5e4e6;
 
@@ -69,22 +69,22 @@
   --accent-red: var(--danger);
   --accent-red-soft: var(--danger-soft);
 
-  --heatmap-0: #edf0f3;
-  --heatmap-1: #dfe4e9;
-  --heatmap-2: #cbd3dc;
-  --heatmap-3: #aebac6;
-  --heatmap-4: #8999aa;
-  --heatmap-5: #60758b;
+  --heatmap-0: #f1efea;
+  --heatmap-1: #eadfD1;
+  --heatmap-2: #ddc8ad;
+  --heatmap-3: #cbaa84;
+  --heatmap-4: #ae835a;
+  --heatmap-5: #825d3c;
 
-  --radius-sm: 7px;
-  --radius-md: 9px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
   --radius-lg: 12px;
   --radius-xl: 14px;
   --radius-card: var(--radius-lg);
 
-  --shadow-card: 0 8px 24px rgba(37, 48, 63, 0.045);
-  --shadow-soft: 0 4px 14px rgba(37, 48, 63, 0.055);
-  --shadow-window: 0 24px 70px rgba(31, 39, 50, 0.2);
+  --shadow-card: 0 5px 18px rgba(57, 48, 38, 0.055);
+  --shadow-soft: 0 3px 12px rgba(57, 48, 38, 0.06);
+  --shadow-window: 0 24px 70px rgba(31, 27, 22, 0.2);
   --shadow-popover: 0 18px 44px rgba(31, 39, 50, 0.18);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -101,42 +101,42 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg-app: #11161c;
-  --bg-sidebar: #171d24;
-  --bg-surface: #1b2027;
-  --bg-card: #242a31;
-  --bg-soft: #343c45;
-  --bg-subtle: #20262d;
-  --bg-hover: #2c333c;
-  --bg-elevated: #2a3038;
-  --bg-inset: #20262d;
+  --bg-app: #101312;
+  --bg-sidebar: #181c1a;
+  --bg-surface: #151817;
+  --bg-card: #202523;
+  --bg-soft: #303633;
+  --bg-subtle: #1b201e;
+  --bg-hover: #292f2c;
+  --bg-elevated: #252b28;
+  --bg-inset: #1a1f1d;
 
-  --text-primary: #f0f3f6;
-  --text-secondary: #bcc5ce;
-  --text-muted: #909ba7;
-  --text-inverse: #17202a;
+  --text-primary: #f1eee8;
+  --text-secondary: #c1beb7;
+  --text-muted: #918f89;
+  --text-inverse: #171a18;
 
-  --border-soft: rgba(221, 229, 237, 0.14);
-  --border-strong: rgba(221, 229, 237, 0.28);
-  --control-border: #8994a0;
-  --border-focus: #aebdcb;
+  --border-soft: rgba(237, 231, 218, 0.12);
+  --border-strong: rgba(237, 231, 218, 0.24);
+  --control-border: #918f88;
+  --border-focus: #c6a078;
 
-  --accent: #a8b8c8;
-  --accent-soft: rgba(168, 184, 200, 0.14);
-  --accent-strong: #c2ced9;
-  --accent-muted: #8191a1;
-  --neutral-series: #9ca8b3;
+  --accent: #c6a078;
+  --accent-soft: rgba(198, 160, 120, 0.15);
+  --accent-strong: #d5b28e;
+  --accent-muted: #967c62;
+  --neutral-series: #8e918d;
   --warning: #e0ad6f;
   --warning-soft: rgba(224, 173, 111, 0.14);
   --danger: #e3979d;
   --danger-soft: rgba(227, 151, 157, 0.14);
 
-  --heatmap-0: #242b33;
-  --heatmap-1: #303943;
-  --heatmap-2: #3d4854;
-  --heatmap-3: #536170;
-  --heatmap-4: #718293;
-  --heatmap-5: #9aabba;
+  --heatmap-0: #252a28;
+  --heatmap-1: #3a342e;
+  --heatmap-2: #594638;
+  --heatmap-3: #7c5c43;
+  --heatmap-4: #805f43;
+  --heatmap-5: #d1aa82;
 
   --shadow-card: 0 8px 24px rgba(3, 7, 12, 0.12);
   --shadow-soft: 0 4px 14px rgba(3, 7, 12, 0.16);

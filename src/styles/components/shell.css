@@ -4,7 +4,8 @@
   min-height: 0;
   max-height: 100%;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
@@ -14,23 +15,25 @@
 }
 
 .sidebar {
+  grid-column: 1;
+  grid-row: 2;
   min-width: 0;
   min-height: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 18px 16px 24px;
+  padding: 22px 20px 24px;
   border-right: 1px solid var(--border-soft);
   background: var(--bg-sidebar);
 }
 
 .brand-block {
-  min-height: 56px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 10px 10px;
+  padding: 0 12px 12px;
   user-select: none;
 }
 
@@ -39,24 +42,24 @@
 }
 
 .brand-block strong {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.35px;
 }
 
 .sidebar nav {
   display: grid;
-  gap: 7px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 18px;
 }
 
 .nav-item {
-  height: 48px;
+  height: 50px;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 0 14px;
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 15px;
@@ -80,7 +83,8 @@
 
 .nav-item.router-link-active {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--bg-hover) 90%, var(--bg-card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 55%, transparent);
 }
 
 .nav-item.router-link-active .nav-icon {
@@ -131,26 +135,40 @@
 }
 
 .app-surface {
+  grid-column: 2;
+  grid-row: 2;
   min-width: 0;
   min-height: 0;
   height: 100%;
   max-height: 100%;
-  display: grid;
-  grid-template-rows: 50px minmax(0, 1fr);
+  display: block;
   overflow: hidden;
   background: var(--bg-surface);
 }
 
 .window-bar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   align-items: stretch;
   user-select: none;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-surface);
 }
 
-.window-bar > span {
+.window-title {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
 }
+
+.window-title strong { font-weight: 620; }
 
 .window-controls {
   display: flex;
@@ -184,7 +202,7 @@
 
 @media (max-width: 1280px) {
   .desktop-app {
-    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-columns: 218px minmax(0, 1fr);
   }
 
   .sidebar {

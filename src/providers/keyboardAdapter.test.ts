@@ -10,11 +10,20 @@ const raw = {
     { version: 1, start: minute, end: 2 * minute, keyStrokes: 4 },
     { version: 1, start: 2 * minute, end: 3 * minute, keyStrokes: 7 },
   ],
+  detailStartedAt: minute,
+  detailDays: [{
+    date: '1970-01-01',
+    keys: [{ key: 'A', count: 6 }, { key: 'Backspace', count: 2 }],
+    shortcuts: [{ shortcut: 'Ctrl + C', count: 3 }],
+  }],
   capabilities: {
     contentCaptured: false,
-    keyIdentityCaptured: false,
+    sequenceCaptured: false,
+    keyIdentityCaptured: true,
+    shortcutCountsCaptured: true,
     directKeyCount: true,
     granularity: 'minute',
+    detailGranularity: 'day',
     timezoneSemantics: 'local-time',
     historicalBackfill: false,
   },
@@ -22,13 +31,14 @@ const raw = {
 }
 
 describe('native keyboard adapter', () => {
-  it('aggregates direct key counts without inventing mouse or key identity data', () => {
+  it('aggregates minute totals and day-level key evidence without inventing mouse data', () => {
     const provider = new KeyboardInputActivityProvider(parseKeyboardSnapshot(raw))
     const snapshot = provider.getSnapshot({ start: 0, end: 4 * minute }, 'hour')
     expect(snapshot.cumulative.keyStrokes).toBe(11)
     expect(snapshot.cumulative.combinedClicks).toBe(0)
-    expect(snapshot.singleKeys).toEqual([])
-    expect(snapshot.shortcuts).toEqual([])
+    expect(snapshot.singleKeys).toEqual([{ key: 'A', count: 6 }, { key: 'Backspace', count: 2 }])
+    expect(snapshot.shortcuts).toEqual([{ shortcut: 'Ctrl + C', count: 3 }])
+    expect(snapshot.capabilities.sequenceCaptured).toBe(false)
   })
 
   it('maps minute counts into weekly metric events', () => {
@@ -41,14 +51,36 @@ describe('native keyboard adapter', () => {
     }))
   })
 
-  it('rejects any wire capability that claims content or key identity capture', () => {
+  it('rejects any wire capability that claims content or sequence capture', () => {
     expect(() => parseKeyboardSnapshot({
       ...raw,
       capabilities: { ...raw.capabilities, contentCaptured: true },
     })).toThrow()
     expect(() => parseKeyboardSnapshot({
       ...raw,
-      capabilities: { ...raw.capabilities, keyIdentityCaptured: true },
+      capabilities: { ...raw.capabilities, sequenceCaptured: true },
     })).toThrow()
+  })
+
+  it('keeps legacy snapshots compatible and marks pre-upgrade detail unavailable', () => {
+    const legacy = {
+      ...raw,
+      detailStartedAt: undefined,
+      detailDays: undefined,
+      capabilities: {
+        contentCaptured: false,
+        keyIdentityCaptured: false,
+        directKeyCount: true,
+        granularity: 'minute',
+        timezoneSemantics: 'local-time',
+        historicalBackfill: false,
+      },
+    }
+    const provider = new KeyboardInputActivityProvider(parseKeyboardSnapshot(legacy))
+    const snapshot = provider.getSnapshot({ start: 0, end: 4 * minute }, 'hour')
+    expect(snapshot.cumulative.keyStrokes).toBe(11)
+    expect(snapshot.detailAvailableFrom).toBeNull()
+    expect(snapshot.capabilities.keyHeatmap).toBe(false)
+    expect(snapshot.singleKeys).toEqual([])
   })
 })
