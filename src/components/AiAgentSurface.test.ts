@@ -41,7 +41,7 @@ describe('AI agent surface', () => {
     wrapper.unmount()
   })
 
-  it('keeps Provider and foreground evidence clearly separated on the AI page', () => {
+  it('keeps the local provider evidence and insight windows on the AI page', () => {
     const wrapper = mount(AiAgentsPage, {
       global: {
         stubs: {
@@ -52,12 +52,11 @@ describe('AI agent surface', () => {
         },
       },
     })
-    expect(wrapper.text()).toContain('AI 证据时间线')
-    expect(wrapper.text()).toContain('Provider 证据来自 Codex / Claude Code 本机会话时间事件')
+    expect(wrapper.text()).toContain('今日洞察')
+    expect(wrapper.text()).toContain('执行区间来自 Codex/Claude Code 本机会话时间事件')
     expect(wrapper.text()).toContain('不读取会话内容')
-    expect(wrapper.text()).toContain('真实执行区间协作图')
-    expect(wrapper.text()).not.toContain('节省时间')
-    expect(wrapper.text()).not.toContain('AI 产出')
+    expect(wrapper.text()).toContain('高效时段')
+    expect(wrapper.text()).toContain('最佳并发时段')
   })
 
   it('uses one flat evidence surface and a neutral timeline taxonomy', () => {
@@ -70,10 +69,9 @@ describe('AI agent surface', () => {
         },
       },
     })
-    expect(wrapper.findAll('.timeline-overview .metric-card')).toHaveLength(4)
+    expect(wrapper.findAll('.timeline-overview .metric-card')).toHaveLength(3)
     expect(wrapper.get('.full-timeline').classes()).not.toContain('card')
     expect(wrapper.text()).toContain('设备非活跃')
     expect(wrapper.text()).toContain('AI 前台')
-    expect(wrapper.text()).toContain('Provider')
   })
 })

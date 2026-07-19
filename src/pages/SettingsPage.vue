@@ -44,10 +44,10 @@ const inputFacts = computed(() => {
     none: '无历史序列',
   }[capabilities.historyGranularity]
   return [
-    { label: '总量粒度', value: historyLabel, icon: PhPulse },
-    { label: '键位与快捷键', value: capabilities.keyIdentityCaptured ? '按本地日期累计' : '升级后启用', icon: PhKeyboard },
-    { label: '顺序与逐键时间', value: '从不保存', icon: PhShieldCheck },
-    { label: '本地存储', value: 'JSONL + 原子 JSON', icon: PhHardDrives },
+    { label: '统计方式', value: 'Windows 字符键按下计数', icon: PhKeyboard },
+    { label: '聚合粒度', value: historyLabel, icon: PhPulse },
+    { label: '输入内容', value: '从不保存', icon: PhShieldCheck },
+    { label: '本地存储', value: 'iTime Data · JSONL', icon: PhHardDrives },
   ]
 })
 
@@ -96,9 +96,9 @@ onMounted(() => void store.refreshAutostart())
 
         <section class="settings-group" aria-labelledby="privacy-title">
           <header class="settings-group__header">
-            <div><h2 id="privacy-title">输入统计与隐私</h2><p>分钟总量与日级键位/快捷键聚合都只保存在本机。</p></div>
+            <div><h2 id="privacy-title">输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
           </header>
-          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 会按分钟保存字符键总量，并按本地日期保存规范化键位与快捷键计数；不会保存按键顺序、逐键时间戳、原始虚拟键码、输入文本、IME 结果或剪贴板内容。</p></div>
+          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只累计字符键按下次数并按分钟保存数量；不保存具体键值、键盘文字、密码内容、语音输入或剪贴板正文。</p></div>
         </section>
 
         <section class="settings-group appearance-section" aria-labelledby="appearance-title">
@@ -117,7 +117,7 @@ onMounted(() => void store.refreshAutostart())
       <aside class="settings-side">
         <section class="source-panel" aria-labelledby="source-title">
           <header class="settings-group__header">
-            <div><h2 id="source-title">本机输入足迹</h2><p>查看分钟总量和日级键位聚合的当前状态。</p></div>
+            <div><h2 id="source-title">本机键盘计数</h2><p>查看 Windows 字符键计数器的当前状态。</p></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">
             <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
@@ -126,13 +126,13 @@ onMounted(() => void store.refreshAutostart())
             <div v-for="fact in inputFacts" :key="fact.label"><component :is="fact.icon" :size="19" /><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
           </dl>
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
-            <PhArrowClockwise :size="17" weight="regular" />刷新输入足迹
+            <PhArrowClockwise :size="17" weight="regular" />刷新键盘计数
           </button>
         </section>
 
         <section class="data-boundary">
           <PhPauseCircle :size="22" weight="regular" aria-hidden="true" />
-          <div><span>数据边界</span><h2>升级前逐键历史不会被补造</h2><p>旧分钟总量继续用于趋势；键位热力与快捷键排行从本次升级后开始。活动记录总开关会同时暂停两类输入统计。</p></div>
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器，Provider 活动来自本机会话时间事件。</p></div>
         </section>
       </aside>
     </div>

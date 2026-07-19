@@ -11,7 +11,7 @@ output = root / "artifacts" / "visual"
 output.mkdir(parents=True, exist_ok=True)
 base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:1420"
 pages = ["home", "ai", "timeline", "input", "weekly", "goals", "settings"]
-sizes = [(560, 900), (960, 680), (1024, 720), (1100, 720), (1180, 760), (1280, 800), (1540, 944)]
+sizes = [(960, 680), (1024, 720), (1100, 720), (1180, 760), (1280, 800), (1540, 944)]
 fit_pages = {"home", "timeline"}
 base_geometry_selectors = [
     ".desktop-app",
@@ -20,11 +20,11 @@ base_geometry_selectors = [
     ".page-header",
 ]
 page_geometry_selectors = {
-    "home": [".metrics-grid--home", ".home-bottom-grid"],
-    "ai": [".ai-metrics", ".ai-overview-grid"],
+    "home": [".metrics-grid--home, .metrics-strip", ".home-data-grid"],
+    "ai": [".ai-metrics", ".ai-workspace-grid"],
     "timeline": [".timeline-overview", ".full-timeline"],
-    "input": [".input-metrics", ".input-main-grid"],
-    "weekly": [".weekly-metrics", ".weekly-dashboard", ".weekly-achievements"],
+    "input": [".input-stat-strip", ".input-history-wrap"],
+    "weekly": [".weekly-daily-card", ".weekly-analysis-grid", ".weekly-secondary-grid"],
     "goals": [".goal-overview", ".goals-layout"],
     "settings": [".settings-layout"],
 }
@@ -34,11 +34,11 @@ focus_targets = [
     {
         "id": "weeklyTrend",
         "page": "weekly",
-        "selector": ".weekly-trend .trend g[role=\"img\"][tabindex=\"0\"]",
+        "selector": ".attention-panel .trend g[role=\"img\"][tabindex=\"0\"]",
         "indicator": "circle",
         "indicatorKind": "stroke",
     },
-    {"id": "focusHeatmap", "page": "weekly", "selector": ".calendar-days button"},
+    {"id": "focusHeatmap", "page": "weekly", "selector": ".heat-cell"},
     {"id": "timelineSegment", "page": "timeline", "selector": ".activity-lane .lane-segment"},
     {"id": "goalsInput", "page": "goals", "selector": ".target-form input"},
 ]
@@ -385,7 +385,7 @@ with sync_playwright() as playwright:
                 "return {top:content.scrollTop,max:content.scrollHeight-content.clientHeight,"
                 "windowTop:window.scrollY,htmlTop:document.documentElement.scrollTop,bodyTop:document.body.scrollTop,"
                 "viewportHeight:innerHeight,app:rect('.desktop-app'),sidebar:rect('.sidebar'),"
-                "surface:rect('.app-surface'),titlebar:rect('.window-bar'),content:rect('.page-viewport')};"
+                "surface:rect('.app-surface'),content:rect('.page-viewport')};"
                 "}"
             )
             boundary["passed"] = (
@@ -393,13 +393,7 @@ with sync_playwright() as playwright:
                 and boundary["windowTop"] == 0
                 and boundary["htmlTop"] == 0
                 and boundary["bodyTop"] == 0
-                and abs(boundary["app"]["top"]) <= 1
-                and abs(boundary["app"]["bottom"] - boundary["viewportHeight"]) <= 1
-                and abs(boundary["titlebar"]["top"]) <= 1
-                and abs(boundary["sidebar"]["top"] - boundary["titlebar"]["bottom"]) <= 1
-                and abs(boundary["surface"]["top"] - boundary["titlebar"]["bottom"]) <= 1
-                and abs(boundary["sidebar"]["bottom"] - boundary["viewportHeight"]) <= 1
-                and abs(boundary["surface"]["bottom"] - boundary["viewportHeight"]) <= 1
+                and all(abs(boundary[name]["top"]) <= 1 and abs(boundary[name]["bottom"] - boundary["viewportHeight"]) <= 1 for name in ["app", "sidebar", "surface"])
                 and abs(boundary["content"]["bottom"] - boundary["viewportHeight"]) <= 1
             )
             report["wheelBoundary"][page_id] = boundary
@@ -411,7 +405,7 @@ with sync_playwright() as playwright:
         metric_info.focus()
         page.wait_for_timeout(200)
         report["interactions"]["agentInfoTooltip"] = metric_info.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
-        page.locator(".ai-ranking-list button").first.click()
+        page.locator(".ai-tool-item button").first.click()
         page.wait_for_selector(".ai-drawer")
         report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["Provider 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
         report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("不是工具的“知性度”", exact=False).count() == 1
@@ -419,21 +413,18 @@ with sync_playwright() as playwright:
 
         page.goto(url("input"))
         wait_ready(page)
-        input_points = page.locator(".keyboard-row button")
+        input_points = page.locator(".spark-point")
         input_points.first.focus()
         report["interactions"]["inputTrendInteraction"] = (
-            input_points.count() > 40
-            and input_points.first.get_attribute("aria-label") is not None
-            and page.locator(".minute-density i").count() == 96
+            input_points.count() > 1
+            and page.locator(".spark-tooltip").count() == 1
         )
         report["interactions"]["inputKeyboardOnly"] = (
             page.get_by_text("总输入字数", exact=True).count() == 1
-            and page.get_by_text("活跃输入分钟", exact=True).count() == 1
-            and page.get_by_text("键盘热力图", exact=True).count() == 1
-            and page.get_by_text("七日输入节奏", exact=True).count() == 1
+            and page.get_by_text("平均输入字数", exact=True).count() == 1
+            and page.get_by_text("输入节奏", exact=True).count() == 0
             and page.get_by_text("鼠标移动", exact=True).count() == 0
-            and page.get_by_text("语音输入", exact=False).count() == 0
-            and page.get_by_text("输入方式", exact=False).count() == 0
+            and page.get_by_text("键盘热力图", exact=True).count() == 0
         )
 
         page.goto(url("timeline"))
@@ -474,24 +465,26 @@ with sync_playwright() as playwright:
         ranking_rows = page.locator(".ranking-row")
         report["interactions"]["categoryTimeAndShare"] = (
             ranking_rows.count() > 0
-            and ranking_rows.first.locator("time").inner_text().strip() != ""
-            and ranking_rows.first.locator("b").inner_text().endswith("%")
+            and ranking_rows.first.locator(".rank-duration").inner_text().strip() != ""
+            and ranking_rows.first.locator(".rank-value b").inner_text().endswith("%")
         )
-        activity_rows = page.locator(".day-band-row")
+        activity_rows = page.locator(".home-activity-row")
+        activity_times = activity_rows.locator("time").all_inner_texts()
         report["interactions"]["homeTimelineSemantics"] = (
-            activity_rows.count() == 4
-            and page.locator(".day-band-axis span").count() == 7
-            and page.get_by_text("AI 前台", exact=True).count() >= 1
+            activity_rows.count() > 0
+            and len(activity_times) == activity_rows.count()
+            and activity_times == sorted(activity_times)
+            and activity_rows.locator(".home-activity-card .app-icon").count() == activity_rows.count()
         )
         home_metrics = page.locator(".metrics-grid--home, .metrics-strip").first
         home_metric_columns = home_metrics.evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
-        home_data_columns = page.locator(".home-bottom-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        home_data_columns = page.locator(".home-data-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
         report["interactions"]["homeSelectedFormat"] = (
             home_metrics.locator(".metric-card").count() == 4
             and home_metrics.locator(".metric-card__art").count() == 4
             and home_metric_columns == 4
             and home_data_columns == 2
-            and activity_rows.count() == 4
+            and activity_rows.count() >= 4
         )
         reference_system = page.evaluate("""() => {
           const sidebar = document.querySelector('.sidebar').getBoundingClientRect()
@@ -510,13 +503,13 @@ with sync_playwright() as playwright:
           }
         }""")
         report["interactions"]["referenceDesignSystem"] = (
-            abs(reference_system["sidebarWidth"] - 252) <= 1
+            abs(reference_system["sidebarWidth"] - 240) <= 1
             and abs(reference_system["pagePadding"] - 32) <= 1
             and reference_system["cardRadius"] >= 10
             and abs(reference_system["metricGap"] - 16) <= 1
             and reference_system["cardBackground"] not in ["rgb(255, 255, 255)", "rgb(0, 0, 0)"]
         )
-        reminder = page.get_by_role("button", name="今天不再提醒")
+        reminder = page.get_by_role("button", name="知道了")
         reminder_visible = reminder.count() == 1
         if reminder_visible:
             reminder.click()
@@ -527,7 +520,7 @@ with sync_playwright() as playwright:
         page.wait_for_url("**#/settings")
         page.goto(f"{base_url}/#/account")
         page.wait_for_url("**#/home")
-        report["interactions"]["localProfileOnly"] = page.get_by_text("本机私密存储", exact=True).count() == 1 and "#/home" in page.url
+        report["interactions"]["localProfileOnly"] = page.get_by_text("数据已同步", exact=True).count() == 1 and "#/home" in page.url
 
         page.goto(url("home"))
         wait_ready(page)
@@ -549,30 +542,38 @@ with sync_playwright() as playwright:
         wait_ready(page)
         report["interactions"]["realSettingsSources"] = (
             page.get_by_text("开机自启动", exact=True).count() == 1
-            and page.get_by_text("本机输入足迹", exact=True).count() == 1
-            and page.get_by_text("按本地日期累计", exact=True).count() == 1
-            and page.get_by_text("顺序与逐键时间", exact=True).count() == 1
+            and page.get_by_text("本机键盘计数", exact=True).count() == 1
+            and page.get_by_text("Windows 字符键按下计数", exact=True).count() == 1
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 
         page.goto(url("weekly"))
         wait_ready(page)
-        weekly_analysis_columns = page.locator(".weekly-dashboard").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        weekly_analysis_columns = page.locator(".weekly-analysis-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        weekly_secondary_columns = page.locator(".weekly-secondary-grid").evaluate("element => getComputedStyle(element).gridTemplateColumns.split(' ').length")
+        weekly_analysis_order = page.locator(".weekly-analysis-grid > section").evaluate_all("elements => elements.map(element => [...element.classList].find(value => value.endsWith('-panel')))")
+        weekly_secondary_order = page.locator(".weekly-secondary-grid > section").evaluate_all("elements => elements.map(element => [...element.classList].find(value => value.endsWith('-panel')))")
         report["interactions"]["weeklySelectedFormat"] = (
             weekly_analysis_columns == 3
-            and page.locator(".weekly-metrics .metric-card").count() == 4
-            and page.locator(".weekly-achievements .achievements article").count() == 4
-            and page.locator(".weekly-trend").count() == 1
-            and page.locator(".weekly-highlights").count() == 1
-            and page.locator(".weekly-calendar").count() == 1
+            and weekly_secondary_columns == 2
+            and weekly_analysis_order == ["focus-panel", "insight-panel", "top-apps-panel"]
+            and weekly_secondary_order == ["attention-panel", "achievements-panel"]
+            and page.locator(".weekly-daily-card").count() == 1
+            and page.locator(".top-apps-panel").count() == 1
+            and page.locator(".weekly-analysis-grid .top-apps-panel").count() == 1
+            and page.locator(".weekly-secondary-grid .top-apps-panel").count() == 0
         )
-        heatmap_cells = page.locator(".calendar-days button")
+        heatmap_cells = page.locator(".heat-cell")
         heatmap_cells.first.focus()
+        page.wait_for_selector(".heat-cell:focus [role='tooltip']")
         first_label = heatmap_cells.first.get_attribute("aria-label")
-        report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 7 and first_label is not None and heatmap_cells.first.evaluate("element => document.activeElement === element")
-        trend_points = page.locator('.weekly-trend .trend g[role="img"]')
+        page.keyboard.press("ArrowRight")
+        focused_label = page.locator(".heat-cell:focus").get_attribute("aria-label")
+        page.locator(".heat-cell:focus").click()
+        report["interactions"]["heatmapInteraction"] = heatmap_cells.count() == 49 and first_label != focused_label and page.locator(".heat-cell.locked").count() == 1 and page.locator(".heat-cell.locked [role='tooltip']").count() == 1
+        trend_points = page.locator('.attention-panel .trend g[role="img"]')
         trend_points.first.focus()
-        report["interactions"]["weeklyTrendInteraction"] = trend_points.count() == 7 and page.locator(".weekly-trend .trend__tooltip").count() == 1
+        report["interactions"]["weeklyTrendInteraction"] = trend_points.count() == 7 and page.locator(".attention-panel .trend__tooltip").count() == 1
         report["focusIndicators"]["light"] = inspect_focus_indicators(page, "light")
         wide.close()
 

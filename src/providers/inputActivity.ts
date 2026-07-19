@@ -5,14 +5,9 @@ export type InputGranularity = 'minute' | 'hour' | 'day'
 
 export interface InputActivityCapabilities {
   historyGranularity: InputGranularity | 'none'
-  detailGranularity: 'day' | 'none'
   minuteDensity: boolean
   keyHeatmap: boolean
   functionalShortcuts: boolean
-  contentCaptured: boolean
-  sequenceCaptured: boolean
-  keyIdentityCaptured: boolean
-  shortcutCountsCaptured: boolean
   sensitiveSurfaceExclusion: boolean
   deleteByDate: boolean
   splitHistoricalClicks: boolean
@@ -45,7 +40,6 @@ export interface InputActivitySnapshot {
   range: TimeRange
   source: string
   sourceUpdatedAt: number | null
-  detailAvailableFrom: number | null
   cumulative: InputActivityPoint
   history: InputActivityPoint[]
   singleKeys: InputKeyCount[]
@@ -102,7 +96,6 @@ export class MockInputActivityProvider implements InputActivityProvider {
       range,
       source: '预览数据 · 非本机记录',
       sourceUpdatedAt: null,
-      detailAvailableFrom: range.start,
       cumulative,
       history,
       singleKeys: keys.map((key, index) => ({ key, count: Math.round(cumulative.keyStrokes * weights[index]) })),
@@ -114,14 +107,9 @@ export class MockInputActivityProvider implements InputActivityProvider {
       ],
       capabilities: {
         historyGranularity: 'minute',
-        detailGranularity: 'day',
         minuteDensity: true,
         keyHeatmap: true,
         functionalShortcuts: true,
-        contentCaptured: false,
-        sequenceCaptured: false,
-        keyIdentityCaptured: true,
-        shortcutCountsCaptured: true,
         sensitiveSurfaceExclusion: true,
         deleteByDate: true,
         splitHistoricalClicks: true,
@@ -146,21 +134,15 @@ export function emptyInputSnapshot(range: TimeRange, source = '等待本机数�
     range,
     source,
     sourceUpdatedAt: null,
-    detailAvailableFrom: null,
     cumulative,
     history: [],
     singleKeys: [],
     shortcuts: [],
     capabilities: {
       historyGranularity: 'none',
-      detailGranularity: 'none',
       minuteDensity: false,
       keyHeatmap: false,
       functionalShortcuts: false,
-      contentCaptured: false,
-      sequenceCaptured: false,
-      keyIdentityCaptured: false,
-      shortcutCountsCaptured: false,
       sensitiveSurfaceExclusion: false,
       deleteByDate: false,
       splitHistoricalClicks: false,

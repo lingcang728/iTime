@@ -62,7 +62,7 @@ withDefaults(defineProps<{
 
 .metric-card--with-icon {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 32px minmax(0, 1fr);
   align-items: start;
   column-gap: 12px;
 }

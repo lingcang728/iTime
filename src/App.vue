@@ -4,13 +4,13 @@ import { RouterView, useRoute } from 'vue-router'
 import {
   PhBell,
   PhClock,
+  PhCloudCheck,
   PhCopy,
   PhGearSix,
   PhHouse,
   PhKeyboard,
   PhMinus,
   PhNotebook,
-  PhShieldCheck,
   PhSparkle,
   PhSquare,
   PhX,
@@ -33,7 +33,7 @@ const navItems = [
   { id: 'home', label: '首页', icon: PhHouse },
   { id: 'ai', label: 'AI 代理', icon: PhSparkle },
   { id: 'timeline', label: '时间线', icon: PhClock },
-  { id: 'input', label: '输入足迹', icon: PhKeyboard },
+  { id: 'input', label: '键盘统计', icon: PhKeyboard },
   { id: 'weekly', label: '周报', icon: PhNotebook },
   { id: 'goals', label: '提醒与目标', icon: PhBell },
   { id: 'settings', label: '设置', icon: PhGearSix },
@@ -119,17 +119,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="desktop-app">
-    <div class="window-bar" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
-      <span class="window-title"><AppMark :size="20" /><strong>iTime</strong></span>
-      <div class="window-controls" data-shortcuts="ignore">
-        <button type="button" aria-label="最小化" @click="minimizeWindow"><PhMinus :size="14" /></button>
-        <button type="button" :aria-label="maximized ? '还原' : '最大化'" @click="toggleWindowSize">
-          <PhCopy v-if="maximized" :size="12" />
-          <PhSquare v-else :size="12" />
-        </button>
-        <button type="button" aria-label="关闭" class="close" @click="requestClose"><PhX :size="14" /></button>
-      </div>
-    </div>
     <aside class="sidebar">
       <div class="brand-block" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
         <AppMark :size="34" />
@@ -142,11 +131,22 @@ onBeforeUnmount(() => {
       </nav>
       <div class="sidebar-spacer"></div>
       <button class="profile-card sync-status" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
-        <PhShieldCheck :size="24" weight="regular" aria-hidden="true" />
-        <div><strong>本机私密存储</strong><small>仅保留聚合数据</small></div>
+        <PhCloudCheck :size="24" weight="regular" aria-hidden="true" />
+        <div><strong>数据已同步</strong><small>刚刚</small></div>
       </button>
     </aside>
     <section class="app-surface">
+      <div class="window-bar" @mousedown="handleTitleMouseDown" @dblclick="handleTitleDoubleClick">
+        <span aria-hidden="true"></span>
+        <div class="window-controls" data-shortcuts="ignore">
+          <button type="button" aria-label="最小化" @click="minimizeWindow"><PhMinus :size="14" /></button>
+          <button type="button" :aria-label="maximized ? '还原' : '最大化'" @click="toggleWindowSize">
+            <PhCopy v-if="maximized" :size="12" />
+            <PhSquare v-else :size="12" />
+          </button>
+          <button type="button" aria-label="关闭" class="close" @click="requestClose"><PhX :size="14" /></button>
+        </div>
+      </div>
       <main id="main-content" class="page-viewport" tabindex="-1">
         <RouterView v-slot="{ Component }">
           <Transition name="page"><component :is="Component" /></Transition>

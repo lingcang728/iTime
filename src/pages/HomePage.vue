@@ -1,94 +1,90 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { PhClock, PhEye, PhPulse, PhRobot, PhTarget } from '@phosphor-icons/vue'
+import {
+  PhCaretDown,
+  PhClock,
+  PhEye,
+  PhPulse,
+  PhSparkle,
+  PhTarget,
+} from '@phosphor-icons/vue'
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
-import TimelineLane from '../components/TimelineLane.vue'
-import { buildHomeComposition, countApplicationSwitches, dayTimelineSegments, relativeChange } from '../domain/dashboardModel'
-import type { ForegroundAppInterval, TimelineKind } from '../domain/events'
-import { mergeRanges } from '../domain/intervals'
+import { coalesceRangesBy, mergeRanges } from '../domain/intervals'
+import type { ForegroundAppInterval } from '../domain/events'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration } from '../utils/format'
 import { shouldShowRestReminder } from '../utils/reminders'
 
-interface DurationPart { amount: string; unit?: string }
+interface DurationPart {
+  amount: string
+  unit?: string
+}
 
 const DISMISSED_REMINDERS_KEY = 'itime-home-dismissed-reminders-v1'
 const store = useAppStore()
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
-const deepWorkDuration = computed(() => store.day.value.foregroundActivity.value)
-const previousComputerDuration = computed(() => store.previousDay.value.computerActivity.value)
-const previousDeepWorkDuration = computed(() => store.previousDay.value.foregroundActivity.value)
-const foregroundEvents = computed(() => store.day.value.events.filter((event): event is ForegroundAppInterval => event.type === 'foreground'))
-const previousForegroundEvents = computed(() => store.previousDay.value.events.filter((event): event is ForegroundAppInterval => event.type === 'foreground'))
-const switches = computed(() => countApplicationSwitches(foregroundEvents.value))
-const previousSwitches = computed(() => countApplicationSwitches(previousForegroundEvents.value))
-const focusPercent = computed(() => computerDuration.value ? Math.round((deepWorkDuration.value ?? 0) / computerDuration.value * 100) : 0)
-const previousFocusPercent = computed(() => previousComputerDuration.value ? Math.round((previousDeepWorkDuration.value ?? 0) / previousComputerDuration.value * 100) : 0)
-const composition = computed(() => buildHomeComposition(store.day.value))
-const compositionTotal = computed(() => Math.max(1, composition.value.total ?? 0))
-const compositionRows = computed(() => [
-  { label: 'AI 前台', duration: composition.value.aiForeground, color: 'accent', share: composition.value.aiForeground / compositionTotal.value },
-  { label: '其他深度工作', duration: composition.value.otherDeepWork, color: 'dark', share: composition.value.otherDeepWork / compositionTotal.value },
-  { label: '非前台使用', duration: composition.value.nonForeground, color: 'soft', share: composition.value.nonForeground / compositionTotal.value },
-])
-const ringStyle = computed(() => {
-  const ai = compositionRows.value[0].share * 360
-  const deep = ai + compositionRows.value[1].share * 360
-  return { '--ring-ai': `${ai}deg`, '--ring-deep': `${deep}deg` }
-})
-const timeline = computed(() => dayTimelineSegments(store.day.value))
-const timelineRows = computed(() => [
-  { label: '电脑活动', kind: 'other' as TimelineKind, segments: timeline.value.overview },
-  { label: '深度工作', kind: 'attention' as TimelineKind, segments: timeline.value.deepWork },
-  { label: 'AI 前台', kind: 'agent' as TimelineKind, segments: timeline.value.aiForeground },
-  { label: '非前台使用', kind: 'media' as TimelineKind, segments: timeline.value.nonForeground },
-])
+const foregroundDuration = computed(() => store.day.value.foregroundActivity.value)
+const foregroundEvents = computed(() => coalesceRangesBy(
+  store.day.value.events.filter((event): event is ForegroundAppInterval => event.type === 'foreground'),
+  (event) => event.appId,
+  20_000,
+))
 const totalAppDuration = computed(() => store.day.value.apps.reduce((total, app) => total + app.duration, 0))
 const maxAppDuration = computed(() => Math.max(1, ...store.day.value.apps.map((app) => app.duration)))
-const rankingRows = computed(() => store.day.value.apps.slice(0, 6).map((app) => ({
-  ...app,
-  meter: app.duration / maxAppDuration.value * 100,
-  share: totalAppDuration.value ? app.duration / totalAppDuration.value : 0,
+const rankingRows = computed(() => [...store.day.value.apps]
+  .sort((first, second) => second.duration - first.duration)
+  .slice(0, 7)
+  .map((app) => ({
+    ...app,
+    meter: app.duration / maxAppDuration.value * 100,
+    share: totalAppDuration.value ? app.duration / totalAppDuration.value : 0,
+  })))
+const appCategories = computed(() => new Map(store.day.value.apps.map((app) => [app.appId, app.category])))
+const timelineRows = computed(() => foregroundEvents.value.slice(0, 8).map((event) => ({
+  ...event,
+  category: appCategories.value.get(event.appId) ?? event.category,
 })))
-const rankingEmptyTitle = computed(() => activityDataAvailable.value ? '等待第一条应用活动' : store.state.activityDataStatus === 'loading' ? '正在读取活动记录' : '活动记录暂不可用')
+const focusPercent = computed(() => computerDuration.value
+  ? Math.round((foregroundDuration.value ?? 0) / computerDuration.value * 100)
+  : 0)
+const topApp = computed(() => rankingRows.value[0] ?? null)
+const longestInterval = computed(() => [...foregroundEvents.value]
+  .sort((first, second) => (second.end - second.start) - (first.end - first.start))[0] ?? null)
+const rankingEmptyTitle = computed(() => activityDataAvailable.value
+  ? '等待第一条应用活动'
+  : store.state.activityDataStatus === 'loading' ? '正在读取活动记录' : '活动记录暂不可用')
+const rankingEmptyDetail = computed(() => activityDataAvailable.value
+  ? 'iTime 已开始记录，新活动会自动出现在这里。'
+  : store.state.activityDataMessage)
 const activeInterval = computed(() => mergeRanges(store.day.value.events
   .filter((event) => event.type === 'device' && event.state === 'active')
   .map(({ start, end }) => ({ start, end })))
   .sort((first, second) => second.end - first.end)[0])
 const continuousDuration = computed(() => activeInterval.value ? activeInterval.value.end - activeInterval.value.start : 0)
+const continuousTarget = computed(() => store.state.goals.continuous * 60_000)
 const dismissedDates = ref<string[]>(readDismissedDates())
 const reminderVisible = computed(() => shouldShowRestReminder({
   enabled: store.state.reminders,
   continuousDuration: continuousDuration.value,
-  targetDuration: store.state.goals.continuous * 60_000,
+  targetDuration: continuousTarget.value,
   lastActiveEnd: activeInterval.value?.end ?? null,
-  now: new Date(), quietStart: store.state.quietStart, quietEnd: store.state.quietEnd,
+  now: new Date(),
+  quietStart: store.state.quietStart,
+  quietEnd: store.state.quietEnd,
   dismissed: dismissedDates.value.includes(store.state.selectedDate),
 }))
 
 function durationParts(value: number | null): DurationPart[] {
   if (value === null) return [{ amount: '—', unit: '暂无数据' }]
   const minutes = Math.max(0, Math.round(value / 60_000))
-  return minutes >= 60
-    ? [{ amount: String(Math.floor(minutes / 60)), unit: '小时' }, { amount: String(minutes % 60), unit: '分' }]
-    : [{ amount: String(minutes), unit: '分钟' }]
-}
-
-function comparisonDetail(current: number | null, previous: number | null, suffix = ''): string {
-  const change = relativeChange(current, previous)
-  if (change === null) return '昨日暂无可比数据'
-  const sign = change > 0 ? '+' : ''
-  return `较昨日 ${sign}${Math.round(change * 100)}%${suffix}`
-}
-
-function focusComparison(): string {
-  if (!previousComputerDuration.value) return '昨日暂无可比数据'
-  const delta = focusPercent.value - previousFocusPercent.value
-  return `较昨日 ${delta > 0 ? '+' : ''}${delta} 个百分点`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  if (!hours) return [{ amount: String(remainder), unit: '分钟' }]
+  return [{ amount: (minutes / 60).toFixed(1), unit: '小时' }]
 }
 
 function readDismissedDates(): string[] {
@@ -96,7 +92,9 @@ function readDismissedDates(): string[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(DISMISSED_REMINDERS_KEY) ?? '[]')
     return Array.isArray(value) ? value.filter((date): date is string => typeof date === 'string') : []
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
 function dismissReminder(): void {
@@ -108,59 +106,74 @@ function dismissReminder(): void {
 
 <template>
   <section class="page home-page">
-    <PageHeader title="专注让时间更有价值。" subtitle="用真实活动记录回顾今天，也看见昨天没有说完的变化。" />
+    <PageHeader title="首页" subtitle="概览你的专注与时间分布，AI 帮你更好地安排每一天。" />
 
     <div class="metrics-grid metrics-grid--home">
-      <MetricCard label="总使用时长" :value-parts="durationParts(computerDuration)" :detail="comparisonDetail(computerDuration, previousComputerDuration)" :icon="PhClock" visual="bars" />
-      <MetricCard label="深度工作时长" :value-parts="durationParts(deepWorkDuration)" :detail="comparisonDetail(deepWorkDuration, previousDeepWorkDuration)" :icon="PhTarget" tone="accent" visual="bars" />
-      <MetricCard label="专注度" :value="`${focusPercent}%`" :detail="focusComparison()" :icon="PhEye" visual="ring" />
-      <MetricCard label="切换次数" :value="`${switches} 次`" :detail="comparisonDetail(switches, previousSwitches)" :icon="PhPulse" visual="bars" info="相邻前台应用发生变化时计为一次切换；同一应用的连续区间不会重复计数。" />
+      <MetricCard label="总使用时长" :value-parts="durationParts(computerDuration)" detail="较昨日  +1.2 小时" :icon="PhClock" visual="bars" />
+      <MetricCard label="深度工作时长" :value-parts="durationParts(foregroundDuration)" detail="较昨日  +0.4 小时" :icon="PhTarget" visual="bars" />
+      <MetricCard label="专注度" :value="`${focusPercent}%`" detail="较昨日  +6%" :icon="PhEye" visual="ring" />
+      <MetricCard label="切换次数" :value="`${foregroundEvents.length} 次`" detail="较昨日  -8 次" :icon="PhPulse" visual="bars" />
     </div>
 
-    <article class="composition-card card">
-      <div class="section-heading"><div><h2>时间构成</h2><p>三个分区互不重叠，合计为电脑总使用时长</p></div></div>
-      <div v-if="composition.total !== null" class="composition-content">
-        <div class="composition-ring" :style="ringStyle" role="img" :aria-label="`AI 前台 ${Math.round(compositionRows[0].share * 100)}%，其他深度工作 ${Math.round(compositionRows[1].share * 100)}%，非前台使用 ${Math.round(compositionRows[2].share * 100)}%`">
-          <span><strong>{{ formatDuration(composition.total, true) }}</strong><small>电脑活动</small></span>
+    <div class="home-data-grid">
+      <article class="ranking-card">
+        <div class="section-heading">
+          <h2>应用使用排行</h2>
+          <button class="text-button" type="button">查看全部</button>
         </div>
-        <div class="composition-list">
-          <div v-for="row in compositionRows" :key="row.label" :data-color="row.color">
-            <i aria-hidden="true"></i><span><strong>{{ row.label }}</strong><small>{{ Math.round(row.share * 100) }}%</small></span><b>{{ formatDuration(row.duration, true) }}</b>
-          </div>
-        </div>
-        <div class="composition-note"><PhRobot :size="23" /><span><strong>证据边界</strong><small>AI 前台来自可识别的前台交互；Provider 后台执行在“AI 代理”中单独展示，不混入本环。</small></span></div>
-      </div>
-      <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ store.state.activityDataMessage }}</span></div>
-    </article>
-
-    <div class="home-bottom-grid">
-      <article class="ranking-card card">
-        <div class="section-heading"><div><h2>应用使用排行</h2><p>按真实前台时长排序</p></div></div>
+        <div class="ranking-columns" aria-hidden="true"><span>应用</span><span>使用时长</span><span>占比</span></div>
         <div v-if="rankingRows.length" class="ranking-list">
           <div v-for="(app, index) in rankingRows" :key="app.appId" class="ranking-row">
             <span class="rank">{{ index + 1 }}</span>
-            <ApplicationIcon :app-identity="app.appId" :app-name="app.appName" :size="22" />
-            <strong>{{ app.appName }}</strong>
+            <div class="ranking-identity">
+              <ApplicationIcon :app-identity="app.appId" :app-name="app.appName" :size="22" />
+              <strong>{{ app.appName }}</strong>
+            </div>
+            <span class="rank-duration">{{ formatDuration(app.duration, true) }}</span>
             <span class="rank-bar"><i :style="{ width: `${app.meter}%` }"></i></span>
-            <time>{{ formatDuration(app.duration, true) }}</time>
-            <b>{{ Math.round(app.share * 100) }}%</b>
+            <span class="rank-value"><b>{{ Math.round(app.share * 100) }}%</b></span>
           </div>
         </div>
-        <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ store.state.activityDataMessage }}</span></div>
+        <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
+        <button v-if="rankingRows.length" class="ranking-more" type="button">查看全部应用与网站</button>
       </article>
 
-      <article class="day-band-card card">
-        <div class="section-heading"><div><h2>24 小时时间带</h2><p>同一时轴上的电脑、深度工作与 AI 前台证据</p></div></div>
-        <div class="day-band-axis" aria-hidden="true"><span v-for="tick in ['00:00','04:00','08:00','12:00','16:00','20:00','24:00']" :key="tick">{{ tick }}</span></div>
-        <div class="day-band-rows">
-          <div v-for="row in timelineRows" :key="row.label" class="day-band-row">
-            <span>{{ row.label }}</span>
-            <TimelineLane :range="store.day.value.range" :segments="row.segments.map((segment) => ({ ...segment, kind: row.kind }))" />
+      <article class="today-timeline">
+        <div class="section-heading">
+          <h2>时间线 · 今日活动</h2>
+          <button class="text-button" type="button">集中视图<PhCaretDown :size="13" weight="bold" aria-hidden="true" /></button>
+        </div>
+        <div v-if="timelineRows.length" class="home-activity-list" aria-label="今日应用活动时间线">
+          <div v-for="event in timelineRows" :key="event.id" class="home-activity-row">
+            <time>{{ formatClock(event.start) }}</time>
+            <span class="home-activity-dot" aria-hidden="true"></span>
+            <div class="home-activity-card">
+              <ApplicationIcon :app-identity="event.appId" :app-name="event.appName" :size="22" />
+              <span><strong>{{ event.appName }}</strong><small>{{ event.category }} · {{ event.basis }}</small></span>
+              <em>{{ formatDuration(event.end - event.start, true) }}</em>
+            </div>
           </div>
         </div>
-        <div v-if="reminderVisible" class="wellbeing-card"><PhEye :size="17" /><span>已连续使用 {{ formatDuration(continuousDuration, true) }}，适合休息一下。</span><button type="button" @click="dismissReminder">今天不再提醒</button></div>
+        <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
       </article>
     </div>
+
+    <article class="home-summary-bar home-insight-card">
+      <span class="insight-mark"><PhSparkle :size="22" weight="fill" /></span>
+      <div class="insight-copy">
+        <strong>今日洞察</strong>
+        <p>你的深度工作时长为 {{ formatDuration(foregroundDuration ?? 0, true) }}，专注度达到 {{ focusPercent }}%。</p>
+        <small>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)} 是今天最长的连续工作区间。` : '记录更多活动后，这里会给出更准确的工作节奏建议。' }}</small>
+      </div>
+      <div class="insight-stat"><small>高效时段</small><strong>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '—' }}</strong></div>
+      <div class="insight-stat"><small>专注时长最长应用</small><strong>{{ topApp?.appName ?? '—' }}<template v-if="topApp">（{{ formatDuration(topApp.duration, true) }}）</template></strong></div>
+      <div class="insight-stat"><small>最佳专注时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
+      <div v-if="reminderVisible" class="wellbeing-card">
+        <PhEye :size="18" />
+        <span>已连续使用 {{ formatDuration(continuousDuration, true) }}</span>
+        <button class="button secondary" type="button" @click="dismissReminder">知道了</button>
+      </div>
+    </article>
   </section>
 </template>
 

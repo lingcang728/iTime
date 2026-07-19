@@ -67,11 +67,6 @@ const runtimeDataProvider = computed(() => desktopRuntime
   ? new EventDataProvider(liveDataset.value)
   : dataProvider)
 const day = computed(() => runtimeDataProvider.value.getDay(state.selectedDate))
-const previousDay = computed(() => {
-  const date = new Date(`${state.selectedDate}T12:00:00`)
-  date.setDate(date.getDate() - 1)
-  return runtimeDataProvider.value.getDay(localDate(date))
-})
 const week = computed(() => runtimeDataProvider.value.getWeek(state.selectedDate))
 const liveInputProvider = shallowRef<InputActivityProvider | null>(null)
 const inputDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
@@ -106,15 +101,6 @@ const input = computed<InputActivitySnapshot>(() => {
     singleKeys: [],
     shortcuts: [],
   }
-})
-const inputWeek = computed<InputActivitySnapshot>(() => {
-  const end = dayRange(state.selectedDate).end
-  const startDate = new Date(end)
-  startDate.setDate(startDate.getDate() - 7)
-  const range = { start: startDate.getTime(), end }
-  return desktopRuntime
-    ? liveInputProvider.value?.getSnapshot(range, 'minute') ?? emptyInputSnapshot(range)
-    : inputActivityProvider.getSnapshot(range, 'minute')
 })
 const selectedTool = computed<AiToolDetail | null>(() => state.selectedToolId
   ? runtimeDataProvider.value.getToolDetail(state.selectedDate, state.selectedToolId)
@@ -363,10 +349,8 @@ export function useAppStore() {
     state,
     themeRevision,
     day,
-    previousDay,
     week,
     input,
-    inputWeek,
     selectedTool,
     stepDate,
     openTool,

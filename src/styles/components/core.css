@@ -13,7 +13,7 @@
   width: min(100%, 1500px);
   min-height: 100%;
   margin: 0 auto;
-  padding: 24px 32px 30px;
+  padding: 14px 32px 28px;
 }
 
 .page-header {
@@ -122,7 +122,7 @@
 }
 
 .metric-card {
-  min-height: 128px;
+  min-height: 138px;
   padding: 18px 20px 16px;
   overflow: hidden;
 }
@@ -137,17 +137,13 @@
 }
 
 .metric-icon {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   display: grid;
   place-items: center;
   color: var(--text-secondary);
-  border-radius: 50%;
-  background: var(--bg-soft);
 }
-
-.metric-card[data-tone="accent"] .metric-icon { background: var(--accent-soft); }
 
 .metric-card[data-tone="accent"] .metric-icon {
   color: var(--accent-strong);

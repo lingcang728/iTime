@@ -1,33 +1,33 @@
-.timeline-page { padding-bottom: 12px; }
+.timeline-page { padding-bottom: 24px; }
 
 .timeline-page .timeline-overview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .timeline-page .timeline-overview .metric-card {
-  min-height: 116px;
-  grid-template-columns: 54px minmax(0, 1fr);
+  min-height: 140px;
+  grid-template-columns: 74px minmax(0, 1fr);
   align-items: center;
-  padding: 18px;
+  padding: 20px 22px;
 }
 
 .timeline-page .timeline-overview .metric-icon {
-  width: 50px;
-  height: 50px;
+  width: 70px;
+  height: 70px;
   border: 0;
   border-radius: 50%;
   background: var(--bg-soft);
 }
 
-.timeline-page .timeline-overview .metric-icon svg { width: 23px; height: 23px; }
+.timeline-page .timeline-overview .metric-icon svg { width: 30px; height: 30px; }
 .timeline-page .timeline-overview .metric-card__art { right: 24px; bottom: 28px; }
 
 .timeline-page .full-timeline {
   position: relative;
-  margin-top: 16px;
-  padding: 16px 18px;
+  margin-top: 22px;
+  padding: 22px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-card);
   background: var(--bg-card);
@@ -115,7 +115,7 @@
   grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 24px;
   padding: 16px 18px;
   border: 1px solid var(--border-soft);
   border-radius: 10px;

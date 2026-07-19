@@ -8,7 +8,7 @@ export interface TrendPoint {
   ai: number | null
 }
 
-const props = withDefaults(defineProps<{ points: TrendPoint[]; secondaryLabel?: string }>(), { secondaryLabel: 'AI 前台活跃' })
+const props = defineProps<{ points: TrendPoint[] }>()
 const activeIndex = ref<number | null>(null)
 const values = computed(() => props.points.flatMap((point) => [point.attention, point.ai]
   .filter((value): value is number => value !== null)))
@@ -52,7 +52,7 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
   <div class="trend" @mouseleave="activeIndex = null">
     <div class="trend__legend">
       <span><i class="attention"></i>主动注意力</span>
-      <span><i class="ai"></i>{{ secondaryLabel }}</span>
+      <span><i class="ai"></i>AI 前台活跃</span>
       <small>悬停或聚焦查看每日数值</small>
     </div>
     <div v-if="values.length" class="trend__plot">
@@ -65,7 +65,7 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
           :key="`${point.label}-${point.note}`"
           :tabindex="point.attention === null && point.ai === null ? -1 : 0"
           role="img"
-          :aria-label="`${point.label} ${point.note}，主动注意力 ${valueLabel(point.attention)}，${secondaryLabel} ${valueLabel(point.ai)}`"
+          :aria-label="`${point.label} ${point.note}，主动注意力 ${valueLabel(point.attention)}，AI 前台活跃 ${valueLabel(point.ai)}`"
           @mouseenter="activeIndex = index"
           @focus="activeIndex = index"
           @blur="activeIndex = null"
@@ -82,10 +82,10 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
       >
         <strong>{{ active.label }} {{ active.note }}</strong>
         <span>主动注意力 {{ valueLabel(active.attention) }}</span>
-        <span>{{ secondaryLabel }} {{ valueLabel(active.ai) }}</span>
+        <span>AI 前台活跃 {{ valueLabel(active.ai) }}</span>
       </div>
     </div>
-    <div v-else class="trend__empty">本周尚无可验证的注意力或 {{ secondaryLabel }}记录</div>
+    <div v-else class="trend__empty">本周尚无可验证的注意力或 AI 前台记录</div>
     <div class="trend__labels" aria-hidden="true"><span v-for="point in points" :key="point.note">{{ point.label }}</span></div>
   </div>
 </template>

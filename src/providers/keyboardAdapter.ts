@@ -14,33 +14,16 @@ const bucketSchema = z.object({
   keyStrokes: z.number().int().positive(),
 }).refine((value) => value.end > value.start)
 
-const detailDaySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  keys: z.array(z.object({
-    key: z.string().min(1).max(24),
-    count: z.number().int().positive(),
-  })),
-  shortcuts: z.array(z.object({
-    shortcut: z.string().min(1).max(80),
-    count: z.number().int().positive(),
-  })),
-})
-
 const keyboardSnapshotSchema = z.object({
   source: z.string().min(1),
   updatedAt: z.number().nonnegative(),
   skippedRecords: z.number().int().nonnegative(),
   buckets: z.array(z.unknown()),
-  detailStartedAt: z.number().int().nonnegative().nullable().default(null),
-  detailDays: z.array(detailDaySchema).default([]),
   capabilities: z.object({
     contentCaptured: z.literal(false),
-    sequenceCaptured: z.literal(false).default(false),
-    keyIdentityCaptured: z.boolean(),
-    shortcutCountsCaptured: z.boolean().default(false),
+    keyIdentityCaptured: z.literal(false),
     directKeyCount: z.literal(true),
     granularity: z.literal('minute'),
-    detailGranularity: z.literal('day').default('day'),
     timezoneSemantics: z.literal('local-time'),
     historicalBackfill: z.literal(false),
   }),
@@ -93,10 +76,7 @@ export class KeyboardInputActivityProvider implements InputActivityProvider {
   constructor(private readonly data: KeyboardWireSnapshot) {}
 
   getAvailableDates(): string[] {
-    return [...new Set([
-      ...this.data.buckets.map((bucket) => formatLocalDate(bucket.start)),
-      ...this.data.detailDays.map((day) => day.date),
-    ])].sort()
+    return [...new Set(this.data.buckets.map((bucket) => formatLocalDate(bucket.start)))].sort()
   }
 
   getSnapshot(range: TimeRange, granularity: InputGranularity = 'hour'): InputActivitySnapshot {
@@ -110,40 +90,20 @@ export class KeyboardInputActivityProvider implements InputActivityProvider {
       .sort(([left], [right]) => left - right)
       .map(([start, keyStrokes]) => point(start, nextBucket(start, granularity), keyStrokes))
     const keyStrokes = buckets.reduce((total, bucket) => total + bucket.keyStrokes, 0)
-    const startDate = formatLocalDate(range.start)
-    const endDate = formatLocalDate(Math.max(range.start, range.end - 1))
-    const detailDays = this.data.detailDays.filter((day) => day.date >= startDate && day.date <= endDate)
-    const keyCounts = new Map<string, number>()
-    const shortcutCounts = new Map<string, number>()
-    for (const day of detailDays) {
-      for (const item of day.keys) keyCounts.set(item.key, (keyCounts.get(item.key) ?? 0) + item.count)
-      for (const item of day.shortcuts) shortcutCounts.set(item.shortcut, (shortcutCounts.get(item.shortcut) ?? 0) + item.count)
-    }
-    const byCountThenName = <T extends { count: number }>(name: (value: T) => string) =>
-      (left: T, right: T) => right.count - left.count || name(left).localeCompare(name(right))
-    const singleKeys = [...keyCounts].map(([key, count]) => ({ key, count })).sort(byCountThenName((item) => item.key))
-    const shortcuts = [...shortcutCounts].map(([shortcut, count]) => ({ shortcut, count })).sort(byCountThenName((item) => item.shortcut))
-    const detailAvailable = this.data.detailStartedAt !== null && range.end > this.data.detailStartedAt
     return {
       version: 'itime-keyboard-v1',
       range,
       source: this.data.source,
       sourceUpdatedAt: this.data.updatedAt,
-      detailAvailableFrom: this.data.detailStartedAt,
       cumulative: point(range.start, range.end, keyStrokes),
       history,
-      singleKeys,
-      shortcuts,
+      singleKeys: [],
+      shortcuts: [],
       capabilities: {
         historyGranularity: 'minute',
-        detailGranularity: this.data.capabilities.keyIdentityCaptured ? 'day' : 'none',
         minuteDensity: true,
-        keyHeatmap: detailAvailable && this.data.capabilities.keyIdentityCaptured,
-        functionalShortcuts: detailAvailable && this.data.capabilities.shortcutCountsCaptured,
-        contentCaptured: false,
-        sequenceCaptured: false,
-        keyIdentityCaptured: this.data.capabilities.keyIdentityCaptured,
-        shortcutCountsCaptured: this.data.capabilities.shortcutCountsCaptured,
+        keyHeatmap: false,
+        functionalShortcuts: false,
         sensitiveSurfaceExclusion: false,
         deleteByDate: false,
         splitHistoricalClicks: false,
@@ -176,7 +136,7 @@ export function keyboardActivityDataset(value: unknown): TimeDataset {
     scrollDistance: 0,
     source: 'itime-keyboard-hook',
     accuracyLabel: 'estimated',
-    basis: 'Windows 低级键盘钩子的分钟总量；键位与快捷键仅按本地日期聚合，不保存顺序、时间戳或输入内容',
+    basis: 'Windows 低级键盘钩子的字符键按下计数；不保存键值或输入内容',
     confidence: 0.94,
     reviewState: 'confirmed',
   }))
