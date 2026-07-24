@@ -14,6 +14,8 @@ export interface AppIdentityInput {
   processId?: number | null
 }
 
+const opaqueIdentityPattern = /^(?:process|exe):/i
+
 const appNameAliases: Record<string, string> = {
   chrome: 'chrome',
   'googlechrome': 'chrome',
@@ -44,6 +46,35 @@ const appNameAliases: Record<string, string> = {
 export function canonicalAppKey(value?: string | null): string | null {
   const compact = value?.trim().toLocaleLowerCase().replace(/[\s._-]+/g, '')
   return compact ? appNameAliases[compact] ?? null : null
+}
+
+/**
+ * Select the identity sent to the native icon resolver.
+ * Anonymous activity ids are stable for aggregation but cannot locate an icon,
+ * so prefer the captured display name unless a concrete package/path identity exists.
+ */
+export function iconResolverIdentity(input: AppIdentityInput): string | null {
+  const concreteIdentity = Boolean(
+    input.executablePath
+    || input.aumid
+    || input.packageFullName
+    || input.packageFamilyName
+    || input.siteHost,
+  )
+  if (concreteIdentity) {
+    return input.appIdentity ?? input.iconKey ?? input.appName ?? null
+  }
+
+  const canonical =
+    canonicalAppKey(input.appName)
+    ?? canonicalAppKey(input.appIdentity)
+    ?? canonicalAppKey(input.iconKey)
+  if (canonical) return canonical
+
+  if (opaqueIdentityPattern.test(input.appIdentity ?? '')) {
+    return input.appName ?? input.iconKey ?? input.appIdentity ?? null
+  }
+  return input.appIdentity ?? input.iconKey ?? input.appName ?? null
 }
 
 export function normalizeLogicalKey(value: string | null | undefined): string | null {

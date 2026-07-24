@@ -51,7 +51,12 @@ struct PendingJob {
 }
 
 impl IconService {
-    pub(crate) fn register_executable_hint(&self, app_identity: String, path: PathBuf) {
+    pub(crate) fn register_executable_hint(
+        &self,
+        app: &AppHandle,
+        app_identity: String,
+        path: PathBuf,
+    ) {
         if !path.is_file() {
             return;
         }
@@ -59,15 +64,24 @@ impl IconService {
             .inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let changed = guard
+            .path_hints
+            .get(&app_identity)
+            .is_none_or(|current| current != &path);
+        let failed = guard.failures.remove(&app_identity).is_some();
         guard
             .hint_order
             .retain(|identity| identity != &app_identity);
         guard.hint_order.push_back(app_identity.clone());
-        guard.path_hints.insert(app_identity, path);
+        guard.path_hints.insert(app_identity.clone(), path);
         while guard.hint_order.len() > MAX_PATH_HINTS {
             if let Some(oldest) = guard.hint_order.pop_front() {
                 guard.path_hints.remove(&oldest);
             }
+        }
+        drop(guard);
+        if changed || failed {
+            let _ = app.emit("app-icon-hint-updated", app_identity);
         }
     }
 
@@ -194,7 +208,24 @@ impl IconService {
             tauri::async_runtime::spawn_blocking(move || {
                 let identity = job.req.app_identity.clone();
                 let size = job.req.size;
-                let outcome = catch_unwind(AssertUnwindSafe(|| extract_and_cache(&job.req)));
+                let outcome = catch_unwind(AssertUnwindSafe(|| {
+                    let first = extract_and_cache(&job.req);
+                    if first.is_ok() || job.req.executable_path.is_some() {
+                        return first;
+                    }
+                    let hint = service_for_task
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .path_hints
+                        .get(&identity)
+                        .cloned();
+                    let Some(hint) = hint else {
+                        return first;
+                    };
+                    let mut retry = job.req.clone();
+                    retry.executable_path = Some(hint.to_string_lossy().to_string());
+                    extract_and_cache(&retry)
+                }));
                 let event = match outcome {
                     Ok(Ok(result)) => IconUpdateEvent {
                         app_identity: identity.clone(),

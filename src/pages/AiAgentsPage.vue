@@ -15,6 +15,7 @@ import {
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
+import ProviderActivityIcon from '../components/ProviderActivityIcon.vue'
 import type { AiInteractionInterval, AiToolStatus, AiToolSummary, AiWorkInterval, StatValue } from '../domain/events'
 import { bestActivityWindow, peakConcurrencyWindow } from '../domain/intervals'
 import { useAppStore } from '../stores/appStore'
@@ -43,13 +44,15 @@ const activityRows = computed(() => {
       ...event,
       title: `${event.toolName} Provider 执行`,
       detail: event.basis,
-      icon: PhPulse,
+      provider: true,
+      icon: null,
     }))
   }
   return aiInteractions.value.slice(0, 8).map((event) => ({
     ...event,
     title: `${event.toolName} 前台活跃`,
     detail: event.basis,
+    provider: false,
     icon: PhUser,
   }))
 })
@@ -158,7 +161,10 @@ const insight = computed(() => {
           <article v-for="row in activityRows" :key="row.id" class="ai-activity-row">
             <time>{{ formatClock(row.start) }}</time>
             <span class="ai-activity-marker" aria-hidden="true"></span>
-            <span class="ai-task-icon"><component :is="row.icon" :size="17" weight="regular" /></span>
+            <span class="ai-task-icon" :class="{ 'is-provider': row.provider }">
+              <ProviderActivityIcon v-if="row.provider" :size="28" />
+              <component :is="row.icon" v-else :size="17" weight="regular" />
+            </span>
             <div><strong>{{ row.title }}</strong><small>{{ row.toolName }} · {{ row.detail }}</small></div>
             <span class="ai-activity-meta"><b>{{ formatDuration(row.end - row.start, true) }}</b><small>置信度 {{ Math.round(row.confidence * 100) }}%</small></span>
           </article>

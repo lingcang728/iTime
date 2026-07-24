@@ -91,6 +91,10 @@
   background: var(--bg-soft);
 }
 
+.ai-task-icon.is-provider {
+  background: transparent;
+}
+
 .ai-activity-row > div { min-width: 0; display: grid; gap: 3px; }
 .ai-activity-row strong { overflow: hidden; font-size: var(--text-body); text-overflow: ellipsis; white-space: nowrap; }
 .ai-activity-row small { overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildAppIdentity, canonicalAppKey, identityAccent, identityGlyph, normalizeLogicalKey } from './appIdentity'
+import {
+  buildAppIdentity,
+  canonicalAppKey,
+  iconResolverIdentity,
+  identityAccent,
+  identityGlyph,
+  normalizeLogicalKey,
+} from './appIdentity'
 
 describe('appIdentity', () => {
   it('prefers aumid package identity', () => {
@@ -42,6 +49,25 @@ describe('appIdentity', () => {
     expect(canonicalAppKey('WindowsTerminal')).toBe('windows-terminal')
     expect(canonicalAppKey('clash-verge')).toBe('clash-verge')
     expect(canonicalAppKey('Weixin')).toBe('wechat')
+  })
+
+  it('uses display names instead of anonymous process ids for native icon lookup', () => {
+    expect(iconResolverIdentity({
+      appIdentity: 'process:49867b7664f0ad13',
+      appName: 'Obsidian',
+    })).toBe('Obsidian')
+    expect(iconResolverIdentity({
+      appIdentity: 'process:0881b9a69f7d3a10',
+      appName: 'immersive-reader',
+    })).toBe('immersive-reader')
+  })
+
+  it('preserves concrete executable identities for native icon lookup', () => {
+    expect(iconResolverIdentity({
+      appIdentity: 'process:opaque',
+      appName: 'Obsidian',
+      executablePath: 'G:\\Apps\\Obsidian.exe',
+    })).toBe('process:opaque')
   })
 
   it('returns stable accent colors for the same identity', () => {

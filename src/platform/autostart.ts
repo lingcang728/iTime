@@ -6,6 +6,15 @@ export async function getAutostartEnabled(): Promise<boolean> {
   return isEnabled()
 }
 
+export async function refreshDesktopAutostartRegistration(): Promise<boolean> {
+  if (!isTauriRuntime()) return false
+  const { disable, enable, isEnabled } = await import('@tauri-apps/plugin-autostart')
+  if (!await isEnabled()) return false
+  await disable()
+  await enable()
+  return isEnabled()
+}
+
 export async function setDesktopAutostart(enabled: boolean): Promise<boolean> {
   if (!isTauriRuntime()) return false
   const { disable, enable, isEnabled } = await import('@tauri-apps/plugin-autostart')

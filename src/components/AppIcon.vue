@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { PhAppWindow } from '@phosphor-icons/vue'
-import { buildAppIdentity, canonicalAppKey, identityAccent, identityGlyph } from '../domain/appIdentity'
+import {
+  buildAppIdentity,
+  canonicalAppKey,
+  iconResolverIdentity,
+  identityAccent,
+  identityGlyph,
+} from '../domain/appIdentity'
 import { embeddedAppIcons } from '../data/appIconAssets'
 import chromeIcon from '../assets/apps/chrome.svg'
 import claudeIcon from '../assets/apps/claude.svg'
@@ -9,10 +15,12 @@ import vscodeIcon from '../assets/apps/vscode.svg'
 import itimeIcon from '../assets/logo.svg'
 import {
   peekAppIcon,
+  forgetAppIcon,
   resolveAppIcon,
   subscribeAppIcons,
   type IconStatus,
 } from '../services/appIconService'
+import { listenDesktop } from '../platform/desktop'
 import { useAppStore } from '../stores/appStore'
 
 const props = withDefaults(
@@ -49,12 +57,17 @@ const displayKey = computed(() => canonicalAppKey(props.appName)
   ?? canonicalAppKey(props.appIdentity)
   ?? canonicalAppKey(props.iconKey)
   ?? (props.appIdentity ?? props.iconKey ?? '').replace(/^app:/, '').toLowerCase())
-const resolverIdentity = computed(() => {
-  const hasConcreteIdentity = Boolean(props.executablePath || props.aumid || props.packageFullName || props.packageFamilyName || props.siteHost)
-  if (hasConcreteIdentity) return props.appIdentity ?? props.iconKey ?? props.appName
-  const opaqueIdentity = /^(?:process|exe):/i.test(props.appIdentity ?? '')
-  return displayKey.value || (opaqueIdentity ? props.appName : null) || props.appIdentity || props.iconKey || props.appName
-})
+const resolverIdentity = computed(() => iconResolverIdentity({
+  appIdentity: props.appIdentity,
+  iconKey: props.iconKey,
+  appName: props.appName,
+  executablePath: props.executablePath,
+  aumid: props.aumid,
+  packageFullName: props.packageFullName,
+  packageFamilyName: props.packageFamilyName,
+  siteHost: props.siteHost,
+  processId: props.processId,
+}))
 const identityInfo = computed(() =>
   buildAppIdentity({
     appIdentity: resolverIdentity.value,
@@ -89,6 +102,7 @@ const showGlyph = computed(() => !showImage.value)
 const ariaLabel = computed(() => props.appName || props.appIdentity || props.iconKey || 'app')
 
 let unsubscribe: (() => void) | undefined
+let unsubscribeHints: (() => void) | undefined
 let mounted = false
 
 async function refresh(): Promise<void> {
@@ -138,12 +152,21 @@ onMounted(() => {
     nativeUrl.value = result.iconUrl ?? null
     if (result.status === 'resolved') imageBroken.value = false
   })
+  void listenDesktop<string>('app-icon-hint-updated', (identity) => {
+    if (identity !== identityInfo.value.identity) return
+    forgetAppIcon(identity)
+    void refresh()
+  }).then((cleanup) => {
+    if (mounted) unsubscribeHints = cleanup
+    else cleanup()
+  })
   void refresh()
 })
 
 onUnmounted(() => {
   mounted = false
   unsubscribe?.()
+  unsubscribeHints?.()
 })
 
 watch(

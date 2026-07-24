@@ -114,13 +114,17 @@ export function peekAppIcon(identity: string): IconResolveResult | undefined {
   return memory.get(identity)
 }
 
+export function forgetAppIcon(identity: string): void {
+  memory.delete(identity)
+  inflight.delete(identity)
+}
+
 export async function resolveAppIcon(
   input: AppIdentityInput & { requestedSize?: number },
 ): Promise<IconResolveResult> {
   const { identity } = buildAppIdentity(input)
   const cached = memory.get(identity)
   if (cached?.status === 'resolved' && cached.iconUrl) return cached
-  if (cached?.status === 'failed') return cached
 
   const pending = inflight.get(identity)
   if (pending) return pending

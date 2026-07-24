@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   PhCaretDown,
   PhClock,
@@ -16,14 +16,14 @@ import type { ForegroundAppInterval } from '../domain/events'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration } from '../utils/format'
-import { shouldShowRestReminder } from '../utils/reminders'
+import { reminderOccurrenceKey, shouldShowRestReminder } from '../utils/reminders'
 
 interface DurationPart {
   amount: string
   unit?: string
 }
 
-const DISMISSED_REMINDERS_KEY = 'itime-home-dismissed-reminders-v1'
+const DISMISSED_REMINDERS_KEY = 'itime-home-dismissed-reminders-v2'
 const store = useAppStore()
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
@@ -66,17 +66,24 @@ const activeInterval = computed(() => mergeRanges(store.day.value.events
   .sort((first, second) => second.end - first.end)[0])
 const continuousDuration = computed(() => activeInterval.value ? activeInterval.value.end - activeInterval.value.start : 0)
 const continuousTarget = computed(() => store.state.goals.continuous * 60_000)
-const dismissedDates = ref<string[]>(readDismissedDates())
+const now = ref(Date.now())
+const dismissedOccurrences = ref<string[]>(readDismissedOccurrences())
+const reminderKey = computed(() => reminderOccurrenceKey(
+  store.state.selectedDate,
+  continuousDuration.value,
+  continuousTarget.value,
+))
 const reminderVisible = computed(() => shouldShowRestReminder({
   enabled: store.state.reminders,
   continuousDuration: continuousDuration.value,
   targetDuration: continuousTarget.value,
   lastActiveEnd: activeInterval.value?.end ?? null,
-  now: new Date(),
+  now: new Date(now.value),
   quietStart: store.state.quietStart,
   quietEnd: store.state.quietEnd,
-  dismissed: dismissedDates.value.includes(store.state.selectedDate),
+  dismissed: !reminderKey.value || dismissedOccurrences.value.includes(reminderKey.value),
 }))
+let reminderClock: number | undefined
 
 function durationParts(value: number | null): DurationPart[] {
   if (value === null) return [{ amount: '—', unit: '暂无数据' }]
@@ -87,7 +94,7 @@ function durationParts(value: number | null): DurationPart[] {
   return [{ amount: (minutes / 60).toFixed(1), unit: '小时' }]
 }
 
-function readDismissedDates(): string[] {
+function readDismissedOccurrences(): string[] {
   if (typeof localStorage === 'undefined') return []
   try {
     const value: unknown = JSON.parse(localStorage.getItem(DISMISSED_REMINDERS_KEY) ?? '[]')
@@ -98,10 +105,19 @@ function readDismissedDates(): string[] {
 }
 
 function dismissReminder(): void {
-  dismissedDates.value = [...new Set([...dismissedDates.value, store.state.selectedDate])].slice(-30)
-  localStorage.setItem(DISMISSED_REMINDERS_KEY, JSON.stringify(dismissedDates.value))
-  store.showToast('今天不再显示这条休息提醒')
+  if (!reminderKey.value) return
+  dismissedOccurrences.value = [...new Set([...dismissedOccurrences.value, reminderKey.value])].slice(-90)
+  localStorage.setItem(DISMISSED_REMINDERS_KEY, JSON.stringify(dismissedOccurrences.value))
+  store.showToast('已关闭本次提示；下个休息间隔仍会提醒')
 }
+
+onMounted(() => {
+  reminderClock = window.setInterval(() => { now.value = Date.now() }, 15_000)
+})
+
+onBeforeUnmount(() => {
+  if (reminderClock !== undefined) window.clearInterval(reminderClock)
+})
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isWithinQuietHours, shouldShowRestReminder } from './reminders'
+import { isWithinQuietHours, reminderOccurrenceKey, shouldShowRestReminder } from './reminders'
 
 describe('rest reminder timing', () => {
   it('supports quiet hours that cross midnight', () => {
@@ -23,5 +23,13 @@ describe('rest reminder timing', () => {
     expect(shouldShowRestReminder(base)).toBe(true)
     expect(shouldShowRestReminder({ ...base, lastActiveEnd: now.getTime() - 61_000 })).toBe(false)
     expect(shouldShowRestReminder({ ...base, quietStart: '11:00', quietEnd: '13:00' })).toBe(false)
+  })
+
+  it('gives each recurring interval its own dismissal key', () => {
+    expect(reminderOccurrenceKey('2026-07-24', 29 * 60_000, 30 * 60_000)).toBeNull()
+    expect(reminderOccurrenceKey('2026-07-24', 30 * 60_000, 30 * 60_000))
+      .toBe('2026-07-24:1800000:1')
+    expect(reminderOccurrenceKey('2026-07-24', 60 * 60_000, 30 * 60_000))
+      .toBe('2026-07-24:1800000:2')
   })
 })

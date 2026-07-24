@@ -2,12 +2,14 @@ mod activity;
 mod icons;
 mod keyboard;
 mod provider_activity;
+mod reminders;
 mod settings;
 
 use activity::ActivityCollector;
 use icons::IconService;
 use keyboard::{KeyboardCollector, KeyboardService};
 use provider_activity::ProviderActivityService;
+use reminders::ReminderService;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
@@ -24,12 +26,18 @@ const DEFAULT_WINDOW_HEIGHT: f64 = 944.0;
 const MIN_WINDOW_WIDTH: f64 = 960.0;
 const MIN_WINDOW_HEIGHT: f64 = 680.0;
 const WORK_AREA_MARGIN: f64 = 16.0;
+const AUTOSTART_ARG: &str = "--autostart";
 
 struct RuntimeState {
     recording: Arc<AtomicBool>,
     recording_generation: Arc<AtomicU64>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
     window_fitted: AtomicBool,
+    maximize_on_first_show: bool,
+}
+
+fn launched_from_autostart(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == AUTOSTART_ARG)
 }
 
 fn fitted_window_size(work_width: f64, work_height: f64) -> (LogicalSize<f64>, LogicalSize<f64>) {
@@ -63,6 +71,17 @@ fn show_main_window(app: &AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+#[tauri::command]
+fn configure_reminders(
+    state: State<'_, ReminderService>,
+    enabled: bool,
+    interval_minutes: u64,
+    quiet_start: String,
+    quiet_end: String,
+) -> Result<(), String> {
+    state.configure(enabled, interval_minutes, &quiet_start, &quiet_end)
 }
 
 fn apply_recording_state(app: &AppHandle, recording: bool) {
@@ -117,6 +136,7 @@ fn quit_app(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let launch_args = std::env::args().collect::<Vec<_>>();
     let recording = Arc::new(AtomicBool::new(settings::load_recording().unwrap_or(true)));
     let recording_generation = Arc::new(AtomicU64::new(0));
     tauri::Builder::default()
@@ -125,13 +145,16 @@ pub fn run() {
             recording_generation: recording_generation.clone(),
             toggle_item: Mutex::new(None),
             window_fitted: AtomicBool::new(false),
+            maximize_on_first_show: launched_from_autostart(&launch_args),
         })
         .manage(IconService::new())
         .manage(KeyboardService::new())
         .manage(ProviderActivityService::new())
+        .manage(ReminderService::new())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![AUTOSTART_ARG]),
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
@@ -141,7 +164,11 @@ pub fn run() {
                 let window = webview.window();
                 let state = webview.app_handle().state::<RuntimeState>();
                 if !state.window_fitted.swap(true, Ordering::AcqRel) {
-                    let _ = fit_main_window_to_work_area(&window);
+                    if state.maximize_on_first_show {
+                        let _ = window.maximize();
+                    } else {
+                        let _ = fit_main_window_to_work_area(&window);
+                    }
                 }
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -158,10 +185,13 @@ pub fn run() {
             };
             let icons = (*app.state::<IconService>()).clone();
             let keyboard = (*app.state::<KeyboardService>()).clone();
+            let reminders = (*app.state::<ReminderService>()).clone();
             app.manage(ActivityCollector::start(
                 recording.clone(),
                 generation,
                 icons,
+                reminders,
+                app.handle().clone(),
             ));
             app.manage(KeyboardCollector::start(keyboard, recording));
             let open = MenuItem::with_id(app, "open", "打开 iTime", true, None::<&str>)?;
@@ -251,6 +281,7 @@ pub fn run() {
             get_recording_state,
             set_recording_state,
             quit_app,
+            configure_reminders,
             activity::get_activity_snapshot,
             provider_activity::get_provider_activity_snapshot,
             icons::commands::resolve_app_icon,
@@ -280,5 +311,14 @@ mod tests {
         let (smaller_size, smaller_minimum) = fitted_window_size(960.0, 600.0);
         assert_eq!(smaller_size, LogicalSize::new(944.0, 584.0));
         assert_eq!(smaller_minimum, smaller_size);
+    }
+
+    #[test]
+    fn recognizes_only_the_explicit_autostart_launch_flag() {
+        assert!(launched_from_autostart(&[
+            "iTime.exe".into(),
+            AUTOSTART_ARG.into(),
+        ]));
+        assert!(!launched_from_autostart(&["iTime.exe".into()]));
     }
 }

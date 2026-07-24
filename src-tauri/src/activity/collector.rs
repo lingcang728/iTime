@@ -4,6 +4,7 @@ use super::{
     storage::append_slice,
 };
 use crate::icons::IconService;
+use crate::reminders::ReminderService;
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -97,6 +98,8 @@ impl ActivityCollector {
         recording: Arc<AtomicBool>,
         generation: Arc<AtomicU64>,
         icons: IconService,
+        reminders: ReminderService,
+        app: tauri::AppHandle,
     ) -> Self {
         let health = Arc::new(HealthState {
             running: AtomicBool::new(false),
@@ -126,14 +129,22 @@ impl ActivityCollector {
                         if let Some(now) = unix_millis() {
                             let current = capture_observation();
                             if let Some((identity, path)) = current.icon_hint.clone() {
-                                icons.register_executable_hint(identity, path);
+                                icons.register_executable_hint(&app, identity, path);
                             }
+                            reminders.observe(
+                                &app,
+                                now,
+                                current.observation.device_state == DeviceState::Active,
+                            );
                             let boundary = observation_boundary(&previous, &current, now);
                             write_previous(&mut previous, boundary, &thread_health);
                             previous = Some((boundary, current.observation));
                         }
                     } else {
                         previous = None;
+                        if let Some(now) = unix_millis() {
+                            reminders.observe(&app, now, false);
+                        }
                     }
                     match receiver.recv_timeout(Duration::from_secs(SAMPLE_INTERVAL_SECONDS)) {
                         Err(RecvTimeoutError::Timeout) => {}

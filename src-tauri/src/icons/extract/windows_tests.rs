@@ -44,7 +44,13 @@ fn extracts_windows_rgba_when_known_vscode_path_is_installed() {
 
 #[test]
 fn extracts_an_installed_windows_shortcut_by_logical_name() {
-    for logical in ["notion", "microsoft-word", "antigravity", "wechat"] {
+    for logical in [
+        "obsidian",
+        "notion",
+        "microsoft-word",
+        "antigravity",
+        "wechat",
+    ] {
         let req = ExtractRequest {
             app_identity: format!("app:{logical}"),
             identity_kind: AppIdentityKind::Logical,
@@ -62,6 +68,36 @@ fn extracts_an_installed_windows_shortcut_by_logical_name() {
         }
     }
     eprintln!("skip: no matching application shortcut installed on this machine");
+}
+
+#[test]
+fn extracts_icon_from_an_explicit_real_executable_when_requested() {
+    let Ok(path) = std::env::var("ITIME_ICON_TEST_EXE") else {
+        eprintln!("skip: ITIME_ICON_TEST_EXE is not set");
+        return;
+    };
+    let path = std::path::PathBuf::from(path);
+    if !path.is_file() {
+        eprintln!("skip: ITIME_ICON_TEST_EXE does not point to a file");
+        return;
+    }
+    let req = ExtractRequest {
+        app_identity: "app:real-icon-test".into(),
+        identity_kind: AppIdentityKind::Logical,
+        executable_path: Some(path.to_string_lossy().to_string()),
+        process_id: None,
+        aumid: None,
+        package_full_name: None,
+        package_family_name: None,
+        size: 48,
+    };
+
+    let (image, source) =
+        windows::extract_rgba_windows(&req, Some(&path), 48).expect("real executable icon extract");
+
+    assert!(image.width() >= 16);
+    assert!(image.height() >= 16);
+    assert_ne!(source, IconSource::Fallback);
 }
 
 fn vscode_request() -> ExtractRequest {

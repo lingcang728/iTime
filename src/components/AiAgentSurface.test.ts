@@ -57,6 +57,7 @@ describe('AI agent surface', () => {
     expect(wrapper.text()).toContain('不读取会话内容')
     expect(wrapper.text()).toContain('高效时段')
     expect(wrapper.text()).toContain('最佳并发时段')
+    expect(wrapper.findComponent({ name: 'ProviderActivityIcon' }).exists()).toBe(true)
   })
 
   it('uses one flat evidence surface and a neutral timeline taxonomy', () => {

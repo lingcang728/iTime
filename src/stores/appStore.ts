@@ -12,7 +12,11 @@ import {
   type InputActivitySnapshot,
 } from '../providers/inputActivity'
 import { loadKeyboardData } from '../providers/keyboardAdapter'
-import { getAutostartEnabled, setDesktopAutostart } from '../platform/autostart'
+import {
+  getAutostartEnabled,
+  refreshDesktopAutostartRegistration,
+  setDesktopAutostart,
+} from '../platform/autostart'
 import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
 import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark, type ResolvedTheme, type ThemeMode } from './theme'
@@ -312,6 +316,9 @@ async function refreshAutostart(): Promise<void> {
   state.autostartStatus = 'loading'
   try {
     state.autostartEnabled = await getAutostartEnabled()
+    if (state.autostartEnabled) {
+      state.autostartEnabled = await refreshDesktopAutostartRegistration()
+    }
     state.autostartStatus = 'ready'
     state.autostartMessage = state.autostartEnabled ? '已由 Windows 注册开机启动' : '当前不会随 Windows 启动'
   } catch (error) {

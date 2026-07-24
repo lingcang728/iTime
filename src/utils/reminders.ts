@@ -27,3 +27,13 @@ export function shouldShowRestReminder(input: {
     && !isWithinQuietHours(input.now, input.quietStart, input.quietEnd)
     && !input.dismissed
 }
+
+export function reminderOccurrenceKey(
+  date: string,
+  continuousDuration: number,
+  targetDuration: number,
+): string | null {
+  if (targetDuration <= 0) return null
+  const occurrence = Math.floor(continuousDuration / targetDuration)
+  return occurrence > 0 ? `${date}:${targetDuration}:${occurrence}` : null
+}

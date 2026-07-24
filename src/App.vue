@@ -18,6 +18,7 @@ import {
 import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
 import {
+  configureDesktopReminders,
   hideWindow, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
   quitApplication, startWindowDragging, toggleMaximizeWindow,
 } from './platform/desktop'
@@ -39,6 +40,7 @@ const navItems = [
   { id: 'settings', label: '设置', icon: PhGearSix },
 ] as const
 const cleanups: Array<() => void> = []
+let reminderSync = Promise.resolve()
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -94,6 +96,32 @@ async function toggleWindowSize(): Promise<void> {
   await syncMaximized()
 }
 
+function syncReminderConfiguration(): void {
+  reminderSync = reminderSync
+    .catch(() => undefined)
+    .then(() => configureDesktopReminders({
+      enabled: store.state.reminders,
+      intervalMinutes: store.state.goals.continuous,
+      quietStart: store.state.quietStart,
+      quietEnd: store.state.quietEnd,
+    }))
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      store.showToast(`休息提醒暂不可用：${message}`)
+    })
+}
+
+watch(
+  () => [
+    store.state.reminders,
+    store.state.goals.continuous,
+    store.state.quietStart,
+    store.state.quietEnd,
+  ],
+  syncReminderConfiguration,
+  { immediate: true },
+)
+
 onMounted(async () => {
   store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
   window.addEventListener('keydown', handleKeydown)
@@ -102,6 +130,12 @@ onMounted(async () => {
     listenDesktop<string>('recording-error', (message) => store.showToast(message)),
     listenDesktop<string>('navigate-to', (page) => router.push({ name: page })),
     listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }),
+    listenDesktop<{ continuousMinutes: number }>('rest-reminder-due', ({ continuousMinutes }) => {
+      store.showToast(`休息提醒：已连续使用 ${continuousMinutes} 分钟`)
+    }),
+    listenDesktop<string>('rest-reminder-error', (message) => {
+      store.showToast(`系统通知发送失败：${message}`)
+    }),
     listenDesktop('native-close-requested', () => requestClose()),
     listenWindowResize(() => { void syncMaximized() }),
   ]))
