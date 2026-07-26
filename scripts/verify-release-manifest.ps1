@@ -1,5 +1,6 @@
 param(
-  [string]$ReleaseDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'release')
+  [string]$ReleaseDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'release'),
+  [switch]$RequireCleanSource
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +33,9 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1) { throw "不支持的 manifest schema：$($manifest.schemaVersion)" }
 if ($manifest.productName -cne 'iTime') { throw "产品名不一致：$($manifest.productName)" }
 if (-not $manifest.version) { throw 'manifest 缺少版本。' }
+if ($RequireCleanSource -and [bool]$manifest.sourceDirty) {
+  throw '正式发布 manifest 标记为脏源码，拒绝验收。'
+}
 if (-not $manifest.gitCommit -or $manifest.gitCommit -notmatch '^[0-9a-f]{40}$') {
   throw 'manifest 的 gitCommit 不是完整的 40 位提交。'
 }
@@ -78,6 +82,17 @@ foreach ($expectedName in $expectedNames) {
   if ([long]$entry[0].sizeBytes -ne $file.Length) { throw "文件大小校验失败：$expectedName" }
   if ($entry[0].sha256 -cne $hash) { throw "SHA-256 校验失败：$expectedName" }
   if ($entry[0].sourceSha256 -cne $hash) { throw "构建源 SHA-256 校验失败：$expectedName" }
+}
+
+$expectedRoles = [ordered]@{
+  portable = 'iTime.exe'
+  installer = "iTime_$($manifest.version)_x64-setup.exe"
+}
+foreach ($role in $expectedRoles.Keys) {
+  $entry = @($manifestFiles | Where-Object {
+    $_.role -ceq $role -and $_.fileName -ceq $expectedRoles[$role]
+  })
+  if ($entry.Count -ne 1) { throw "manifest 缺少唯一的 $role 角色映射。" }
 }
 
 [PSCustomObject]@{

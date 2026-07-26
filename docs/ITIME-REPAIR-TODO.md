@@ -70,10 +70,21 @@
 
 ### 1.3 CI 与不可变发布
 
-- [ ] Windows PR/main CI 覆盖 `npm ci`、`verify:full` 和生产依赖审计。
-- [ ] 视觉失败证据可上传，但不包含用户运行数据。
-- [ ] `v*` 发布工作流验证版本一致、干净重建、manifest 和不可变标签。
+- [x] Windows PR/main CI 覆盖 `npm ci`、`verify:full` 和生产依赖审计。
+- [x] 视觉失败证据可上传，但不包含用户运行数据。
+- [x] `v*` 发布工作流验证版本一致、干净重建、manifest 和不可变标签。
 - [ ] 官网下载元数据由同一 manifest 生成或校验。
+
+阶段 1.3 当前证据（2026-07-27）：
+
+- CI 与发布工作流使用官方 Actions v7 的固定 commit；Windows CI 同时执行锁定安装、
+  生产依赖审计和完整视觉门禁，失败时只上传合成测试页面截图与报告。
+- `audit:prod` 显式使用 npm 官方安全审计端点，避免本机安装镜像不实现审计 API 时产生
+  “无漏洞”的假通过或与代码无关的 404。
+- 发布仅响应 `v*` 标签，校验 package/package-lock/Cargo/Tauri 四处版本、标签指向、
+  干净工作树和 manifest；同标签已有 GitHub Release 时直接失败。
+- 发布只创建两个 EXE 资产，随后从 GitHub Release 重新下载并按同一 manifest 独立验哈希。
+- 官网 manifest 对接将在阶段 5 与网站修订一起完成。
 
 ## 阶段 2：统计真实性与 Provider 隐私（P0）
 
