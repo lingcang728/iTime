@@ -97,7 +97,7 @@ impl ProviderActivityService {
             6,
             &mut candidates,
         );
-        candidates.sort_by(|left, right| right.2.cmp(&left.2));
+        candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.2));
         candidates.truncate(MAX_PROVIDER_FILES);
 
         let mut intervals = Vec::new();
