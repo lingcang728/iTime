@@ -50,11 +50,23 @@
 
 ### 1.2 可复现打包
 
-- [ ] `package:release` 强制运行 `verify:full` 并重新构建。
-- [ ] 打包过程不写开始菜单、`HKCU\App Paths` 或其他用户系统入口。
-- [ ] 同一构建同步生成便携版和安装包，且 `release` 中恰有两个 EXE。
-- [ ] 生成 `release/release-manifest.json`，记录版本、提交、时间、文件大小和 SHA-256。
-- [ ] 两个 release 文件分别与 Cargo/NSIS 同轮源产物哈希一致。
+- [x] `package:release` 强制运行 `verify:full` 并重新构建。
+- [x] 打包过程不写开始菜单、`HKCU\App Paths` 或其他用户系统入口。
+- [x] 同一构建同步生成便携版和安装包，且 `release` 中恰有两个 EXE。
+- [x] 生成 `release/release-manifest.json`，记录版本、提交、时间、文件大小和 SHA-256。
+- [x] 两个 release 文件分别与 Cargo/NSIS 同轮源产物哈希一致。
+
+阶段 1.2 验证证据（2026-07-27）：
+
+- 默认 `npm run package:release` 完成 `verify:full`、fresh Tauri/NSIS 构建、
+  双 EXE 原子替换和 `verify-release-manifest.ps1` 独立复核。
+- 默认 release 产物：便携版 `10,244,608` 字节，安装包 `2,443,728` 字节；
+  manifest 中每个目标哈希与 Cargo/NSIS 构建源哈希一致。
+- 打包前后 `HKCU\App Paths` 值、快捷方式长度、修改时间和 SHA-256 完全相同。
+- 在此前不存在的 `output/stage1-zero-release` 中再次成功生成两个 EXE 和 manifest，
+  证明从零路径不依赖旧 release 文件；该目录作为本地忽略证据保留。
+- 曾遇到一次嵌套 Windows PowerShell 无法自动加载 `Get-FileHash`，已改用无模块依赖的
+  .NET SHA-256 文件流；一次旧便携版进程锁由精确 `ExecutablePath`/PID 识别后仅关闭该实例。
 
 ### 1.3 CI 与不可变发布
 
