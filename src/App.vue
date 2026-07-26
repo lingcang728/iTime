@@ -183,7 +183,7 @@ onBeforeUnmount(() => {
       </div>
       <main id="main-content" class="page-viewport" tabindex="-1">
         <RouterView v-slot="{ Component }">
-          <Transition name="page"><component :is="Component" /></Transition>
+          <Transition name="page" mode="out-in"><component :is="Component" /></Transition>
         </RouterView>
       </main>
     </section>

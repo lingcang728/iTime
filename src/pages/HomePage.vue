@@ -54,6 +54,16 @@ const focusPercent = computed(() => computerDuration.value
 const topApp = computed(() => rankingRows.value[0] ?? null)
 const longestInterval = computed(() => [...foregroundEvents.value]
   .sort((first, second) => (second.end - second.start) - (first.end - first.start))[0] ?? null)
+// P4: real trend arrays for MetricCard decorative bars
+const computerTrend = computed(() => store.week.value.map((d) => d.computerActivity.value ?? 0))
+const foregroundTrend = computed(() => store.week.value.map((d) => d.foregroundActivity.value ?? 0))
+const switchTrend = computed(() => {
+  // count foreground switch events per day
+  return store.week.value.map((d) => {
+    return d.events.filter((e) => e.type === 'foreground').length
+  })
+})
+
 const rankingEmptyTitle = computed(() => activityDataAvailable.value
   ? '等待第一条应用活动'
   : store.state.activityDataStatus === 'loading' ? '正在读取活动记录' : '活动记录暂不可用')
@@ -125,10 +135,10 @@ onBeforeUnmount(() => {
     <PageHeader title="首页" subtitle="概览你的专注与时间分布，AI 帮你更好地安排每一天。" />
 
     <div class="metrics-grid metrics-grid--home">
-      <MetricCard label="总使用时长" :value-parts="durationParts(computerDuration)" detail="较昨日  +1.2 小时" :icon="PhClock" visual="bars" />
-      <MetricCard label="深度工作时长" :value-parts="durationParts(foregroundDuration)" detail="较昨日  +0.4 小时" :icon="PhTarget" visual="bars" />
+      <MetricCard label="总使用时长" :value-parts="durationParts(computerDuration)" detail="较昨日  +1.2 小时" :icon="PhClock" visual="bars" :trend="computerTrend" />
+      <MetricCard label="深度工作时长" :value-parts="durationParts(foregroundDuration)" detail="较昨日  +0.4 小时" :icon="PhTarget" visual="bars" :trend="foregroundTrend" />
       <MetricCard label="专注度" :value="`${focusPercent}%`" detail="较昨日  +6%" :icon="PhEye" visual="ring" />
-      <MetricCard label="切换次数" :value="`${foregroundEvents.length} 次`" detail="较昨日  -8 次" :icon="PhPulse" visual="bars" />
+      <MetricCard label="切换次数" :value="`${foregroundEvents.length} 次`" detail="较昨日  -8 次" :icon="PhPulse" visual="bars" :trend="switchTrend" />
     </div>
 
     <div class="home-data-grid">

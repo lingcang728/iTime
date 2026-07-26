@@ -1,6 +1,6 @@
 import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { mockDates } from '../data/mockEvents'
-import type { TimeDataset } from '../domain/events'
+import type { DaySnapshot, TimeDataset } from '../domain/events'
 import { loadActivityData } from '../providers/activityAdapter'
 import { loadProviderActivityData } from '../providers/providerActivityAdapter'
 import type { AiToolDetail } from '../providers/prototypeDataProvider'
@@ -59,19 +59,45 @@ const state = reactive({
 const liveActivityDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
 const liveProviderDataset = shallowRef<TimeDataset>({ version: 'itime-local-provider-v1', events: [] })
 const liveKeyboardDataset = shallowRef<TimeDataset>({ version: 'itime-keyboard-v1', events: [] })
-const liveDataset = computed<TimeDataset>(() => ({
-  version: 'itime-local-combined-v1',
-  events: [
-    ...liveActivityDataset.value.events,
-    ...liveProviderDataset.value.events,
-    ...liveKeyboardDataset.value.events,
-  ],
-}))
+// P1-2: stable reference — only re-merges when a source actually changes
+const liveDataset = shallowRef<TimeDataset>({ version: 'itime-local-combined-v1', events: [] })
+watch(
+  [liveActivityDataset, liveProviderDataset, liveKeyboardDataset],
+  ([a, p, k]) => {
+    liveDataset.value = {
+      version: 'itime-local-combined-v1',
+      events: [...a.events, ...p.events, ...k.events],
+    }
+  },
+  { flush: 'sync', immediate: true },
+)
+
 const runtimeDataProvider = computed(() => desktopRuntime
   ? new EventDataProvider(liveDataset.value)
   : dataProvider)
-const day = computed(() => runtimeDataProvider.value.getDay(state.selectedDate))
-const week = computed(() => runtimeDataProvider.value.getWeek(state.selectedDate))
+
+// P1-1: snapshot cache — invalidated on every data refresh, O(1) on repeated reads
+const snapshotCache = new Map<string, DaySnapshot>()
+watch(runtimeDataProvider, () => { snapshotCache.clear() }, { flush: 'sync' })
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function getCachedDay(date: string): DaySnapshot {
+  if (!snapshotCache.has(date)) snapshotCache.set(date, runtimeDataProvider.value.getDay(date))
+  return snapshotCache.get(date)!
+}
+
+const day = computed(() => getCachedDay(state.selectedDate))
+const week = computed(() => {
+  const end = new Date(`${state.selectedDate}T12:00:00`)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(end)
+    d.setDate(end.getDate() - (6 - i))
+    return getCachedDay(localDateKey(d))
+  })
+})
 const liveInputProvider = shallowRef<InputActivityProvider | null>(null)
 const inputDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
 const activityDates = shallowRef<string[]>(desktopRuntime ? [localDate()] : [...mockDates])

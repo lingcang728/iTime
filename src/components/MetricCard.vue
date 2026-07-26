@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { PhInfo } from '@phosphor-icons/vue'
 import type { Component } from 'vue'
 
@@ -7,7 +8,7 @@ interface MetricValuePart {
   unit?: string
 }
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   label: string
   value?: string
   valueParts?: readonly MetricValuePart[]
@@ -16,7 +17,15 @@ withDefaults(defineProps<{
   info?: string
   tone?: 'neutral' | 'accent' | 'warning' | 'danger'
   visual?: 'bars' | 'ring'
+  trend?: readonly number[]
 }>(), { tone: 'neutral' })
+
+// P4: derive bar heights from real trend data, or fall back to decorative stripes
+const trendHeights = computed<number[]>(() => {
+  if (!props.trend?.length) return []
+  const max = Math.max(1, ...props.trend)
+  return props.trend.map((v) => Math.max(8, Math.round(v / max * 96)))
+})
 </script>
 
 <template>
@@ -42,7 +51,12 @@ withDefaults(defineProps<{
       <small>{{ detail }}</small>
     </div>
     <span v-if="visual === 'bars'" class="metric-card__art metric-bars" aria-hidden="true">
-      <i v-for="height in [42, 66, 78, 46, 61, 96]" :key="height" :style="{ height: `${height}%` }"></i>
+      <template v-if="trendHeights.length">
+        <i v-for="(height, idx) in trendHeights" :key="idx" :style="{ height: `${height}%` }"></i>
+      </template>
+      <template v-else>
+        <i v-for="idx in 6" :key="idx" class="metric-bars__stripe"></i>
+      </template>
     </span>
     <svg v-else-if="visual === 'ring'" class="metric-card__art metric-ring" viewBox="0 0 44 44" aria-hidden="true">
       <circle cx="22" cy="22" r="17" class="metric-ring__track" />
@@ -174,6 +188,13 @@ withDefaults(defineProps<{
   background: color-mix(in srgb, var(--accent) 48%, var(--bg-soft));
   transform-origin: bottom;
   animation: metric-rise 360ms var(--ease-out) both;
+}
+
+.metric-bars__stripe {
+  height: 40% !important;
+  background: color-mix(in srgb, var(--border-soft) 80%, var(--bg-soft)) !important;
+  animation: none !important;
+  opacity: 0.5;
 }
 
 .metric-bars i:nth-child(2) { animation-delay: 30ms; }

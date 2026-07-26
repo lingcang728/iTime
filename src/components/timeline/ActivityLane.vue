@@ -23,6 +23,7 @@ const positioned = computed(() => {
     const left = (start - props.range.start) / duration * 100
     const width = Math.min(100 - left, Math.max(.12, (end - start) / duration * 100))
     const gap = width >= 1.5 ? 2 : width >= .55 ? 1 : 0
+    const durationMs = end - start
     return [{
       ...segment,
       start,
@@ -32,8 +33,9 @@ const positioned = computed(() => {
       gap: `${gap}px`,
       gapTotal: `${gap * 2}px`,
       widthPercent: width,
+      durationMs,
       edge: left < 14 ? 'left' : left + width > 86 ? 'right' : 'center',
-      accessibleLabel: `${segment.title}，${formatClock(start)} 至 ${formatClock(end)}，${formatDuration(end - start, true)}`,
+      accessibleLabel: `${segment.title}，${formatClock(start)} 至 ${formatClock(end)}，${formatDuration(durationMs, true)}`,
     }]
   })
 })
@@ -55,7 +57,7 @@ const positioned = computed(() => {
         :aria-label="segment.accessibleLabel"
       >
         <b v-if="segment.widthPercent >= 8 && !segment.muted && segment.variant !== 'hatched'" class="lane-segment__label" aria-hidden="true">{{ segment.title }}</b>
-        <span role="tooltip"><strong>{{ segment.title }}</strong>{{ formatClock(segment.start) }}–{{ formatClock(segment.end) }}</span>
+        <span role="tooltip"><strong>{{ segment.title }}</strong>{{ formatClock(segment.start) }}–{{ formatClock(segment.end) }} · {{ formatDuration(segment.durationMs, true) }}</span>
       </span>
     </div>
   </div>
@@ -117,9 +119,9 @@ const positioned = computed(() => {
   z-index: 2;
   top: 9px;
   left: calc(var(--segment-left) + var(--segment-gap));
-  width: max(3px, calc(var(--segment-width) - var(--segment-gap-total)));
+  width: max(4px, calc(var(--segment-width) - var(--segment-gap-total)));
   height: 22px;
-  min-width: 3px;
+  min-width: 4px;
   border: 1px solid color-mix(in srgb, var(--segment-color) 72%, var(--border-strong));
   border-radius: 5px;
   background: color-mix(in srgb, var(--segment-color) 80%, var(--bg-card));

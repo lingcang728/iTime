@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 export interface TrendPoint {
   label: string
@@ -22,6 +22,10 @@ const positioned = computed(() => props.points.map((point, index) => ({
 const attentionPath = computed(() => buildPath('attentionY'))
 const aiPath = computed(() => buildPath('aiY'))
 const active = computed(() => activeIndex.value === null ? null : positioned.value[activeIndex.value])
+
+// P3-1: entrance animation epoch — bump to replay draw animation on navigation
+const drawEpoch = ref(0)
+onMounted(() => { drawEpoch.value += 1 })
 
 function buildPath(field: 'attentionY' | 'aiY'): string {
   return positioned.value.reduce((result, point, index) => {
@@ -58,8 +62,12 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
     <div v-if="values.length" class="trend__plot">
       <svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="本周主动注意力与 AI 前台活跃趋势图">
         <line v-for="y in [44, 114, 184]" :key="y" x1="46" :y1="y" x2="654" :y2="y" class="trend__grid" />
-        <path :d="attentionPath" class="trend__line trend__line--attention" />
-        <path :d="aiPath" class="trend__line trend__line--ai" />
+        <Transition name="trend-draw" appear>
+          <g :key="drawEpoch">
+            <path :d="attentionPath" class="trend__line trend__line--attention" />
+            <path :d="aiPath" class="trend__line trend__line--ai" />
+          </g>
+        </Transition>
         <g
           v-for="(point, index) in positioned"
           :key="`${point.label}-${point.note}`"
@@ -70,8 +78,8 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
           @focus="activeIndex = index"
           @blur="activeIndex = null"
         >
-          <circle v-if="point.attentionY !== null" :cx="point.x" :cy="point.attentionY" :r="isEndpoint(index, 'attention') ? 7 : 5" class="attention" :class="{ endpoint: isEndpoint(index, 'attention') }" />
-          <circle v-if="point.aiY !== null" :cx="point.x" :cy="point.aiY" :r="isEndpoint(index, 'ai') ? 7 : 5" class="ai" :class="{ endpoint: isEndpoint(index, 'ai') }" />
+          <circle v-if="point.attentionY !== null" :cx="point.x" :cy="point.attentionY" :r="isEndpoint(index, 'attention') ? 7 : 5" class="attention trend__dot" :class="{ endpoint: isEndpoint(index, 'attention') }" :style="{ animationDelay: `${index * 60}ms` }" />
+          <circle v-if="point.aiY !== null" :cx="point.x" :cy="point.aiY" :r="isEndpoint(index, 'ai') ? 7 : 5" class="ai trend__dot" :class="{ endpoint: isEndpoint(index, 'ai') }" :style="{ animationDelay: `${index * 60 + 30}ms` }" />
         </g>
       </svg>
       <div
@@ -116,6 +124,35 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
 .trend__tooltip span { color: var(--text-secondary); }
 .trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 2px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .trend__empty { min-height: 172px; display: grid; place-items: center; margin-top: 6px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: 10px; }
+
+/* P3-1: entrance animation */
+@keyframes trend-dot-pop {
+  from { r: 0; opacity: 0; }
+  60%  { r: 9; opacity: 1; }
+  to   { r: inherit; opacity: 1; }
+}
+
+@keyframes trend-path-draw {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.3; }
+  to   { clip-path: inset(0 0% 0 0); opacity: 1; }
+}
+
+.trend-draw-enter-active path {
+  animation: trend-path-draw 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.trend__dot {
+  animation: trend-dot-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend-draw-enter-active path,
+  .trend__dot {
+    animation: none;
+  }
+}
 
 @media (max-width: 720px) {
   .trend__legend { flex-wrap: wrap; }

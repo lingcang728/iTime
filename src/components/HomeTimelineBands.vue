@@ -66,6 +66,16 @@ const axisTicks = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'
   border: 0;
   border-radius: 3px;
   box-shadow: none;
+  opacity: 0.85;
+  transition: opacity 150ms ease, transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.2, 1));
+}
+
+.home-timeline-band :deep(.timeline-segment:hover),
+.home-timeline-band :deep(.timeline-segment:focus) {
+  opacity: 1;
+  transform: scaleY(1.06);
+  transform-origin: center;
+  z-index: 4;
 }
 
 .home-timeline-axis {

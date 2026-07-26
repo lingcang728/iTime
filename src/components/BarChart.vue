@@ -105,7 +105,7 @@ function valueLabel(value: number | null | undefined): string {
 .week-bars__value i { width: min(28px, 38%); overflow: hidden; font-style: normal; text-align: center; }
 .week-bars__value i.secondary { color: var(--text-muted); }
 .week-bars__columns { width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 5px; }
-.week-bars__bar { width: min(28px, 38%); border-radius: 6px 6px 2px 2px; transition: filter 160ms ease; }
+.week-bars__bar { width: min(28px, 38%); border-radius: 6px 6px 2px 2px; transition: filter 160ms ease, height 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .week-bars__bar--primary,
 .week-bars--green .week-bars__bar--primary { background: var(--accent-green); }
 .week-bars__bar--secondary { background: color-mix(in srgb, var(--text-muted) 62%, var(--bg-soft)); }

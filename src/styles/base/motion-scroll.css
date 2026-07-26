@@ -17,7 +17,10 @@
 }
 
 .page-enter-active,
-.page-leave-active,
+.page-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
 .drawer-enter-active,
 .drawer-leave-active,
 .modal-enter-active,
@@ -36,8 +39,9 @@
   transition: transform 160ms var(--ease-out);
 }
 
-.page-enter-from,
-.page-leave-to,
+.page-enter-from { opacity: 0; transform: translateY(4px); }
+.page-leave-to   { opacity: 0; transform: translateY(-4px); }
+
 .drawer-enter-from,
 .drawer-leave-to,
 .modal-enter-from,

@@ -120,6 +120,14 @@ svg {
   transition: transform 150ms var(--ease-out), opacity 150ms var(--ease-out);
 }
 
+.spark-point::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
 .spark-point.endpoint { opacity: 1; }
 .spark-point:hover,
 .spark-point:focus-visible { z-index: 3; transform: translate(-50%, -50%) scale(1.28); opacity: 1; }

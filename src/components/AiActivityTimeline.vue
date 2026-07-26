@@ -86,6 +86,7 @@ const lanes = computed<LaneView[]>(() => {
     <div v-for="lane in lanes" :key="lane.id" class="timeline__lane">
       <div class="timeline__name"><strong>{{ lane.label }}</strong><span>{{ lane.meta }}</span></div>
       <div class="timeline__track">
+        <span v-for="tick in ticks" :key="`grid-${tick}`" class="timeline__grid-line" :style="{ left: `${tick / 24 * 100}%` }" aria-hidden="true" />
         <button
           v-for="item in lane.segments"
           :key="item.id"
@@ -184,6 +185,21 @@ const lanes = computed<LaneView[]>(() => {
   position: absolute;
   inset: 14px 0 auto;
   border-top: 1px solid var(--border-soft);
+}
+
+.timeline__grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--border-soft) 80%, transparent);
+  pointer-events: none;
+  opacity: 0.08;
+}
+
+.timeline__grid-line:first-child,
+.timeline__grid-line:last-child {
+  opacity: 0;
 }
 
 .timeline__segment {

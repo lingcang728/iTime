@@ -26,11 +26,23 @@ import { coalesceRangesBy } from '../domain/intervals'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatDuration, formatRatio } from '../utils/format'
+import { useNow } from '../composables/useNow'
 
 interface DurationPart { amount: string; unit?: string }
 
 const store = useAppStore()
 const notesOpen = ref(false)
+const { nowMs } = useNow()
+const isToday = computed(() => {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  return store.state.selectedDate === todayStr
+})
+const nowPercent = computed(() => {
+  const range = displayRange.value
+  if (!isToday.value) return null
+  const pct = (nowMs.value - range.start) / Math.max(1, range.end - range.start) * 100
+  return Math.min(100, Math.max(0, pct))
+})
 const deviceStyles = {
   active: { color: 'var(--timeline-device)', kind: 'attention', variant: 'solid', muted: false },
   idle: { color: 'var(--timeline-idle)', kind: 'waiting', variant: 'solid', muted: true },
@@ -126,6 +138,7 @@ function durationParts(value: number | null): DurationPart[] {
           <div class="timeline-axis__ticks"><span v-for="hour in 10" :key="hour" :style="{ left: `${(hour - 1) / 9 * 100}%` }">{{ String(hour + 8).padStart(2, '0') }}:00</span></div>
         </div>
         <div class="timeline-tracks">
+          <div v-if="nowPercent !== null" class="timeline-now-indicator" :style="{ left: `calc(146px + 14px + ${nowPercent}% * (100% - 146px - 14px - 18px - 18px) / 100)` }" aria-hidden="true" />
           <ActivityLane label="设备状态" :icon="PhDesktop" :range="displayRange" :segments="deviceSegments" />
           <ActivityLane label="前台应用" :icon="PhSquaresFour" :range="displayRange" :segments="appSegments" />
           <ActivityLane label="AI 前台" :icon="PhSparkle" :range="displayRange" :segments="aiSegments" />
@@ -143,3 +156,21 @@ function durationParts(value: number | null): DurationPart[] {
     </article>
   </section>
 </template>
+
+<style scoped>
+.timeline-tracks {
+  position: relative;
+}
+
+.timeline-now-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-strong) 70%, transparent);
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 1px;
+}
+</style>

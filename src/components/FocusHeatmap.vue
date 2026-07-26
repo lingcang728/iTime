@@ -22,9 +22,13 @@ const tooltipPosition = computed(() => ({
   'at-top': (active.value?.weekday ?? 0) >= 4,
 }))
 
-watch(() => props.days, (days) => {
-  if (locked.value && !days.some((day) => day.date === locked.value?.date && day.available)) locked.value = null
-}, { deep: true })
+// P1-3: shallow comparison via cheap signature — avoids deep-traversing 49 objects
+watch(
+  () => `${props.days.length}-${props.days[0]?.date ?? ''}-${props.days.at(-1)?.date ?? ''}`,
+  () => {
+    if (locked.value && !props.days.some((day) => day.date === locked.value?.date && day.available)) locked.value = null
+  },
+)
 
 onBeforeUpdate(() => { cellRefs.length = 0 })
 
