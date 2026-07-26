@@ -23,18 +23,21 @@ function niceCeiling(value: number): number {
   if (value <= 0) return 4
   const magnitude = 10 ** Math.floor(Math.log10(value))
   const normalized = value / magnitude
-  const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+  const factor = [1, 1.5, 2, 3, 4, 5, 6, 8, 10].find((candidate) => normalized <= candidate) ?? 10
   return factor * magnitude
 }
 
 const maximum = computed(() => niceCeiling(Math.max(0, ...props.points.map((point) => point.value))))
 const yTicks = computed(() => [maximum.value, maximum.value * .75, maximum.value * .5, maximum.value * .25, 0])
+const barWidth = computed(() => Math.min(6.6, Math.max(1.5, 64 / Math.max(1, props.points.length))))
+const horizontalInset = computed(() => Math.max(1.6, barWidth.value / 2 + .5))
 const chartPoints = computed(() => {
   const divisor = Math.max(1, props.points.length - 1)
+  const availableWidth = 100 - horizontalInset.value * 2
   return props.points.map((point, index) => ({
     ...point,
     index,
-    x: props.points.length === 1 ? 50 : index / divisor * 100,
+    x: props.points.length === 1 ? 50 : horizontalInset.value + index / divisor * availableWidth,
     y: 46 - point.value / maximum.value * 40,
   }))
 })
@@ -61,8 +64,11 @@ const areaPath = computed(() => {
   if (!points.length) return ''
   return `${linePath.value} L ${points.at(-1)?.x ?? 100} 46 L ${points[0].x} 46 Z`
 })
-const barWidth = computed(() => Math.min(5.8, Math.max(1.5, 58 / Math.max(1, props.points.length))))
-const renderKey = computed(() => `${props.mode}-${props.points.map((point) => `${point.label}:${point.value}`).join('|')}`)
+const renderKey = computed(() => {
+  const first = props.points[0]?.label ?? 'empty'
+  const last = props.points.at(-1)?.label ?? 'empty'
+  return `${props.mode}-${props.points.length}-${first}-${last}`
+})
 const activeTooltip = computed(() => {
   const point = activePoint.value
   return point ? `${point.accessibleLabel} · ${numberFormatter.format(point.value)} 次` : ''
@@ -89,7 +95,7 @@ function pointAriaLabel(index: number): string {
 </script>
 
 <template>
-  <div class="input-trend-chart" role="group" :aria-label="ariaLabel" @mouseleave="hoveredIndex = null">
+  <div class="input-trend-chart" :class="{ 'is-compact': points.length > 10 }" role="group" :aria-label="ariaLabel" @mouseleave="hoveredIndex = null">
     <div class="trend-y-axis" aria-hidden="true">
       <span v-for="tick in yTicks" :key="tick">{{ formatAxisValue(tick) }}</span>
     </div>
@@ -156,6 +162,7 @@ function pointAriaLabel(index: number): string {
 <style scoped>
 .input-trend-chart {
   --input-chart-accent: #2f86df;
+  --input-chart-point-fill: #f7f9fb;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   grid-template-rows: minmax(210px, 1fr) 26px;
@@ -186,7 +193,7 @@ function pointAriaLabel(index: number): string {
   inset: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .trend-grid-line {
@@ -226,11 +233,11 @@ function pointAriaLabel(index: number): string {
 .trend-point {
   position: absolute;
   z-index: 2;
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 5px solid transparent;
+  border: 0;
   border-radius: 50%;
   background: transparent;
   cursor: crosshair;
@@ -239,14 +246,19 @@ function pointAriaLabel(index: number): string {
 .trend-point::after {
   content: '';
   position: absolute;
-  inset: 2px;
-  border: 1.5px solid var(--bg-card);
+  inset: 3px;
+  border: 2px solid var(--input-chart-accent);
   border-radius: inherit;
-  background: var(--input-chart-accent);
-  box-shadow: 0 0 0 1px var(--input-chart-accent);
+  background: var(--input-chart-point-fill);
+  box-shadow: 0 0 0 .5px color-mix(in srgb, var(--input-chart-accent) 70%, transparent);
   opacity: 0;
-  transform: scale(.7);
+  transform: scale(.76);
   transition: opacity 160ms ease, transform 180ms var(--ease-out);
+}
+
+.input-trend-chart.is-compact .trend-point::after {
+  inset: 5px;
+  border-width: 1.5px;
 }
 
 .trend-point.is-visible::after,
@@ -295,8 +307,8 @@ function pointAriaLabel(index: number): string {
   white-space: nowrap;
 }
 
-.trend-x-axis span:first-child { transform: none; }
-.trend-x-axis span:last-child { transform: translateX(-100%); }
+.trend-x-axis span:first-child { transform: translateX(-28%); }
+.trend-x-axis span:last-child { transform: translateX(-72%); }
 .trend-x-axis span.is-hidden { display: none; }
 
 .chart-swap-enter-active,

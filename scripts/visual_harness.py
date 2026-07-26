@@ -419,11 +419,34 @@ with sync_playwright() as playwright:
             input_points.count() == 7
             and page.locator(".input-trend-chart .trend-tooltip").count() == 1
         )
+        input_point_style = input_points.first.evaluate(
+            "element => {"
+            "const style=getComputedStyle(element,'::after');"
+            "const channels=(style.backgroundColor.match(/[\\d.]+/g)||[]).slice(0,3).map(Number);"
+            "return {background:style.backgroundColor,border:style.borderColor,borderWidth:parseFloat(style.borderWidth),opacity:style.opacity,channels};"
+            "}"
+        )
+        report["interactions"]["inputTrendPointStyle"] = (
+            input_point_style["background"] != input_point_style["border"]
+            and all(channel >= 240 for channel in input_point_style["channels"])
+            and input_point_style["borderWidth"] >= 2
+            and input_point_style["opacity"] == "1"
+        )
         page.get_by_role("button", name="柱状").click()
+        input_bars = page.locator(".input-trend-chart .trend-bar")
+        bars_within_plot = input_bars.evaluate_all(
+            "elements => elements.every(element => {"
+            "const x=Number(element.getAttribute('x'));"
+            "const width=Number(element.getAttribute('width'));"
+            "return x >= 0 && x + width <= 100;"
+            "})"
+        )
         report["interactions"]["inputChartModeSwitch"] = (
             page.get_by_role("button", name="柱状").get_attribute("aria-pressed") == "true"
-            and page.locator(".input-trend-chart .trend-bar").count() == 7
+            and input_bars.count() == 7
+            and bars_within_plot
         )
+        page.screenshot(path=output / "interaction-input-bar.png")
         page.get_by_role("button", name="30 天").click()
         page.wait_for_timeout(280)
         report["interactions"]["inputRangeSwitch"] = (

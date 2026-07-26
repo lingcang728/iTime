@@ -398,18 +398,63 @@ observeSystemTheme(
 )
 
 if (desktopRuntime) {
-  void refreshInputData()
-  void refreshActivityData()
-  void refreshProviderData()
+  const dataRefreshInterval = 60_000
+  const providerRefreshEveryCycles = 5
+  let refreshTimer: number | null = null
+  let refreshCycle = 0
+  let refreshPromise: Promise<void> | null = null
+  let refreshQueued = false
+  let providerRefreshQueued = false
+
+  function clearRefreshTimer(): void {
+    if (refreshTimer === null) return
+    window.clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+
+  function refreshRuntimeData(includeProvider: boolean): Promise<void> {
+    refreshQueued = true
+    providerRefreshQueued ||= includeProvider
+    if (refreshPromise) return refreshPromise
+
+    refreshPromise = (async () => {
+      while (refreshQueued && document.visibilityState !== 'hidden') {
+        const shouldRefreshProvider = providerRefreshQueued
+        refreshQueued = false
+        providerRefreshQueued = false
+        await refreshInputData()
+        await refreshActivityData()
+        if (shouldRefreshProvider) await refreshProviderData()
+      }
+    })().finally(() => {
+      refreshPromise = null
+    })
+    return refreshPromise
+  }
+
+  function scheduleRefresh(): void {
+    clearRefreshTimer()
+    if (document.visibilityState === 'hidden') return
+    refreshTimer = window.setTimeout(async () => {
+      refreshCycle += 1
+      await refreshRuntimeData(refreshCycle % providerRefreshEveryCycles === 0)
+      scheduleRefresh()
+    }, dataRefreshInterval)
+  }
+
+  function refreshNow(includeProvider = true): void {
+    clearRefreshTimer()
+    void refreshRuntimeData(includeProvider).finally(scheduleRefresh)
+  }
+
+  refreshNow()
   void refreshAutostart()
-  watch(() => state.selectedDate, () => {
-    void refreshInputData()
-    void refreshActivityData()
-    void refreshProviderData()
+  watch(() => state.selectedDate, () => refreshNow())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      clearRefreshTimer()
+      return
+    }
+    refreshNow()
   })
-  window.setInterval(() => {
-    void refreshInputData()
-    void refreshActivityData()
-    void refreshProviderData()
-  }, 15_000)
 }
