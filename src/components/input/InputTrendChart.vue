@@ -400,12 +400,14 @@ function clearHovered() {
   animation: reveal-area var(--chart-motion-duration) var(--chart-motion-ease) both;
 }
 
+/* Line leave: match bar enter duration so both finish together, no gap */
 .line-layer-leave-active {
-  transition: opacity 160ms ease-in;
+  transition: opacity 280ms ease-in, clip-path 280ms var(--chart-motion-ease);
 }
 
 .line-layer-leave-to {
   opacity: 0;
+  clip-path: inset(0 100% 0 0);
 }
 
 .trend-bar-layer {
@@ -525,7 +527,32 @@ function clearHovered() {
   font-size: 9px;
 }
 
-/* During range change: snap positions, fade content — no flying labels */
+/* During range change: directional clip-path reveal + position snap */
+.is-range-expanding .trend-bar-layer,
+.is-range-contracting .trend-bar-layer {
+  animation: none; /* reset any stale animation */
+}
+
+/* Expanding (7→30d): new content clips in from the left side */
+.is-range-expanding .trend-bar-layer {
+  animation: range-expand-in var(--chart-bar-duration) var(--chart-motion-ease) both;
+}
+
+/* Contracting (30→7d): new content clips in from the right side */
+.is-range-contracting .trend-bar-layer {
+  animation: range-contract-in var(--chart-bar-duration) var(--chart-motion-ease) both;
+}
+
+@keyframes range-expand-in {
+  from { clip-path: inset(0 100% 0 0); opacity: .5; }
+  to   { clip-path: inset(0 0% 0 0);   opacity: 1; }
+}
+
+@keyframes range-contract-in {
+  from { clip-path: inset(0 0 0 100%); opacity: .5; }
+  to   { clip-path: inset(0 0% 0 0%);  opacity: 1; }
+}
+
 .is-range-expanding .trend-bar-node,
 .is-range-contracting .trend-bar-node,
 .is-range-expanding .trend-value-node,
@@ -710,6 +737,11 @@ function clearHovered() {
   .line-layer-enter-active .trend-area,
   .line-layer-appear-active .trend-area {
     animation: none;
+  }
+
+  .is-range-expanding .trend-bar-layer,
+  .is-range-contracting .trend-bar-layer {
+    animation: none !important;
   }
 
   .line-layer-enter-active,

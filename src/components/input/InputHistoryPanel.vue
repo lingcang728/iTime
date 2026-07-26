@@ -58,7 +58,7 @@ function dateKey(date: Date): string {
           <h2>历史趋势</h2>
           <p>按自然日汇总字符键按下；没有采集记录的日期显示为 0</p>
         </div>
-        <div class="chart-mode" role="group" aria-label="图表样式">
+        <div class="chart-mode" :data-active="chartMode" role="group" aria-label="图表样式">
           <button type="button" :aria-pressed="chartMode === 'line'" @click="chartMode = 'line'">
             <PhChartLine :size="16" />折线
           </button>
@@ -69,7 +69,7 @@ function dateKey(date: Date): string {
       </header>
 
       <div class="trend-toolbar">
-        <div class="range-switch" role="group" aria-label="趋势时间范围">
+        <div class="range-switch" :data-active="rangeDays" role="group" aria-label="趋势时间范围">
           <button type="button" :aria-pressed="rangeDays === 7" @click="rangeDays = 7">7 天</button>
           <button type="button" :aria-pressed="rangeDays === 30" @click="rangeDays = 30">30 天</button>
         </div>
@@ -117,8 +117,10 @@ function dateKey(date: Date): string {
 h2 { margin: 3px 0 0; color: var(--text-primary); font-size: 20px; font-weight: 700; letter-spacing: -.45px; }
 p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.55; }
 
+/* ── Segmented controls with sliding pill indicator ─────────────────────── */
 .chart-mode,
 .range-switch {
+  position: relative;
   display: inline-flex;
   gap: 3px;
   padding: 3px;
@@ -127,21 +129,49 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height:
   background: var(--bg-inset);
 }
 
+/* Sliding pill: absolutely-positioned pseudo-element that slides to active btn */
+.chart-mode::before,
+.range-switch::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  width: calc(50% - 4.5px);   /* half-width minus padding+gap */
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text-primary) 7%, transparent);
+  translate: 0;
+  transition: translate 220ms cubic-bezier(0.34, 1.36, 0.64, 1), box-shadow 160ms ease;
+  pointer-events: none;
+}
+
+/* chart-mode: line=first btn (index 0), bar=second (index 1) */
+.chart-mode[data-active="bar"]::before {
+  translate: calc(100% + 3px);
+}
+
+/* range-switch: 7=first, 30=second */
+.range-switch[data-active="30"]::before {
+  translate: calc(100% + 3px);
+}
+
 .chart-mode button,
 .range-switch button {
+  position: relative;   /* sit above the pill */
+  z-index: 1;
   min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 7px;
   color: var(--text-secondary);
   background: transparent;
   font: 650 11px/1 var(--font-ui);
   cursor: pointer;
-  transition: color 160ms ease, background 180ms ease, border-color 180ms ease, transform 180ms var(--ease-out);
+  transition: color 180ms ease, transform 180ms var(--ease-out);
 }
 
 .chart-mode button:hover,
@@ -152,10 +182,7 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height:
 .range-switch button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .chart-mode button[aria-pressed="true"],
 .range-switch button[aria-pressed="true"] {
-  border-color: var(--border-strong);
   color: var(--text-primary);
-  background: var(--bg-elevated);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--text-primary) 7%, transparent);
 }
 
 .trend-toolbar {
@@ -201,5 +228,7 @@ dd { overflow: hidden; margin: 0; color: var(--text-primary); font: 650 10px/1.2
 @media (prefers-reduced-motion: reduce) {
   .chart-mode button,
   .range-switch button { transition-duration: 1ms; }
+  .chart-mode::before,
+  .range-switch::before { transition-duration: 1ms; }
 }
 </style>
