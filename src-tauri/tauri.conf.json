@@ -39,10 +39,13 @@
     "active": true,
     "targets": ["nsis"],
     "category": "Productivity",
-    "shortDescription": "本机记录屏幕时间，并区分 AI 工具前台活动。",
+    "shortDescription": "本机屏幕时间与键盘输入统计",
+    "longDescription": "iTime 记录本机屏幕时间、键盘输入与 AI 工具前台活动。安装后可在开始菜单搜索 iTime 直接打开。",
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "startMenuFolder": "iTime",
+        "displayLanguageSelector": false
       }
     }
   }

@@ -117,6 +117,29 @@ try {
         SHA256 = $destinationHash
       }
     }
+
+    # Register portable release with Windows Search / Start Menu on this machine.
+    # App startup also self-heals this, but packaging should leave a working entry immediately.
+    try {
+      $programsDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+      New-Item -ItemType Directory -Force -Path $programsDir | Out-Null
+      $shortcutPath = Join-Path $programsDir 'iTime.lnk'
+      $shell = New-Object -ComObject WScript.Shell
+      $shortcut = $shell.CreateShortcut($shortcutPath)
+      $shortcut.TargetPath = $destinationExecutable
+      $shortcut.WorkingDirectory = (Split-Path -Parent $destinationExecutable)
+      $shortcut.Description = '本机屏幕时间与键盘输入统计'
+      $shortcut.IconLocation = "$destinationExecutable,0"
+      $shortcut.Save()
+
+      $appPaths = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\iTime.exe'
+      New-Item -Path $appPaths -Force | Out-Null
+      Set-ItemProperty -Path $appPaths -Name '(default)' -Value $destinationExecutable
+      Set-ItemProperty -Path $appPaths -Name 'Path' -Value (Split-Path -Parent $destinationExecutable)
+      Write-Host "Registered Start Menu shortcut: $shortcutPath"
+    } catch {
+      Write-Warning "Windows Search registration skipped: $($_.Exception.Message)"
+    }
   } finally {
     @($stagedExecutable, $stagedSetup, $backupExecutable, $backupSetup) | ForEach-Object {
       Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue

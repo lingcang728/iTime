@@ -4,6 +4,8 @@ mod keyboard;
 mod provider_activity;
 mod reminders;
 mod settings;
+#[cfg(windows)]
+mod windows_shell;
 
 use activity::ActivityCollector;
 use icons::IconService;
@@ -175,6 +177,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // Make portable + installed builds discoverable via Windows Search / Start Menu.
+            #[cfg(windows)]
+            windows_shell::ensure_windows_app_discovery();
+
             let (recording, generation, recording_now) = {
                 let runtime = app.state::<RuntimeState>();
                 (
