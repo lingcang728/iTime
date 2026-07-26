@@ -17,10 +17,12 @@ const hoveredIndex = ref<number | null>(null)
 const focusedIndex = ref<number | null>(null)
 const lineAnimationEpoch = ref(0)
 const rangeMotion = ref<'idle' | 'expanding' | 'contracting'>('idle')
+const modeMotion = ref(false)
 const numberFormatter = new Intl.NumberFormat('zh-CN')
 const maximumBarWidth = 4.8
 let previousPointCount = props.points.length
 let rangeMotionTimer: number | null = null
+let modeMotionTimer: number | null = null
 
 const activeIndex = computed(() => focusedIndex.value ?? hoveredIndex.value)
 const activePoint = computed(() => activeIndex.value === null ? null : chartPoints.value[activeIndex.value] ?? null)
@@ -38,6 +40,11 @@ const maximum = computed(() => niceCeiling(Math.max(0, ...props.points.map((poin
 const yTicks = computed(() => [maximum.value, maximum.value * .75, maximum.value * .5, maximum.value * .25, 0])
 const barWidth = computed(() => isDense.value ? 1.45 : 4.2)
 const horizontalInset = computed(() => Math.max(1.8, barWidth.value / 2 + .8))
+const columnHitWidth = computed(() => {
+  if (props.points.length <= 1) return 12
+  const spacing = (100 - horizontalInset.value * 2) / Math.max(1, props.points.length - 1)
+  return Math.min(14, Math.max(barWidth.value + 1.2, spacing * .92))
+})
 const chartPoints = computed(() => {
   const divisor = Math.max(1, props.points.length - 1)
   const availableWidth = 100 - horizontalInset.value * 2
@@ -78,10 +85,12 @@ const activeTooltip = computed(() => {
 })
 const tooltipStyle = computed(() => {
   const point = activePoint.value
-  if (!point) return {}
+  if (!point) return { opacity: '0', pointerEvents: 'none' as const }
+  // Anchor tooltip above the datum (line marker / bar top), clamped horizontally.
   return {
+    opacity: '1',
     left: `${Math.min(92, Math.max(8, point.x))}%`,
-    top: `${point.y / 52 * 100}%`,
+    top: `${Math.max(8, point.y / 52 * 100 - 2)}%`,
   }
 })
 
@@ -96,17 +105,24 @@ watch(pointSignature, () => {
   rangeMotionTimer = window.setTimeout(() => {
     rangeMotion.value = 'idle'
     rangeMotionTimer = null
-  }, 720)
+  }, 420)
 })
 
 watch(() => props.mode, (mode, previousMode) => {
   hoveredIndex.value = null
   focusedIndex.value = null
+  modeMotion.value = true
+  if (modeMotionTimer !== null) window.clearTimeout(modeMotionTimer)
+  modeMotionTimer = window.setTimeout(() => {
+    modeMotion.value = false
+    modeMotionTimer = null
+  }, 360)
   if (mode === 'line' && previousMode !== 'line') lineAnimationEpoch.value += 1
 })
 
 onBeforeUnmount(() => {
   if (rangeMotionTimer !== null) window.clearTimeout(rangeMotionTimer)
+  if (modeMotionTimer !== null) window.clearTimeout(modeMotionTimer)
 })
 
 function formatAxisValue(value: number): string {
@@ -133,15 +149,12 @@ function shouldShowMarker(value: number): boolean {
 function datumXStyle(point: typeof chartPoints.value[number]): Record<string, string> {
   return {
     transform: `translate3d(${point.x}%, 0, 0)`,
-    '--datum-delay': `${Math.min(point.index * (isDense.value ? 8 : 18), 180)}ms`,
   }
 }
 
 function datumPointStyle(point: typeof chartPoints.value[number]): Record<string, string> {
   return {
     transform: `translate3d(${point.x}%, ${point.y / 52 * 100}%, 0)`,
-    '--bar-width': String(barWidth.value),
-    '--bar-hit-height': String(Math.max(3, (46 - point.y) / 52 * 100)),
   }
 }
 
@@ -153,9 +166,29 @@ function datumBarStyle(point: typeof chartPoints.value[number]): Record<string, 
   }
 }
 
+/** Full-height column hit target for bar mode — snappy hover, no short-bar miss. */
+function datumColumnStyle(point: typeof chartPoints.value[number]): Record<string, string> {
+  return {
+    transform: `translate3d(${point.x}%, 0, 0)`,
+    '--column-width': String(columnHitWidth.value),
+  }
+}
+
+function hitNodeStyle(point: typeof chartPoints.value[number]): Record<string, string> {
+  return props.mode === 'bar' ? datumColumnStyle(point) : datumPointStyle(point)
+}
+
 function pointAriaLabel(index: number): string {
   const point = props.points[index]
   return `${point?.accessibleLabel ?? `第 ${index + 1} 天`}，${numberFormatter.format(point?.value ?? 0)} 次字符键按下`
+}
+
+function setHovered(index: number) {
+  if (hoveredIndex.value !== index) hoveredIndex.value = index
+}
+
+function clearHovered() {
+  hoveredIndex.value = null
 }
 </script>
 
@@ -168,12 +201,13 @@ function pointAriaLabel(index: number): string {
         'is-dense': isDense,
         'is-range-expanding': rangeMotion === 'expanding',
         'is-range-contracting': rangeMotion === 'contracting',
+        'is-mode-motion': modeMotion,
       },
     ]"
     :data-range-motion="rangeMotion"
     role="group"
     :aria-label="ariaLabel"
-    @mouseleave="hoveredIndex = null"
+    @mouseleave="clearHovered"
   >
     <div class="trend-y-axis" aria-hidden="true">
       <span v-for="tick in yTicks" :key="tick">{{ formatAxisValue(tick) }}</span>
@@ -189,7 +223,7 @@ function pointAriaLabel(index: number): string {
           </linearGradient>
         </defs>
         <line v-for="y in [6, 16, 26, 36, 46]" :key="y" x1="0" :y1="y" x2="100" :y2="y" class="trend-grid-line" />
-        <Transition name="line-layer" :duration="{ enter: 720, leave: 240 }" appear>
+        <Transition name="line-layer" :duration="{ enter: 380, leave: 180 }" appear>
           <g v-if="mode === 'line'" :key="lineAnimationEpoch" class="trend-line-layer">
             <path :d="areaPath" class="trend-area" />
             <path :d="linePath" class="trend-line" />
@@ -197,7 +231,8 @@ function pointAriaLabel(index: number): string {
         </Transition>
       </svg>
 
-      <TransitionGroup tag="div" name="datum" class="trend-bar-layer" aria-hidden="true">
+      <!-- Bars: no TransitionGroup FLIP — range changes use opacity + short scale only -->
+      <div class="trend-bar-layer" aria-hidden="true">
         <div
           v-for="point in chartPoints"
           :key="point.accessibleLabel"
@@ -207,26 +242,31 @@ function pointAriaLabel(index: number): string {
         >
           <span class="trend-bar" />
         </div>
-      </TransitionGroup>
+      </div>
 
-      <TransitionGroup tag="div" name="datum" class="trend-value-layer" aria-hidden="true">
+      <!-- Values: opacity-only transitions; positions snap (no floating numbers) -->
+      <div class="trend-value-layer" aria-hidden="true">
         <div
-          v-for="point in chartPoints.filter((item) => item.value > 0)"
+          v-for="point in chartPoints"
+          v-show="point.value > 0"
           :key="point.accessibleLabel"
           class="trend-value-node"
-          :style="{ ...datumPointStyle(point), '--datum-delay': `${Math.min(point.index * (isDense ? 8 : 18), 180)}ms` }"
+          :class="{ 'is-active': activeIndex === point.index }"
+          :style="datumPointStyle(point)"
         >
           <span class="trend-bar-value">{{ formatBarValue(point.value) }}</span>
         </div>
-      </TransitionGroup>
+      </div>
 
-      <TransitionGroup tag="div" name="datum" class="trend-hit-layer">
+      <!-- Hit targets: full-height columns in bar mode for instant cursor switching -->
+      <div class="trend-hit-layer">
         <div
           v-for="point in chartPoints"
           :key="point.accessibleLabel"
           class="trend-hit-node"
+          :class="{ 'is-column': mode === 'bar' }"
           :data-datum-key="point.accessibleLabel"
-          :style="datumPointStyle(point)"
+          :style="hitNodeStyle(point)"
         >
           <button
             type="button"
@@ -238,17 +278,23 @@ function pointAriaLabel(index: number): string {
             :aria-label="pointAriaLabel(point.index)"
             @focus="focusedIndex = point.index"
             @blur="focusedIndex = null"
-            @mouseenter="hoveredIndex = point.index"
+            @pointerenter="setHovered(point.index)"
+            @pointermove="setHovered(point.index)"
           />
         </div>
-      </TransitionGroup>
+      </div>
 
-      <Transition name="tooltip">
-        <span v-if="activePoint" class="trend-tooltip" role="tooltip" :style="tooltipStyle">{{ activeTooltip }}</span>
-      </Transition>
+      <!-- Tooltip stays mounted; only opacity/position change (no leave/enter thrash) -->
+      <span
+        class="trend-tooltip"
+        role="tooltip"
+        :class="{ 'is-visible': !!activePoint }"
+        :style="tooltipStyle"
+        :aria-hidden="!activePoint"
+      >{{ activeTooltip }}</span>
     </div>
 
-    <TransitionGroup tag="div" name="datum" class="trend-x-axis" aria-hidden="true">
+    <div class="trend-x-axis" aria-hidden="true">
       <span
         v-for="point in chartPoints"
         :key="point.accessibleLabel"
@@ -261,7 +307,7 @@ function pointAriaLabel(index: number): string {
           :class="{ 'is-first': point.index === 0, 'is-last': point.index === points.length - 1 }"
         >{{ point.label }}</span>
       </span>
-    </TransitionGroup>
+    </div>
   </div>
 </template>
 
@@ -270,16 +316,20 @@ function pointAriaLabel(index: number): string {
   --input-chart-accent: #2f86df;
   --input-chart-accent-deep: #2574c7;
   --input-chart-point-fill: #f7f9fb;
-  --chart-motion-duration: 600ms;
+  --chart-motion-duration: 360ms;
   --chart-motion-ease: cubic-bezier(.22, 1, .36, 1);
+  --chart-bar-duration: 320ms;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   grid-template-rows: minmax(224px, 1fr) 28px;
   min-height: 270px;
 }
 
-.input-trend-chart.is-range-expanding { --chart-motion-duration: 680ms; }
-.input-trend-chart.is-range-contracting { --chart-motion-duration: 560ms; }
+.input-trend-chart.is-range-expanding,
+.input-trend-chart.is-range-contracting {
+  --chart-motion-duration: 340ms;
+  --chart-bar-duration: 300ms;
+}
 
 .trend-y-axis {
   grid-row: 1;
@@ -339,6 +389,7 @@ function pointAriaLabel(index: number): string {
 
 .is-dense .trend-line { stroke-width: 2.25; }
 
+/* Line reveal: short, no scale morph */
 .line-layer-enter-active .trend-line,
 .line-layer-appear-active .trend-line {
   animation: reveal-line var(--chart-motion-duration) var(--chart-motion-ease) both;
@@ -350,13 +401,11 @@ function pointAriaLabel(index: number): string {
 }
 
 .line-layer-leave-active {
-  transition: opacity 180ms ease-in, transform 240ms ease-in;
-  transform-origin: center bottom;
+  transition: opacity 160ms ease-in;
 }
 
 .line-layer-leave-to {
   opacity: 0;
-  transform: scaleY(.97);
 }
 
 .trend-bar-layer {
@@ -382,14 +431,14 @@ function pointAriaLabel(index: number): string {
 .trend-x-node {
   position: absolute;
   inset: 0;
-  transition:
-    transform var(--chart-motion-duration) var(--chart-motion-ease),
-    opacity 180ms ease;
-  will-change: transform;
 }
 
+/* Bars: only animate height scale + brief x reflow during range change */
 .trend-bar-node {
   opacity: 0;
+  transition:
+    opacity 160ms ease,
+    transform var(--chart-bar-duration) var(--chart-motion-ease);
 }
 
 .trend-bar {
@@ -410,39 +459,45 @@ function pointAriaLabel(index: number): string {
   transform: translateX(-50%) scale(var(--bar-scale-x), .018);
   transform-origin: center bottom;
   transition:
-    transform var(--chart-motion-duration) var(--chart-motion-ease),
-    opacity 180ms ease,
-    background-color 180ms ease;
-  will-change: transform;
+    transform var(--chart-bar-duration) var(--chart-motion-ease),
+    opacity 160ms ease,
+    filter 80ms ease,
+    box-shadow 80ms ease;
 }
 
 .is-bar .trend-bar-node { opacity: 1; }
 .is-bar .trend-bar {
   opacity: 1;
   transform: translateX(-50%) scale(var(--bar-scale-x), var(--bar-scale-y));
-  transition-delay: var(--datum-delay);
 }
 
 .trend-bar-node.is-zero .trend-bar {
   opacity: 0;
 }
 
+/* Active bar: brighten the bar itself — always covers full bar height, even short ones */
 .trend-bar-node.is-active .trend-bar {
+  filter: brightness(1.12) saturate(1.06);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 36%, transparent),
+    0 0 0 1.5px color-mix(in srgb, white 72%, var(--input-chart-accent)),
+    0 4px 14px color-mix(in srgb, var(--input-chart-accent) 28%, transparent);
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--input-chart-accent) 86%, white) 0%,
+      color-mix(in srgb, var(--input-chart-accent) 78%, white) 0%,
       var(--input-chart-accent) 100%
     );
 }
 
+/* Values: opacity only — never morph transform (kills floating numbers) */
 .trend-value-node {
   opacity: 0;
+  transition: opacity 160ms ease;
 }
 
 .is-bar .trend-value-node {
   opacity: 1;
-  transition-delay: calc(var(--datum-delay) + 120ms);
 }
 
 .trend-bar-value {
@@ -457,11 +512,52 @@ function pointAriaLabel(index: number): string {
   font: 650 10px/1 var(--font-data);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: color 80ms ease, font-weight 80ms ease;
+}
+
+.trend-value-node.is-active .trend-bar-value {
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .is-dense .trend-bar-value {
   padding-inline: 2px;
   font-size: 9px;
+}
+
+/* During range change: snap positions, fade content — no flying labels */
+.is-range-expanding .trend-bar-node,
+.is-range-contracting .trend-bar-node,
+.is-range-expanding .trend-value-node,
+.is-range-contracting .trend-value-node,
+.is-range-expanding .trend-hit-node,
+.is-range-contracting .trend-hit-node,
+.is-range-expanding .trend-x-node,
+.is-range-contracting .trend-x-node {
+  transition:
+    opacity 180ms ease,
+    transform 280ms var(--chart-motion-ease);
+}
+
+.is-range-expanding .trend-value-node,
+.is-range-contracting .trend-value-node {
+  transition: opacity 140ms ease;
+}
+
+.is-range-expanding .trend-bar,
+.is-range-contracting .trend-bar {
+  transition:
+    transform 280ms var(--chart-motion-ease),
+    opacity 140ms ease;
+}
+
+/* Mode switch: coordinated, no stagger */
+.is-mode-motion .trend-bar {
+  transition-duration: 300ms;
+}
+
+.is-mode-motion .trend-value-node {
+  transition-duration: 200ms;
 }
 
 .trend-point {
@@ -477,8 +573,10 @@ function pointAriaLabel(index: number): string {
   background: transparent;
   cursor: crosshair;
   pointer-events: auto;
+  touch-action: manipulation;
 }
 
+/* Line markers only — never show white circle in bar mode */
 .trend-point::after {
   content: '';
   position: absolute;
@@ -489,7 +587,8 @@ function pointAriaLabel(index: number): string {
   box-shadow: 0 0 0 .5px color-mix(in srgb, var(--input-chart-accent) 64%, transparent);
   opacity: 0;
   transform: scale(.72);
-  transition: opacity 160ms ease, transform 200ms var(--chart-motion-ease);
+  transition: opacity 120ms ease, transform 160ms var(--chart-motion-ease);
+  pointer-events: none;
 }
 
 .is-dense .trend-point::after {
@@ -511,11 +610,19 @@ function pointAriaLabel(index: number): string {
   transform: scale(1.18);
 }
 
+/* Bar mode: kill circular marker completely; full-height column hit target */
+.is-bar .trend-point::after {
+  content: none;
+  display: none;
+}
+
 .is-bar .trend-point {
-  width: max(22px, calc(var(--bar-width) * 1% + 10px));
-  height: max(18px, calc(var(--bar-hit-height) * 1%));
-  transform: translate(-50%, 0);
-  border-radius: 7px;
+  top: 0;
+  width: calc(var(--column-width, 6) * 1%);
+  height: 100%;
+  min-width: 18px;
+  transform: translateX(-50%);
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -524,12 +631,13 @@ function pointAriaLabel(index: number): string {
   outline-offset: 2px;
 }
 
+/* Tooltip: stay in DOM, only fade/position — no Transition leave thrash when scrubbing bars */
 .trend-tooltip {
   position: absolute;
   z-index: 5;
   max-width: 200px;
   padding: 7px 9px;
-  transform: translate(-50%, calc(-100% - 10px));
+  transform: translate(-50%, calc(-100% - 12px));
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   color: var(--text-primary);
@@ -539,6 +647,15 @@ function pointAriaLabel(index: number): string {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 90ms ease,
+    left 100ms linear,
+    top 100ms linear;
+}
+
+.trend-tooltip.is-visible {
+  opacity: 1;
 }
 
 .trend-x-axis {
@@ -548,6 +665,10 @@ function pointAriaLabel(index: number): string {
   color: var(--text-muted);
   font: 500 11px/1 var(--font-data);
   font-variant-numeric: tabular-nums;
+}
+
+.trend-x-node {
+  transition: transform var(--chart-bar-duration) var(--chart-motion-ease);
 }
 
 .trend-x-label {
@@ -561,35 +682,14 @@ function pointAriaLabel(index: number): string {
 .trend-x-label.is-first { transform: translateX(-28%); }
 .trend-x-label.is-last { transform: translateX(-72%); }
 
-.datum-enter-active,
-.datum-leave-active {
-  transition:
-    transform var(--chart-motion-duration) var(--chart-motion-ease),
-    opacity 180ms ease;
-}
-
-.datum-enter-from,
-.datum-leave-to {
-  opacity: 0;
-}
-
-.datum-leave-active {
-  position: absolute;
-}
-
-.tooltip-enter-active,
-.tooltip-leave-active { transition: opacity 120ms ease, transform 160ms var(--chart-motion-ease); }
-.tooltip-enter-from,
-.tooltip-leave-to { opacity: 0; transform: translate(-50%, calc(-100% - 4px)); }
-
 @keyframes reveal-line {
-  from { clip-path: inset(0 100% 0 0); opacity: .35; }
+  from { clip-path: inset(0 100% 0 0); opacity: .4; }
   to { clip-path: inset(0 0 0 0); opacity: 1; }
 }
 
 @keyframes reveal-area {
   from { clip-path: inset(0 100% 0 0); opacity: 0; }
-  30% { opacity: .35; }
+  28% { opacity: .3; }
   to { clip-path: inset(0 0 0 0); opacity: 1; }
 }
 
@@ -619,12 +719,12 @@ function pointAriaLabel(index: number): string {
   .trend-hit-node,
   .trend-x-node,
   .trend-bar,
-  .datum-enter-active,
-  .datum-leave-active,
-  .tooltip-enter-active,
-  .tooltip-leave-active {
-    transition-duration: 1ms;
-    transition-delay: 0ms;
+  .trend-tooltip {
+    transition-duration: 1ms !important;
+  }
+
+  .trend-tooltip {
+    transition: none;
   }
 }
 </style>

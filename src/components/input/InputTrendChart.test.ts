@@ -78,4 +78,20 @@ describe('InputTrendChart', () => {
     expect(wrapper.attributes('data-range-motion')).toBe('contracting')
     expect(wrapper.findAll('.trend-hit-node')).toHaveLength(7)
   })
+
+  it('uses full-height column hits in bar mode without line-style markers', async () => {
+    const wrapper = mount(InputTrendChart, {
+      props: { points, mode: 'bar', ariaLabel: '七天输入柱状图' },
+    })
+
+    expect(wrapper.classes()).toContain('is-bar')
+    expect(wrapper.findAll('.trend-hit-node.is-column')).toHaveLength(7)
+    expect(wrapper.findAll('.trend-point.is-marker-visible')).toHaveLength(0)
+
+    const shortBarButton = wrapper.get('button[aria-label^="7月24日"]')
+    await shortBarButton.trigger('pointerenter')
+    expect(wrapper.find('.trend-bar-node.is-active').exists()).toBe(true)
+    expect(wrapper.find('.trend-tooltip.is-visible').text()).toContain('7月24日')
+    expect(wrapper.find('.trend-tooltip.is-visible').text()).toContain('900')
+  })
 })
