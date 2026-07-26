@@ -399,6 +399,7 @@ with sync_playwright() as playwright:
             report["wheelBoundary"][page_id] = boundary
             page.screenshot(path=output / f"wheel-boundary-{page_id}.png")
 
+        page.emulate_media(reduced_motion="no-preference")
         page.goto(url("ai"))
         wait_ready(page)
         metric_info = page.locator(".metric-info, .metric__info").first
@@ -433,25 +434,83 @@ with sync_playwright() as playwright:
             and input_point_style["opacity"] == "1"
         )
         page.get_by_role("button", name="柱状").click()
+        chart_root = page.locator(".input-trend-chart")
         input_bars = page.locator(".input-trend-chart .trend-bar")
+        mode_motion = input_bars.first.evaluate(
+            "element => {"
+            "const style=getComputedStyle(element);"
+            "return {duration:parseFloat(style.transitionDuration)*1000,easing:style.transitionTimingFunction};"
+            "}"
+        )
         bars_within_plot = input_bars.evaluate_all(
             "elements => elements.every(element => {"
-            "const x=Number(element.getAttribute('x'));"
-            "const width=Number(element.getAttribute('width'));"
-            "return x >= 0 && x + width <= 100;"
+            "const node=element.parentElement;"
+            "const x=Number((node.style.transform.match(/translate3d\\(([\\d.]+)%/)||[])[1]);"
+            "const scaleX=Number(node.style.getPropertyValue('--bar-scale-x'));"
+            "const visualWidth=4.8*scaleX;"
+            "return Number.isFinite(x) && Number.isFinite(scaleX) && x-visualWidth/2 >= 0 && x+visualWidth/2 <= 100;"
             "})"
         )
+        page.wait_for_timeout(720)
+        bar_value_labels = page.locator(".input-trend-chart .trend-bar-value")
         report["interactions"]["inputChartModeSwitch"] = (
             page.get_by_role("button", name="柱状").get_attribute("aria-pressed") == "true"
             and input_bars.count() == 7
             and bars_within_plot
         )
+        report["interactions"]["inputBarValueLabels"] = (
+            bar_value_labels.count() == 7
+            and all(label.strip() for label in bar_value_labels.all_text_contents())
+        )
+        report["interactions"]["inputModeMotion"] = (
+            mode_motion["duration"] >= 550
+            and "cubic-bezier" in mode_motion["easing"]
+        )
         page.screenshot(path=output / "interaction-input-bar.png")
+
+        shared_datum = page.locator(".input-trend-chart .trend-hit-node").last
+        shared_datum_key = shared_datum.get_attribute("data-datum-key")
+        shared_datum_handle = shared_datum.element_handle()
         page.get_by_role("button", name="30 天").click()
-        page.wait_for_timeout(280)
+        expanding_state = chart_root.get_attribute("data-range-motion")
+        expanding_continuity = page.evaluate(
+            "(args) => document.querySelector(`.trend-hit-node[data-datum-key=\"${CSS.escape(args.key)}\"]`) === args.node",
+            {"key": shared_datum_key, "node": shared_datum_handle},
+        )
+        page.wait_for_timeout(720)
+        page.screenshot(path=output / "interaction-input-bar-30.png")
+
+        page.get_by_role("button", name="折线").click()
+        page.wait_for_timeout(40)
+        line_animation_names = page.locator(".input-trend-chart .trend-line-layer").evaluate(
+            "element => element.getAnimations({subtree:true}).map(animation => animation.animationName || '')"
+        )
+        page.wait_for_timeout(720)
+        dense_visible_markers = page.locator(".input-trend-chart .trend-point.is-marker-visible").count()
+        page.screenshot(path=output / "interaction-input-line-30.png")
+
+        page.get_by_role("button", name="7 天").click()
+        contracting_state = chart_root.get_attribute("data-range-motion")
+        contracting_continuity = page.evaluate(
+            "(args) => document.querySelector(`.trend-hit-node[data-datum-key=\"${CSS.escape(args.key)}\"]`) === args.node",
+            {"key": shared_datum_key, "node": shared_datum_handle},
+        )
+        page.wait_for_timeout(720)
         report["interactions"]["inputRangeSwitch"] = (
-            page.get_by_role("button", name="30 天").get_attribute("aria-pressed") == "true"
-            and page.locator(".input-trend-chart .trend-point").count() == 30
+            page.get_by_role("button", name="7 天").get_attribute("aria-pressed") == "true"
+            and page.locator(".input-trend-chart .trend-point").count() == 7
+            and expanding_state == "expanding"
+            and contracting_state == "contracting"
+            and expanding_continuity
+            and contracting_continuity
+        )
+        report["interactions"]["inputRangeMotion"] = (
+            expanding_state == "expanding"
+            and contracting_state == "contracting"
+            and any(name.startswith("reveal-line") for name in line_animation_names)
+        )
+        report["interactions"]["inputDenseMarkers"] = (
+            0 < dense_visible_markers <= 10
         )
         report["interactions"]["inputKeyboardOnly"] = (
             page.get_by_text("总输入字数", exact=True).count() == 1
@@ -460,6 +519,14 @@ with sync_playwright() as playwright:
             and page.get_by_text("鼠标移动", exact=True).count() == 0
             and page.get_by_text("键盘热力图", exact=True).count() == 0
         )
+        page.goto(url("input", "theme=dark"))
+        wait_ready(page)
+        page.get_by_role("button", name="30 天").click()
+        page.wait_for_timeout(720)
+        page.screenshot(path=output / "interaction-input-line-30-dark.png")
+        page.get_by_role("button", name="柱状").click()
+        page.wait_for_timeout(720)
+        page.screenshot(path=output / "interaction-input-bar-30-dark.png")
 
         page.goto(url("timeline"))
         wait_ready(page)

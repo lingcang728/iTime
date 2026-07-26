@@ -13,30 +13,41 @@ const points: InputTrendPoint[] = [
 ]
 
 describe('InputTrendChart', () => {
-  it('keeps every bar inside the plot and uses a tighter readable scale', () => {
+  it('keeps every bar inside the plot and shows values without hover', () => {
     const wrapper = mount(InputTrendChart, {
       props: { points, mode: 'bar', ariaLabel: '七天输入柱状图' },
     })
 
     expect(wrapper.get('.trend-y-axis span').text()).toBe('15k')
-    const bars = wrapper.findAll<SVGRectElement>('.trend-bar')
-    expect(bars).toHaveLength(7)
-    for (const bar of bars) {
-      const x = Number(bar.attributes('x'))
-      const width = Number(bar.attributes('width'))
-      expect(x).toBeGreaterThanOrEqual(0)
-      expect(x + width).toBeLessThanOrEqual(100)
+    const barNodes = wrapper.findAll<HTMLElement>('.trend-bar-node')
+    expect(barNodes).toHaveLength(7)
+    for (const node of barNodes) {
+      const style = node.attributes('style') ?? ''
+      const x = Number(style.match(/translate3d\(([\d.]+)%/)?.[1] ?? Number.NaN)
+      const scaleX = Number(style.match(/--bar-scale-x:\s*([\d.]+)/)?.[1] ?? Number.NaN)
+      const visualWidth = 4.8 * scaleX
+      expect(x - visualWidth / 2).toBeGreaterThanOrEqual(0)
+      expect(x + visualWidth / 2).toBeLessThanOrEqual(100)
     }
+    expect(wrapper.findAll('.trend-bar-value').map((label) => label.text())).toEqual([
+      '3,000',
+      '3,600',
+      '11,007',
+      '4,800',
+      '900',
+      '5,200',
+      '120',
+    ])
   })
 
   it('does not remount and replay the line animation for value-only refreshes', async () => {
     const wrapper = mount(InputTrendChart, {
       props: { points, mode: 'line', ariaLabel: '七天输入折线图' },
     })
-    const series = wrapper.get('.trend-series').element
-    const pointButtons = wrapper.findAll<HTMLElement>('.trend-point')
-    const firstPosition = Number.parseFloat((pointButtons.at(0)?.attributes('style') ?? '').match(/left:\s*([\d.]+)%/)?.[1] ?? '0')
-    const lastPosition = Number.parseFloat((pointButtons.at(-1)?.attributes('style') ?? '').match(/left:\s*([\d.]+)%/)?.[1] ?? '100')
+    const lineLayer = wrapper.get('.trend-line-layer').element
+    const pointNodes = wrapper.findAll<HTMLElement>('.trend-hit-node')
+    const firstPosition = Number.parseFloat((pointNodes.at(0)?.attributes('style') ?? '').match(/translate3d\(([\d.]+)%/)?.[1] ?? '0')
+    const lastPosition = Number.parseFloat((pointNodes.at(-1)?.attributes('style') ?? '').match(/translate3d\(([\d.]+)%/)?.[1] ?? '100')
 
     expect(firstPosition).toBeGreaterThan(0)
     expect(lastPosition).toBeLessThan(100)
@@ -44,6 +55,27 @@ describe('InputTrendChart', () => {
     await wrapper.setProps({
       points: points.map((point, index) => index === 6 ? { ...point, value: point.value + 40 } : point),
     })
-    expect(wrapper.get('.trend-series').element).toBe(series)
+    expect(wrapper.get('.trend-line-layer').element).toBe(lineLayer)
+  })
+
+  it('preserves shared dates and identifies both range animation directions', async () => {
+    const wrapper = mount(InputTrendChart, {
+      props: { points, mode: 'line', ariaLabel: '七天输入折线图' },
+    })
+    const finalDateButton = wrapper.get('button[aria-label^="7月26日"]').element
+    const earlierPoints = Array.from({ length: 23 }, (_, index): InputTrendPoint => ({
+      label: `6/${27 + index}`,
+      accessibleLabel: `较早日期${index}`,
+      value: index % 4 === 0 ? 800 + index * 70 : 0,
+    }))
+
+    await wrapper.setProps({ points: [...earlierPoints, ...points] })
+    expect(wrapper.attributes('data-range-motion')).toBe('expanding')
+    expect(wrapper.findAll('.trend-hit-node')).toHaveLength(30)
+    expect(wrapper.get('button[aria-label^="7月26日"]').element).toBe(finalDateButton)
+
+    await wrapper.setProps({ points })
+    expect(wrapper.attributes('data-range-motion')).toBe('contracting')
+    expect(wrapper.findAll('.trend-hit-node')).toHaveLength(7)
   })
 })
