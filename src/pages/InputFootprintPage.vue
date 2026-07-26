@@ -46,7 +46,11 @@ function metricDetail(detail: string): string {
     </div>
     <template v-else>
       <div class="input-history-wrap">
-        <InputHistoryPanel :history="snapshot.history" :granularity="snapshot.capabilities.historyGranularity" />
+        <InputHistoryPanel
+          :history="store.inputHistory.value.history"
+          :granularity="snapshot.capabilities.historyGranularity"
+          :end-date="store.state.selectedDate"
+        />
       </div>
     </template>
   </section>

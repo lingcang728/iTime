@@ -1,91 +1,96 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhCalendarBlank, PhChartLineUp, PhShieldCheck } from '@phosphor-icons/vue'
-import SparkLine from '../SparkLine.vue'
+import { computed, ref } from 'vue'
+import { PhChartBar, PhChartLine, PhChartLineUp, PhShieldCheck } from '@phosphor-icons/vue'
+import InputTrendChart, { type InputTrendPoint } from './InputTrendChart.vue'
 import type { InputActivityPoint, InputGranularity } from '../../providers/inputActivity'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps<{
   history: InputActivityPoint[]
   granularity: InputGranularity | 'none'
+  endDate: string
 }>()
 
-const rawPoints = computed(() => [...props.history].sort((first, second) => first.start - second.start))
-const points = computed(() => {
-  if (props.granularity !== 'minute') return rawPoints.value
-  const groups = new Map<number, number>()
-  for (const point of rawPoints.value) {
-    const date = new Date(point.start)
-    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime()
-    groups.set(start, (groups.get(start) ?? 0) + point.keyStrokes)
+const rangeDays = ref<7 | 30>(7)
+const chartMode = ref<'line' | 'bar'>('line')
+const dailyTotals = computed(() => {
+  const totals = new Map<string, number>()
+  for (const point of props.history) {
+    const key = dateKey(new Date(point.start))
+    totals.set(key, (totals.get(key) ?? 0) + point.keyStrokes)
   }
-  return [...groups.entries()].sort(([left], [right]) => left - right).map(([start, keyStrokes]) => ({
-    start,
-    end: start + 3_600_000,
-    keyStrokes,
-    leftClicks: null,
-    rightClicks: null,
-    combinedClicks: 0,
-    mouseDistance: 0,
-    scrollDistance: 0,
-  }))
+  return totals
 })
-const hasSeries = computed(() => points.value.length > 1)
-const values = computed(() => points.value.map((point) => point.keyStrokes))
-const labels = computed(() => points.value.map((point) => pointLabel(point.start)))
-const title = computed(() => props.granularity === 'day' ? '每日输入趋势' : '今日输入趋势')
-const subtitle = computed(() => props.granularity === 'day'
-  ? '按天汇总，不推断小时内的输入分布'
-  : props.granularity === 'minute'
-    ? '分钟级采集，趋势按小时汇总；悬停或聚焦查看数值'
-    : `${granularityLabel.value}聚合；悬停或聚焦查看数值`)
+const points = computed<InputTrendPoint[]>(() => {
+  const end = new Date(`${props.endDate}T12:00:00`)
+  return Array.from({ length: rangeDays.value }, (_, index) => {
+    const date = new Date(end)
+    date.setDate(end.getDate() - (rangeDays.value - 1 - index))
+    const value = dailyTotals.value.get(dateKey(date)) ?? 0
+    return {
+      label: `${date.getMonth() + 1}/${date.getDate()}`,
+      accessibleLabel: `${date.getMonth() + 1}月${date.getDate()}日`,
+      value,
+    }
+  })
+})
+const hasSeries = computed(() => points.value.some((point) => point.value > 0))
+const total = computed(() => points.value.reduce((sum, point) => sum + point.value, 0))
+const average = computed(() => Math.round(total.value / rangeDays.value))
+const recordedDays = computed(() => points.value.filter((point) => point.value > 0).length)
+const peakPoint = computed(() => points.value.reduce<InputTrendPoint | null>(
+  (peak, point) => !peak || point.value > peak.value ? point : peak,
+  null,
+))
 const granularityLabel = computed(() => ({ minute: '分钟', hour: '小时', day: '每日', none: '无' })[props.granularity])
-const singlePoint = computed(() => points.value[0] ?? null)
 
-function pointLabel(timestamp: number): string {
-  const date = new Date(timestamp)
-  if (props.granularity === 'day') return `${date.getMonth() + 1}月${date.getDate()}日`
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  return props.granularity === 'hour' || props.granularity === 'minute' ? `${hour}:00` : `${hour}:${minute}`
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
-
 </script>
 
 <template>
   <section class="input-history-panel">
-    <template v-if="hasSeries">
-      <section class="trend-section">
-        <header>
-          <div><h2>{{ title }}</h2><p>{{ subtitle }}</p></div>
-          <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" />聚合数据</span>
-        </header>
-        <div class="trend-chart">
-          <SparkLine
-            :values="values"
-            :labels="labels"
-            value-suffix=" 次"
-            color="var(--accent-green)"
-            :aria-label="title"
-          />
+    <section v-if="hasSeries" class="trend-section">
+      <header class="trend-heading">
+        <div>
+          <span class="trend-eyebrow">键盘活动</span>
+          <h2>历史趋势</h2>
+          <p>按自然日汇总字符键按下；没有采集记录的日期显示为 0</p>
         </div>
-        <div class="trend-labels"><span v-for="label in labels" :key="label">{{ label }}</span></div>
-      </section>
+        <div class="chart-mode" role="group" aria-label="图表样式">
+          <button type="button" :aria-pressed="chartMode === 'line'" @click="chartMode = 'line'">
+            <PhChartLine :size="16" />折线
+          </button>
+          <button type="button" :aria-pressed="chartMode === 'bar'" @click="chartMode = 'bar'">
+            <PhChartBar :size="16" />柱状
+          </button>
+        </div>
+      </header>
 
-    </template>
-
-    <section v-else-if="singlePoint" class="single-day">
-      <span class="single-day__icon"><PhCalendarBlank :size="22" weight="regular" /></span>
-      <div>
-        <span>所选日期输入汇总</span>
-        <strong>{{ formatNumber(singlePoint.keyStrokes) }}<small> 个字符键</small></strong>
-        <p v-if="granularity === 'day'">数据源仅提供日级总量，因此不生成小时趋势或连续输入结论。</p>
-        <p v-else>当前只有一个聚合点，记录更多数据后才会形成趋势。</p>
+      <div class="trend-toolbar">
+        <div class="range-switch" role="group" aria-label="趋势时间范围">
+          <button type="button" :aria-pressed="rangeDays === 7" @click="rangeDays = 7">7 天</button>
+          <button type="button" :aria-pressed="rangeDays === 30" @click="rangeDays = 30">30 天</button>
+        </div>
+        <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" />只保留聚合计数</span>
       </div>
-      <dl>
-        <div><dt>计数方式</dt><dd>字符键按下</dd></div>
-        <div><dt>记录粒度</dt><dd>{{ granularityLabel }}</dd></div>
-      </dl>
+
+      <InputTrendChart :points="points" :mode="chartMode" :ariaLabel="`最近 ${rangeDays} 天键盘输入趋势`" />
+
+      <footer class="trend-summary">
+        <div class="trend-total">
+          <span>{{ rangeDays }} 天总计</span>
+          <strong>{{ formatNumber(total) }}</strong>
+          <small>次字符键按下</small>
+        </div>
+        <dl>
+          <div><dt>日均</dt><dd>{{ formatNumber(average) }}</dd></div>
+          <div><dt>最高</dt><dd>{{ peakPoint?.accessibleLabel }} · {{ formatNumber(peakPoint?.value ?? 0) }}</dd></div>
+          <div><dt>有记录</dt><dd>{{ recordedDays }} 天</dd></div>
+          <div><dt>采集粒度</dt><dd>{{ granularityLabel }}</dd></div>
+        </dl>
+      </footer>
     </section>
 
     <section v-else class="history-empty">
@@ -98,41 +103,103 @@ function pointLabel(timestamp: number): string {
 <style scoped>
 .input-history-panel {
   min-width: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  padding-block: 20px;
-  border-block: 1px solid var(--border-soft);
+  padding: 22px 24px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 
-.input-history-panel:has(.single-day),
-.input-history-panel:has(.history-empty) { grid-template-columns: 1fr; }
-
-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-h2 { margin: 0; color: var(--text-primary); font-size: 14px; font-weight: 650; letter-spacing: -.2px; }
-p { margin: 4px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.55; }
-.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding-top: 2px; color: var(--accent-green-strong); font-size: 10px; font-weight: 600; }
 .trend-section { min-width: 0; }
-.trend-chart { height: 126px; margin-top: 14px; padding: 6px 4px 0; border-bottom: 1px solid var(--border-strong); background-image: linear-gradient(to bottom, transparent 32%, var(--border-soft) 33%, transparent 34%, transparent 65%, var(--border-soft) 66%, transparent 67%); }
-.trend-labels { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-.single-day { min-height: 112px; display: grid; grid-template-columns: auto minmax(0, 1.35fr) minmax(250px, .75fr); align-items: center; gap: 16px; }
-.single-day__icon { width: 38px; height: 38px; display: grid; place-items: center; color: var(--accent-green-strong); }
-.single-day > div > span { color: var(--text-secondary); font-size: 10px; }
-.single-day strong { display: block; margin-top: 3px; color: var(--text-primary); font: 650 25px/1.15 var(--font-data); font-variant-numeric: tabular-nums; letter-spacing: -.7px; }
-.single-day strong small { color: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: 0; }
-dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 0; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-inset); }
-dl div { display: flex; justify-content: space-between; gap: 12px; }
-dt { color: var(--text-secondary); font-size: 10px; }
-dd { margin: 0; color: var(--text-primary); font: 650 11px/1.2 var(--font-data); font-variant-numeric: tabular-nums; }
-.history-empty { min-height: 112px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
+.trend-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.trend-eyebrow { color: #2369aa; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+:global(:root[data-theme="dark"]) .trend-eyebrow { color: #78baf2; }
+h2 { margin: 3px 0 0; color: var(--text-primary); font-size: 20px; font-weight: 700; letter-spacing: -.45px; }
+p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.55; }
+
+.chart-mode,
+.range-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--bg-inset);
+}
+
+.chart-mode button,
+.range-switch button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: 650 11px/1 var(--font-ui);
+  cursor: pointer;
+  transition: color 160ms ease, background 180ms ease, border-color 180ms ease, transform 180ms var(--ease-out);
+}
+
+.chart-mode button:hover,
+.range-switch button:hover { color: var(--text-primary); }
+.chart-mode button:active,
+.range-switch button:active { transform: scale(.97); }
+.chart-mode button:focus-visible,
+.range-switch button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.chart-mode button[aria-pressed="true"],
+.range-switch button[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+.trend-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 0 8px;
+}
+
+.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--text-muted); font-size: 10px; font-weight: 600; }
+
+.trend-summary {
+  display: grid;
+  grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr);
+  align-items: end;
+  gap: 24px;
+  margin-top: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.trend-total > span { display: block; color: var(--text-secondary); font-size: 11px; }
+.trend-total strong { display: inline-block; margin-top: 4px; color: var(--text-primary); font: 700 30px/1 var(--font-data); font-variant-numeric: tabular-nums; letter-spacing: -.8px; }
+.trend-total small { margin-left: 7px; color: var(--text-muted); font-size: 10px; }
+
+dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; }
+dl div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+dt { color: var(--text-muted); font-size: 10px; }
+dd { overflow: hidden; margin: 0; color: var(--text-primary); font: 650 10px/1.2 var(--font-data); font-variant-numeric: tabular-nums; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.history-empty { min-height: 300px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
 .history-empty strong { color: var(--text-primary); font-size: 12px; }
 
-@media (max-width: 920px) {
-  .input-history-panel { grid-template-columns: 1fr; }
+@media (max-width: 760px) {
+  .input-history-panel { padding: 18px; }
+  .trend-heading,
+  .trend-toolbar { align-items: stretch; flex-direction: column; }
+  .chart-mode,
+  .range-switch { align-self: flex-start; }
+  .trend-summary { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 760px) {
-  .single-day { grid-template-columns: auto 1fr; }
-  dl { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) {
+  .chart-mode button,
+  .range-switch button { transition-duration: 1ms; }
 }
 </style>

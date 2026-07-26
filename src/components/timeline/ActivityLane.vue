@@ -22,12 +22,15 @@ const positioned = computed(() => {
     if (end <= start) return []
     const left = (start - props.range.start) / duration * 100
     const width = Math.min(100 - left, Math.max(.12, (end - start) / duration * 100))
+    const gap = width >= 1.5 ? 2 : width >= .55 ? 1 : 0
     return [{
       ...segment,
       start,
       end,
       left: `${left}%`,
       width: `${width}%`,
+      gap: `${gap}px`,
+      gapTotal: `${gap * 2}px`,
       widthPercent: width,
       edge: left < 14 ? 'left' : left + width > 86 ? 'right' : 'center',
       accessibleLabel: `${segment.title}，${formatClock(start)} 至 ${formatClock(end)}，${formatDuration(end - start, true)}`,
@@ -46,7 +49,7 @@ const positioned = computed(() => {
         :key="`${segment.start}-${segment.end}-${segment.title}`"
         class="lane-segment"
         :class="[`is-${segment.kind ?? 'other'}`, `is-${segment.variant ?? 'solid'}`, `edge-${segment.edge}`, { muted: segment.muted }]"
-        :style="{ left: segment.left, width: segment.width, '--segment-color': segment.color }"
+        :style="{ '--segment-left': segment.left, '--segment-width': segment.width, '--segment-gap': segment.gap, '--segment-gap-total': segment.gapTotal, '--segment-color': segment.color }"
         role="listitem"
         tabindex="0"
         :aria-label="segment.accessibleLabel"
@@ -61,10 +64,10 @@ const positioned = computed(() => {
 <style scoped>
 .activity-lane {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
+  grid-template-columns: 146px minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-3);
-  min-height: 68px;
+  gap: 14px;
+  min-height: 72px;
   padding: 0 18px;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
@@ -84,7 +87,7 @@ const positioned = computed(() => {
 
 .lane-track {
   position: relative;
-  height: 36px;
+  height: 40px;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--border-strong) 72%, transparent) 1px, transparent 1px),
     linear-gradient(to right, color-mix(in srgb, var(--border-soft) 48%, transparent) 1px, transparent 1px);
@@ -94,7 +97,7 @@ const positioned = computed(() => {
 .lane-track::after {
   content: '';
   position: absolute;
-  inset: 18px 0 auto;
+  inset: 20px 0 auto;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -112,35 +115,37 @@ const positioned = computed(() => {
   --segment-color: var(--accent-green);
   position: absolute;
   z-index: 2;
-  top: 8px;
-  height: 20px;
-  min-width: 2px;
-  border: 1px solid color-mix(in srgb, var(--segment-color) 44%, transparent);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--segment-color) 78%, var(--bg-card));
+  top: 9px;
+  left: calc(var(--segment-left) + var(--segment-gap));
+  width: max(3px, calc(var(--segment-width) - var(--segment-gap-total)));
+  height: 22px;
+  min-width: 3px;
+  border: 1px solid color-mix(in srgb, var(--segment-color) 72%, var(--border-strong));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--segment-color) 80%, var(--bg-card));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 16%, transparent);
   cursor: help;
   transition: opacity 150ms ease, transform 150ms var(--ease-out), border-color 150ms ease;
 }
 
 .lane-segment.is-attention {
-  background: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--segment-color) 84%, var(--border-strong));
+  background: color-mix(in srgb, var(--segment-color) 86%, var(--bg-card));
 }
 
 .lane-segment.is-other {
-  border-color: var(--accent-strong);
-  background: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--segment-color) 88%, var(--border-strong));
+  background: color-mix(in srgb, var(--segment-color) 88%, var(--bg-card));
 }
 
 .lane-segment.is-interaction {
-  top: 8px;
-  height: 20px;
-  border-color: var(--accent-green);
-  background: color-mix(in srgb, var(--accent-green-soft) 38%, transparent);
+  border-color: color-mix(in srgb, var(--segment-color) 86%, var(--border-strong));
+  background: color-mix(in srgb, var(--segment-color) 32%, var(--bg-card));
 }
 
 .lane-segment.is-media {
-  border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-soft));
-  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+  border-color: color-mix(in srgb, var(--segment-color) 78%, var(--border-soft));
+  background: color-mix(in srgb, var(--segment-color) 68%, var(--bg-card));
 }
 
 .lane-segment.is-waiting {
@@ -161,12 +166,16 @@ const positioned = computed(() => {
 
 .lane-segment__label {
   position: absolute;
-  inset: 0 5px;
+  inset: 2px auto 2px 3px;
   overflow: hidden;
-  color: var(--text-inverse);
+  max-width: calc(100% - 6px);
+  padding: 0 5px;
+  border-radius: 3px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-card) 92%, var(--segment-color));
   font-size: 10px;
-  font-weight: 500;
-  line-height: 18px;
+  font-weight: 650;
+  line-height: 16px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -235,7 +244,7 @@ const positioned = computed(() => {
 
 @media (max-width: 720px) {
   .activity-lane {
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 118px minmax(0, 1fr);
     gap: var(--space-2);
   }
 }

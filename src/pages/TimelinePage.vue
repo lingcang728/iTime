@@ -32,11 +32,11 @@ interface DurationPart { amount: string; unit?: string }
 const store = useAppStore()
 const notesOpen = ref(false)
 const deviceStyles = {
-  active: { color: 'var(--accent-strong)', kind: 'attention', variant: 'solid', muted: false },
-  idle: { color: 'var(--text-muted)', kind: 'waiting', variant: 'solid', muted: true },
-  locked: { color: 'var(--text-muted)', kind: 'waiting', variant: 'hatched', muted: true },
-  sleep: { color: 'var(--text-muted)', kind: 'waiting', variant: 'hatched', muted: true },
-  unknown: { color: 'var(--text-muted)', kind: 'waiting', variant: 'hatched', muted: true },
+  active: { color: 'var(--timeline-device)', kind: 'attention', variant: 'solid', muted: false },
+  idle: { color: 'var(--timeline-idle)', kind: 'waiting', variant: 'solid', muted: true },
+  locked: { color: 'var(--timeline-away)', kind: 'waiting', variant: 'hatched', muted: true },
+  sleep: { color: 'var(--timeline-away)', kind: 'waiting', variant: 'hatched', muted: true },
+  unknown: { color: 'var(--timeline-away)', kind: 'waiting', variant: 'hatched', muted: true },
 } as const
 const deviceNames = { active: '活跃', idle: '空闲', locked: '离开', sleep: '离开', unknown: '未知' }
 const byType = <T extends TimeEvent>(type: T['type']) => store.day.value.events.filter((event): event is T => event.type === type)
@@ -60,21 +60,21 @@ const appSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   (event) => event.appId,
   20_000,
 ).map((event) => ({
-  start: event.start, end: event.end, color: 'var(--accent-strong)', kind: 'other', title: event.appName,
+  start: event.start, end: event.end, color: event.color || 'var(--timeline-app)', kind: 'other', title: event.appName,
 })))
 const aiSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   byType<AiInteractionInterval>('aiInteraction'),
   (event) => event.toolId,
   20_000,
 ).map((event) => ({
-  start: event.start, end: event.end, color: 'var(--accent-strong)', kind: 'interaction', title: event.toolName,
+  start: event.start, end: event.end, color: 'var(--timeline-ai)', kind: 'interaction', title: event.toolName,
 })))
 const mediaSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   byType<MediaPlaybackInterval>('media'),
   (event) => `${event.appName}:${event.awayPlayback}`,
   20_000,
 ).map((event) => ({
-  start: event.start, end: event.end, color: 'var(--text-secondary)', kind: 'media', variant: event.awayPlayback ? 'hatched' : 'solid', muted: event.awayPlayback, title: event.appName,
+  start: event.start, end: event.end, color: 'var(--timeline-media)', kind: 'media', variant: event.awayPlayback ? 'hatched' : 'solid', muted: event.awayPlayback, title: event.appName,
 })))
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const sourceLabel = computed(() => ({ ready: '本机活动记录', degraded: '部分本机记录', preview: '预览数据', loading: '正在读取', unavailable: '暂不可用' }[store.state.activityDataStatus]))
@@ -107,7 +107,7 @@ function durationParts(value: number | null): DurationPart[] {
         <button type="button" class="timeline-range-button"><PhCalendarBlank :size="18" /><strong id="activity-tracks-title">时间范围</strong><span>09:00 – 18:00</span><PhCaretDown :size="13" /></button>
         <div class="track-actions">
           <div class="timeline-legend" aria-label="时间线颜色说明">
-            <span><i class="sage" />活跃</span><span><i class="neutral" />空闲<span class="sr-only">设备非活跃</span></span><span><i class="muted-hatch" />离开</span>
+            <span><i class="device" />设备</span><span><i class="app" />应用</span><span><i class="ai" />AI</span><span><i class="media" />媒体</span><span><i class="muted-hatch" />离开<span class="sr-only">设备非活跃</span></span>
           </div>
           <button type="button" class="timeline-info-button" aria-label="查看统计口径与轨道说明" aria-controls="timeline-notes" :aria-expanded="notesOpen" @click="notesOpen = !notesOpen" @keydown.escape="notesOpen = false"><PhInfo :size="17" />说明</button>
           <Transition name="popover">

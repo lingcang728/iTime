@@ -413,11 +413,22 @@ with sync_playwright() as playwright:
 
         page.goto(url("input"))
         wait_ready(page)
-        input_points = page.locator(".spark-point")
+        input_points = page.locator(".input-trend-chart .trend-point")
         input_points.first.focus()
         report["interactions"]["inputTrendInteraction"] = (
-            input_points.count() > 1
-            and page.locator(".spark-tooltip").count() == 1
+            input_points.count() == 7
+            and page.locator(".input-trend-chart .trend-tooltip").count() == 1
+        )
+        page.get_by_role("button", name="柱状").click()
+        report["interactions"]["inputChartModeSwitch"] = (
+            page.get_by_role("button", name="柱状").get_attribute("aria-pressed") == "true"
+            and page.locator(".input-trend-chart .trend-bar").count() == 7
+        )
+        page.get_by_role("button", name="30 天").click()
+        page.wait_for_timeout(280)
+        report["interactions"]["inputRangeSwitch"] = (
+            page.get_by_role("button", name="30 天").get_attribute("aria-pressed") == "true"
+            and page.locator(".input-trend-chart .trend-point").count() == 30
         )
         report["interactions"]["inputKeyboardOnly"] = (
             page.get_by_text("总输入字数", exact=True).count() == 1

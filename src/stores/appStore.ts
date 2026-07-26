@@ -106,6 +106,19 @@ const input = computed<InputActivitySnapshot>(() => {
     shortcuts: [],
   }
 })
+const inputHistory = computed<InputActivitySnapshot>(() => {
+  const selectedRange = dayRange(state.selectedDate)
+  const historyStart = new Date(selectedRange.start)
+  historyStart.setDate(historyStart.getDate() - 29)
+  const range = { start: historyStart.getTime(), end: selectedRange.end }
+  const provider = desktopRuntime ? liveInputProvider.value : inputActivityProvider
+  const snapshot = provider?.getSnapshot(range, 'day') ?? emptyInputSnapshot(range)
+  if (!state.deletedInputDates.length) return snapshot
+  return {
+    ...snapshot,
+    history: snapshot.history.filter((point) => !state.deletedInputDates.includes(localDate(new Date(point.start)))),
+  }
+})
 const selectedTool = computed<AiToolDetail | null>(() => state.selectedToolId
   ? runtimeDataProvider.value.getToolDetail(state.selectedDate, state.selectedToolId)
   : null)
@@ -358,6 +371,7 @@ export function useAppStore() {
     day,
     week,
     input,
+    inputHistory,
     selectedTool,
     stepDate,
     openTool,
