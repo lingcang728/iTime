@@ -50,6 +50,17 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
   const candidates = [point.attentionY, point.aiY].filter((value): value is number => value !== null)
   return candidates.length ? Math.min(...candidates) : 110
 }
+
+function focusPoint(index: number, event: FocusEvent): void {
+  activeIndex.value = index
+  if (event.currentTarget instanceof Element) {
+    event.currentTarget.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: 'instant' as ScrollBehavior,
+    })
+  }
+}
 </script>
 
 <template>
@@ -75,7 +86,7 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
           role="img"
           :aria-label="`${point.label} ${point.note}，主动注意力 ${valueLabel(point.attention)}，AI 前台活跃 ${valueLabel(point.ai)}`"
           @mouseenter="activeIndex = index"
-          @focus="activeIndex = index"
+          @focus="focusPoint(index, $event)"
           @blur="activeIndex = null"
         >
           <circle v-if="point.attentionY !== null" :cx="point.x" :cy="point.attentionY" :r="isEndpoint(index, 'attention') ? 7 : 5" class="attention trend__dot" :class="{ endpoint: isEndpoint(index, 'attention') }" :style="{ animationDelay: `${index * 60}ms` }" />
@@ -127,9 +138,9 @@ function tooltipTop(point: (typeof positioned.value)[number]): number {
 
 /* P3-1: entrance animation */
 @keyframes trend-dot-pop {
-  from { r: 0; opacity: 0; }
-  60%  { r: 9; opacity: 1; }
-  to   { r: inherit; opacity: 1; }
+  from { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.35); opacity: 1; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 @keyframes trend-path-draw {

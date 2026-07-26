@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import InputTrendChart, { type InputTrendPoint } from './InputTrendChart.vue'
 
 const points: InputTrendPoint[] = [
@@ -13,6 +13,10 @@ const points: InputTrendPoint[] = [
 ]
 
 describe('InputTrendChart', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('keeps every bar inside the plot and shows values without hover', () => {
     const wrapper = mount(InputTrendChart, {
       props: { points, mode: 'bar', ariaLabel: '七天输入柱状图' },
@@ -93,5 +97,21 @@ describe('InputTrendChart', () => {
     expect(wrapper.find('.trend-bar-node.is-active').exists()).toBe(true)
     expect(wrapper.find('.trend-tooltip.is-visible').text()).toContain('7月24日')
     expect(wrapper.find('.trend-tooltip.is-visible').text()).toContain('900')
+  })
+
+  it('keeps the deliberate mode-motion state for the full visual transition', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(InputTrendChart, {
+      props: { points, mode: 'line', ariaLabel: '七天输入折线图' },
+    })
+
+    await wrapper.setProps({ mode: 'bar' })
+    expect(wrapper.classes()).toContain('is-mode-motion')
+
+    await vi.advanceTimersByTimeAsync(619)
+    expect(wrapper.classes()).toContain('is-mode-motion')
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.classes()).not.toContain('is-mode-motion')
   })
 })

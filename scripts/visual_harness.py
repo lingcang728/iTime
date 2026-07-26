@@ -512,6 +512,19 @@ with sync_playwright() as playwright:
         report["interactions"]["inputDenseMarkers"] = (
             0 < dense_visible_markers <= 10
         )
+        page.emulate_media(reduced_motion="reduce")
+        page.get_by_role("button", name="柱状").click()
+        reduced_motion = input_bars.first.evaluate(
+            "element => {"
+            "const style=getComputedStyle(element);"
+            "return {duration:parseFloat(style.transitionDuration)*1000,easing:style.transitionTimingFunction};"
+            "}"
+        )
+        report["interactions"]["inputReducedMotion"] = (
+            reduced_motion["duration"] <= 1
+            and chart_root.get_attribute("data-range-motion") == "idle"
+        )
+        page.emulate_media(reduced_motion="no-preference")
         report["interactions"]["inputKeyboardOnly"] = (
             page.get_by_text("总输入字数", exact=True).count() == 1
             and page.get_by_text("平均输入字数", exact=True).count() == 1

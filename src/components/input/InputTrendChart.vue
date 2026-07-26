@@ -116,7 +116,7 @@ watch(() => props.mode, (mode, previousMode) => {
   modeMotionTimer = window.setTimeout(() => {
     modeMotion.value = false
     modeMotionTimer = null
-  }, 360)
+  }, 620)
   if (mode === 'line' && previousMode !== 'line') lineAnimationEpoch.value += 1
 })
 
@@ -223,7 +223,7 @@ function clearHovered() {
           </linearGradient>
         </defs>
         <line v-for="y in [6, 16, 26, 36, 46]" :key="y" x1="0" :y1="y" x2="100" :y2="y" class="trend-grid-line" />
-        <Transition name="line-layer" :duration="{ enter: 380, leave: 180 }" appear>
+        <Transition name="line-layer" :duration="{ enter: 380, leave: 280 }" appear>
           <g v-if="mode === 'line'" :key="lineAnimationEpoch" class="trend-line-layer">
             <path :d="areaPath" class="trend-area" />
             <path :d="linePath" class="trend-line" />
@@ -580,7 +580,11 @@ function clearHovered() {
 
 /* Mode switch: coordinated, no stagger */
 .is-mode-motion .trend-bar {
-  transition-duration: 300ms;
+  transition:
+    transform 600ms var(--chart-motion-ease),
+    opacity 180ms ease,
+    filter 80ms ease,
+    box-shadow 80ms ease;
 }
 
 .is-mode-motion .trend-value-node {
