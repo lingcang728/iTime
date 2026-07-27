@@ -36,6 +36,7 @@
 .weekly-section-heading h2 svg { color: var(--text-secondary); }
 .weekly-section-heading button { border: 0; color: var(--text-secondary); background: transparent; font: inherit; font-size: var(--text-xs); cursor: pointer; }
 .weekly-section-heading button:hover { color: var(--text-primary); }
+.weekly-section-heading > span { color: var(--text-secondary); font-size: var(--text-xs); font-weight: 600; }
 
 .weekly-heatmap { display: grid; grid-template-columns: 40px repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .heat-day { display: grid; gap: 2px; color: var(--text-secondary); font-size: 10px; text-align: center; }

@@ -114,4 +114,31 @@ describe('InputTrendChart', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(wrapper.classes()).not.toContain('is-mode-motion')
   })
+
+  it('uses roving focus and supports arrows, Home, End, Enter and Space', async () => {
+    const wrapper = mount(InputTrendChart, {
+      attachTo: document.body,
+      props: { points, mode: 'line', ariaLabel: '七天输入折线图' },
+    })
+    const buttons = () => wrapper.findAll<HTMLButtonElement>('.trend-point')
+    expect(buttons().filter((button) => button.attributes('tabindex') === '0')).toHaveLength(1)
+    expect(buttons().at(-1)?.attributes('tabindex')).toBe('0')
+
+    await buttons().at(-1)?.trigger('keydown', { key: 'Home' })
+    expect(buttons()[0].attributes('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(buttons()[0].element)
+
+    await buttons()[0].trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(buttons()[1].element)
+    await buttons()[1].trigger('keydown', { key: 'End' })
+    expect(document.activeElement).toBe(buttons().at(-1)?.element)
+    await buttons().at(-1)?.trigger('keydown', { key: 'Enter' })
+    expect(buttons().at(-1)?.attributes('aria-pressed')).toBe('true')
+    await buttons()[0].trigger('keydown', { key: ' ' })
+    expect(buttons()[0].attributes('aria-pressed')).toBe('true')
+
+    expect(wrapper.get('table caption').text()).toContain('可读数据表')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(points.length)
+    wrapper.unmount()
+  })
 })

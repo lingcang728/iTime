@@ -29,6 +29,10 @@ import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark
 export type { ThemeMode } from './theme'
 export type MigrationState = 'notFound' | 'partial' | 'ready' | 'imported'
 export type ClosePreference = 'ask' | 'hide' | 'quit'
+export interface ReminderOccurrence {
+  occurrenceId: string
+  continuousMinutes: number
+}
 
 const persisted = loadPersistedState()
 const desktopRuntime = isTauriRuntime()
@@ -70,6 +74,7 @@ const state = reactive({
   recording: true,
   recordingStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   recordingMessage: desktopRuntime ? '正在向采集器确认状态' : '浏览器预览不写入本机记录',
+  currentReminder: null as ReminderOccurrence | null,
 })
 
 const liveActivityDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
@@ -177,6 +182,7 @@ function persist(): void {
     goals: state.goals,
     migrationState: state.migrationState,
     deletedInputDates: state.deletedInputDates,
+    dismissedReminderOccurrences: state.dismissedReminderOccurrences,
   }
   savePersistedState(value)
 }
@@ -190,6 +196,7 @@ watch([
   () => ({ ...state.goals }),
   () => state.migrationState,
   () => [...state.deletedInputDates],
+  () => [...state.dismissedReminderOccurrences],
 ], persist, { deep: true })
 
 function applyTheme(preview?: 'light' | 'dark'): void {
@@ -501,6 +508,22 @@ function showToast(message: string): void {
   }, 2600)
 }
 
+function receiveReminder(occurrence: ReminderOccurrence): boolean {
+  if (state.dismissedReminderOccurrences.includes(occurrence.occurrenceId)) return false
+  state.currentReminder = occurrence
+  return true
+}
+
+function dismissCurrentReminder(): void {
+  const occurrence = state.currentReminder
+  if (!occurrence) return
+  state.dismissedReminderOccurrences = [
+    ...new Set([...state.dismissedReminderOccurrences, occurrence.occurrenceId]),
+  ].slice(-90)
+  state.currentReminder = null
+  showToast('已关闭本次提示；下个休息间隔仍会提醒')
+}
+
 export function useAppStore() {
   return {
     state,
@@ -525,6 +548,8 @@ export function useAppStore() {
     refreshAutostart,
     setAutostart,
     showToast,
+    receiveReminder,
+    dismissCurrentReminder,
   }
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 export interface InputTrendPoint {
   label: string
@@ -15,6 +15,9 @@ const props = defineProps<{
 
 const hoveredIndex = ref<number | null>(null)
 const focusedIndex = ref<number | null>(null)
+const selectedIndex = ref<number | null>(null)
+const rovingIndex = ref(Math.max(0, props.points.length - 1))
+const chartRoot = ref<HTMLElement | null>(null)
 const lineAnimationEpoch = ref(0)
 const rangeMotion = ref<'idle' | 'expanding' | 'contracting'>('idle')
 const modeMotion = ref(false)
@@ -24,7 +27,7 @@ let previousPointCount = props.points.length
 let rangeMotionTimer: number | null = null
 let modeMotionTimer: number | null = null
 
-const activeIndex = computed(() => focusedIndex.value ?? hoveredIndex.value)
+const activeIndex = computed(() => focusedIndex.value ?? hoveredIndex.value ?? selectedIndex.value)
 const activePoint = computed(() => activeIndex.value === null ? null : chartPoints.value[activeIndex.value] ?? null)
 
 function niceCeiling(value: number): number {
@@ -100,6 +103,8 @@ watch(pointSignature, () => {
   previousPointCount = nextCount
   hoveredIndex.value = null
   focusedIndex.value = null
+  rovingIndex.value = Math.min(rovingIndex.value, Math.max(0, nextCount - 1))
+  if (selectedIndex.value !== null && selectedIndex.value >= nextCount) selectedIndex.value = null
   if (props.mode === 'line') lineAnimationEpoch.value += 1
   if (rangeMotionTimer !== null) window.clearTimeout(rangeMotionTimer)
   rangeMotionTimer = window.setTimeout(() => {
@@ -190,10 +195,41 @@ function setHovered(index: number) {
 function clearHovered() {
   hoveredIndex.value = null
 }
+
+function focusDatum(index: number): void {
+  const nextIndex = Math.max(0, Math.min(props.points.length - 1, index))
+  rovingIndex.value = nextIndex
+  void nextTick(() => {
+    chartRoot.value?.querySelector<HTMLButtonElement>(
+      `.trend-point[data-point-index="${nextIndex}"]`,
+    )?.focus()
+  })
+}
+
+function handlePointKeydown(event: KeyboardEvent, index: number): void {
+  const target = {
+    ArrowLeft: index - 1,
+    ArrowDown: index - 1,
+    ArrowRight: index + 1,
+    ArrowUp: index + 1,
+    Home: 0,
+    End: props.points.length - 1,
+  }[event.key]
+  if (target !== undefined) {
+    event.preventDefault()
+    focusDatum(target)
+    return
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    selectedIndex.value = index
+  }
+}
 </script>
 
 <template>
   <div
+    ref="chartRoot"
     class="input-trend-chart"
     :class="[
       `is-${mode}`,
@@ -275,9 +311,13 @@ function clearHovered() {
               'is-marker-visible': mode === 'line' && shouldShowMarker(point.value),
               'is-active': activeIndex === point.index,
             }"
+            :data-point-index="point.index"
+            :tabindex="point.index === rovingIndex ? 0 : -1"
             :aria-label="pointAriaLabel(point.index)"
-            @focus="focusedIndex = point.index"
+            :aria-pressed="selectedIndex === point.index"
+            @focus="focusedIndex = point.index; rovingIndex = point.index"
             @blur="focusedIndex = null"
+            @keydown="handlePointKeydown($event, point.index)"
             @pointerenter="setHovered(point.index)"
             @pointermove="setHovered(point.index)"
           />
@@ -308,6 +348,16 @@ function clearHovered() {
         >{{ point.label }}</span>
       </span>
     </div>
+
+    <table class="sr-only">
+      <caption>{{ ariaLabel }}的可读数据表</caption>
+      <thead><tr><th scope="col">日期</th><th scope="col">字符键按下次数</th></tr></thead>
+      <tbody>
+        <tr v-for="point in points" :key="`table-${point.accessibleLabel}`">
+          <th scope="row">{{ point.accessibleLabel }}</th><td>{{ numberFormatter.format(point.value) }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 

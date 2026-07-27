@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import {
-  PhCaretDown,
   PhClock,
   PhEye,
   PhPulse,
@@ -11,20 +10,18 @@ import {
 import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { coalesceRangesBy, mergeRanges } from '../domain/intervals'
+import { coalesceRangesBy } from '../domain/intervals'
 import type { ForegroundAppInterval } from '../domain/events'
 import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration } from '../utils/format'
-import { reminderOccurrenceKey, shouldShowRestReminder } from '../utils/reminders'
 
 interface DurationPart {
   amount: string
   unit?: string
 }
 
-const DISMISSED_REMINDERS_KEY = 'itime-home-dismissed-reminders-v2'
 const store = useAppStore()
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
@@ -88,30 +85,7 @@ const rankingEmptyTitle = computed(() => activityDataAvailable.value
 const rankingEmptyDetail = computed(() => activityDataAvailable.value
   ? 'iTime 已开始记录，新活动会自动出现在这里。'
   : store.state.activityDataMessage)
-const activeInterval = computed(() => mergeRanges(store.day.value.events
-  .filter((event) => event.type === 'device' && event.state === 'active')
-  .map(({ start, end }) => ({ start, end })))
-  .sort((first, second) => second.end - first.end)[0])
-const continuousDuration = computed(() => activeInterval.value ? activeInterval.value.end - activeInterval.value.start : 0)
-const continuousTarget = computed(() => store.state.goals.continuous * 60_000)
-const now = ref(Date.now())
-const dismissedOccurrences = ref<string[]>(readDismissedOccurrences())
-const reminderKey = computed(() => reminderOccurrenceKey(
-  store.state.selectedDate,
-  continuousDuration.value,
-  continuousTarget.value,
-))
-const reminderVisible = computed(() => shouldShowRestReminder({
-  enabled: store.state.reminders,
-  continuousDuration: continuousDuration.value,
-  targetDuration: continuousTarget.value,
-  lastActiveEnd: activeInterval.value?.end ?? null,
-  now: new Date(now.value),
-  quietStart: store.state.quietStart,
-  quietEnd: store.state.quietEnd,
-  dismissed: !reminderKey.value || dismissedOccurrences.value.includes(reminderKey.value),
-}))
-let reminderClock: number | undefined
+const reminderVisible = computed(() => store.state.currentReminder !== null)
 
 function durationParts(value: number | null): DurationPart[] {
   if (value === null) return [{ amount: '—', unit: '暂无数据' }]
@@ -122,30 +96,9 @@ function durationParts(value: number | null): DurationPart[] {
   return [{ amount: (minutes / 60).toFixed(1), unit: '小时' }]
 }
 
-function readDismissedOccurrences(): string[] {
-  if (typeof localStorage === 'undefined') return []
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(DISMISSED_REMINDERS_KEY) ?? '[]')
-    return Array.isArray(value) ? value.filter((date): date is string => typeof date === 'string') : []
-  } catch {
-    return []
-  }
-}
-
 function dismissReminder(): void {
-  if (!reminderKey.value) return
-  dismissedOccurrences.value = [...new Set([...dismissedOccurrences.value, reminderKey.value])].slice(-90)
-  localStorage.setItem(DISMISSED_REMINDERS_KEY, JSON.stringify(dismissedOccurrences.value))
-  store.showToast('已关闭本次提示；下个休息间隔仍会提醒')
+  store.dismissCurrentReminder()
 }
-
-onMounted(() => {
-  reminderClock = window.setInterval(() => { now.value = Date.now() }, 15_000)
-})
-
-onBeforeUnmount(() => {
-  if (reminderClock !== undefined) window.clearInterval(reminderClock)
-})
 </script>
 
 <template>
@@ -163,7 +116,7 @@ onBeforeUnmount(() => {
       <article class="ranking-card">
         <div class="section-heading">
           <h2>应用使用排行</h2>
-          <button class="text-button" type="button">查看全部</button>
+          <span class="section-meta">前 7 项</span>
         </div>
         <div class="ranking-columns" aria-hidden="true"><span>应用</span><span>使用时长</span><span>占比</span></div>
         <div v-if="rankingRows.length" class="ranking-list">
@@ -179,13 +132,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
-        <button v-if="rankingRows.length" class="ranking-more" type="button">查看全部应用与网站</button>
       </article>
 
       <article class="today-timeline">
         <div class="section-heading">
           <h2>时间线 · 今日活动</h2>
-          <button class="text-button" type="button">集中视图<PhCaretDown :size="13" weight="bold" aria-hidden="true" /></button>
+          <span class="section-meta">最近 8 段</span>
         </div>
         <div v-if="timelineRows.length" class="home-activity-list" aria-label="今日应用活动时间线">
           <div v-for="event in timelineRows" :key="event.id" class="home-activity-row">
@@ -215,7 +167,7 @@ onBeforeUnmount(() => {
       <div class="insight-stat"><small>最长区间时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
       <div v-if="reminderVisible" class="wellbeing-card">
         <PhEye :size="18" />
-        <span>已连续使用 {{ formatDuration(continuousDuration, true) }}</span>
+        <span>已连续使用 {{ store.state.currentReminder?.continuousMinutes }} 分钟</span>
         <button class="button secondary" type="button" @click="dismissReminder">知道了</button>
       </div>
     </article>

@@ -214,6 +214,15 @@
   color: var(--text-primary);
 }
 
+.section-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
 .section-state {
   min-height: 128px;
   display: grid;

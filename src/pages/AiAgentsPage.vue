@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import {
   PhArrowUpRight,
-  PhCaretDown,
   PhChartLineUp,
   PhClock,
   PhInfo,
@@ -175,7 +174,7 @@ const insight = computed(() => {
       <section class="ai-panel ai-timeline-panel" aria-labelledby="ai-evidence-title">
         <div class="ai-section-heading">
           <h2 id="ai-evidence-title">AI 活动时间线</h2>
-          <button type="button" class="text-button">全部活动<PhCaretDown :size="13" weight="bold" aria-hidden="true" /></button>
+          <span class="section-meta">全部活动</span>
         </div>
         <div v-if="activityRows.length" class="ai-activity-list" aria-label="AI 活动证据">
           <article v-for="row in activityRows" :key="row.id" class="ai-activity-row">
@@ -196,7 +195,7 @@ const insight = computed(() => {
       <section class="ai-panel ai-tools-panel" aria-labelledby="ai-tools-title">
         <div class="ai-section-heading">
           <h2 id="ai-tools-title">使用的工具</h2>
-          <button type="button" class="text-button">按使用时长<PhCaretDown :size="13" weight="bold" aria-hidden="true" /></button>
+          <span class="section-meta">按使用时长排序</span>
         </div>
         <div v-if="store.day.value.aiTools.length" class="ai-tool-list" aria-label="AI 工具采样明细">
           <article v-for="tool in store.day.value.aiTools" :key="tool.toolId" class="ai-tool-item">
@@ -207,7 +206,6 @@ const insight = computed(() => {
               <PhArrowUpRight :size="15" aria-hidden="true" />
             </button>
           </article>
-          <button class="ai-tools-more" type="button">查看所有工具使用明细<PhArrowUpRight :size="15" /></button>
         </div>
         <div v-else class="ai-tool-list__empty">当天尚未采集到 AI 工具活动。</div>
       </section>

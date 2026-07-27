@@ -4,7 +4,7 @@ import type { ClosePreference } from './appStore'
 import type { ThemeMode } from './theme'
 
 const STORAGE_KEY = 'itime-prototype-state'
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 export interface PersistedState {
   schemaVersion: typeof SCHEMA_VERSION
@@ -16,6 +16,7 @@ export interface PersistedState {
   goals: Record<string, number>
   migrationState: 'notFound' | 'partial' | 'ready' | 'imported'
   deletedInputDates: string[]
+  dismissedReminderOccurrences: string[]
 }
 
 export const persistedDefaults: PersistedState = {
@@ -28,6 +29,7 @@ export const persistedDefaults: PersistedState = {
   goals: { learning: 120, development: 180, ai: 180, continuous: 50 },
   migrationState: 'partial',
   deletedInputDates: [],
+  dismissedReminderOccurrences: [],
 }
 
 const storedSchema = z.object({
@@ -39,6 +41,7 @@ const storedSchema = z.object({
   goals: z.record(z.string(), z.number().finite().nonnegative()).optional(),
   migrationState: z.enum(['notFound', 'partial', 'ready', 'imported']).optional(),
   deletedInputDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  dismissedReminderOccurrences: z.array(z.string().min(1).max(200)).max(90).optional(),
 }).strip()
 
 export function loadPersistedState(): PersistedState {

@@ -34,6 +34,13 @@ struct ReminderRuntime {
     delivered_occurrence: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReminderDueEvent {
+    occurrence_id: String,
+    continuous_minutes: u64,
+}
+
 impl ReminderRuntime {
     fn configure(&mut self, config: ReminderConfig) {
         if self.config == config {
@@ -44,7 +51,7 @@ impl ReminderRuntime {
         self.delivered_occurrence = 0;
     }
 
-    fn observe(&mut self, now: u64, active: bool, local_minute: u16) -> Option<u64> {
+    fn observe(&mut self, now: u64, active: bool, local_minute: u16) -> Option<ReminderDueEvent> {
         if !self.config.enabled || !active {
             self.active_since = None;
             self.delivered_occurrence = 0;
@@ -65,19 +72,16 @@ impl ReminderRuntime {
         }
 
         self.delivered_occurrence = occurrence;
-        Some(occurrence.saturating_mul(self.config.interval_minutes))
+        Some(ReminderDueEvent {
+            occurrence_id: format!("{active_since}:{interval_millis}:{occurrence}"),
+            continuous_minutes: occurrence.saturating_mul(self.config.interval_minutes),
+        })
     }
 }
 
 #[derive(Clone, Default)]
 pub(crate) struct ReminderService {
     runtime: Arc<Mutex<ReminderRuntime>>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReminderDueEvent {
-    continuous_minutes: u64,
 }
 
 impl ReminderService {
@@ -118,26 +122,23 @@ impl ReminderService {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .observe(now, active, minute);
-        let Some(continuous_minutes) = due else {
+        let Some(occurrence) = due else {
             return;
         };
 
         let body = format!(
-            "你已连续使用电脑 {continuous_minutes} 分钟。起身活动一下、看看远处，再回来继续。"
+            "你已连续使用电脑 {} 分钟。起身活动一下、看看远处，再回来继续。",
+            occurrence.continuous_minutes
         );
-        match app
+        let _ = app.emit("rest-reminder-due", occurrence);
+        if let Err(error) = app
             .notification()
             .builder()
             .title("iTime · 休息一下")
             .body(body)
             .show()
         {
-            Ok(()) => {
-                let _ = app.emit("rest-reminder-due", ReminderDueEvent { continuous_minutes });
-            }
-            Err(error) => {
-                let _ = app.emit("rest-reminder-error", error.to_string());
-            }
+            let _ = app.emit("rest-reminder-error", error.to_string());
         }
     }
 }
@@ -187,7 +188,9 @@ mod tests {
         let mut runtime = configured_runtime(30);
         assert_eq!(runtime.observe(1_000, true, 12 * 60), None);
         assert_eq!(
-            runtime.observe(1_000 + 30 * MILLIS_PER_MINUTE, true, 12 * 60),
+            runtime
+                .observe(1_000 + 30 * MILLIS_PER_MINUTE, true, 12 * 60)
+                .map(|event| event.continuous_minutes),
             Some(30)
         );
         assert_eq!(
@@ -195,7 +198,9 @@ mod tests {
             None
         );
         assert_eq!(
-            runtime.observe(1_000 + 60 * MILLIS_PER_MINUTE, true, 12 * 60),
+            runtime
+                .observe(1_000 + 60 * MILLIS_PER_MINUTE, true, 12 * 60)
+                .map(|event| event.continuous_minutes),
             Some(60)
         );
     }
@@ -220,7 +225,9 @@ mod tests {
             None
         );
         assert_eq!(
-            runtime.observe(1_000 + 60 * MILLIS_PER_MINUTE, true, 8 * 60),
+            runtime
+                .observe(1_000 + 60 * MILLIS_PER_MINUTE, true, 8 * 60)
+                .map(|event| event.continuous_minutes),
             Some(60)
         );
         assert_eq!(

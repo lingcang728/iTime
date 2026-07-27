@@ -29,7 +29,14 @@ describe('persisted state validation', () => {
 
   it('writes the current schema version', () => {
     savePersistedState(persistedDefaults)
-    expect(JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}').schemaVersion).toBe(3)
+    expect(JSON.parse(localStorage.getItem('itime-prototype-state') ?? '{}').schemaVersion).toBe(4)
+  })
+
+  it('keeps only bounded reminder occurrence ids', () => {
+    localStorage.setItem('itime-prototype-state', JSON.stringify({
+      dismissedReminderOccurrences: ['session:1800000:1', 42],
+    }))
+    expect(loadPersistedState().dismissedReminderOccurrences).toEqual([])
   })
 
   it('drops persisted goal values outside the editable bounds', () => {

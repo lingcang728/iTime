@@ -155,7 +155,7 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
         </section>
 
         <section class="weekly-section top-apps-panel">
-          <header class="weekly-section-heading"><h2>Top 应用</h2><button type="button">查看全部 ›</button></header>
+          <header class="weekly-section-heading"><h2>Top 应用</h2><span>前 8 项</span></header>
           <WeeklyTopApps :apps="summary.topApps.slice(0, 8)" />
         </section>
       </div>
@@ -167,7 +167,7 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
         </section>
 
         <section class="weekly-section achievements-panel">
-          <header class="weekly-section-heading"><h2><PhTrophy :size="17" />本周成就</h2><button type="button">查看全部 ›</button></header>
+          <header class="weekly-section-heading"><h2><PhTrophy :size="17" />本周成就</h2><span>前 3 项</span></header>
           <WeeklyAchievements :achievements="summary.achievements.slice(0, 3)" />
         </section>
       </div>

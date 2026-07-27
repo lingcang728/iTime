@@ -59,7 +59,7 @@
   min-height: 38px;
 }
 
-.timeline-range-button,
+.timeline-range-control,
 .timeline-info-button {
   display: inline-flex;
   align-items: center;
@@ -73,8 +73,14 @@
   cursor: pointer;
 }
 
-.timeline-range-button strong { color: var(--text-primary); font-weight: 650; }
-.timeline-range-button span { color: var(--text-secondary); }
+.timeline-range-control { justify-content: space-between; gap: 16px; min-width: 330px; cursor: default; }
+.timeline-range-control > div:first-child { display: flex; align-items: center; gap: 8px; }
+.timeline-range-control strong { color: var(--text-primary); font-weight: 650; }
+.timeline-range-control span { color: var(--text-secondary); }
+.timeline-range-options { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-inset); }
+.timeline-range-options button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; color: var(--text-secondary); background: transparent; font: 650 10px/1 var(--font-ui); cursor: pointer; }
+.timeline-range-options button[aria-pressed="true"] { color: var(--text-primary); background: var(--bg-elevated); box-shadow: 0 1px 4px color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.timeline-range-options button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
 .timeline-page .track-actions { position: relative; display: flex; align-items: center; gap: 22px; }
 .timeline-page .timeline-info-button { min-height: 30px; padding-left: 20px; border-left: 1px solid var(--border-soft); }

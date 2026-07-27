@@ -22,9 +22,12 @@ const tooltipPosition = computed(() => ({
   'at-top': (active.value?.weekday ?? 0) >= 4,
 }))
 
-// P1-3: shallow comparison via cheap signature — avoids deep-traversing 49 objects
+// Include values and availability so an in-place data refresh also invalidates
+// stale locked cells; dates alone do not describe the rendered heatmap.
 watch(
-  () => `${props.days.length}-${props.days[0]?.date ?? ''}-${props.days.at(-1)?.date ?? ''}`,
+  () => props.days
+    .map((day) => `${day.date}:${day.duration ?? 'null'}:${day.available}:${day.intensity}`)
+    .join('|'),
   () => {
     if (locked.value && !props.days.some((day) => day.date === locked.value?.date && day.available)) locked.value = null
   },

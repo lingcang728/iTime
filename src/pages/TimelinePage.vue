@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
-  PhCalendarBlank,
-  PhCaretDown,
   PhCheckCircle,
   PhDesktop,
   PhInfo,
@@ -28,22 +26,24 @@ import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatDuration, formatRatio } from '../utils/format'
 import { useNow } from '../composables/useNow'
+import {
+  timelineNowPercent,
+  timelineRange,
+  timelineTicks,
+  type TimelineRangeMode,
+} from './timelineModel'
 
 interface DurationPart { amount: string; unit?: string }
 
 const store = useAppStore()
 const notesOpen = ref(false)
+const rangeMode = ref<TimelineRangeMode>('day')
 const { nowMs } = useNow()
-const isToday = computed(() => {
-  const todayStr = new Date().toISOString().slice(0, 10)
-  return store.state.selectedDate === todayStr
-})
-const nowPercent = computed(() => {
-  const range = displayRange.value
-  if (!isToday.value) return null
-  const pct = (nowMs.value - range.start) / Math.max(1, range.end - range.start) * 100
-  return Math.min(100, Math.max(0, pct))
-})
+const nowPercent = computed(() => timelineNowPercent(
+  store.state.selectedDate,
+  displayRange.value,
+  nowMs.value,
+))
 const deviceStyles = {
   active: { color: 'var(--timeline-device)', kind: 'attention', variant: 'solid', muted: false },
   idle: { color: 'var(--timeline-idle)', kind: 'waiting', variant: 'solid', muted: true },
@@ -53,13 +53,9 @@ const deviceStyles = {
 } as const
 const deviceNames = { active: '活跃', idle: '空闲', locked: '离开', sleep: '离开', unknown: '未知' }
 const byType = <T extends TimeEvent>(type: T['type']) => store.day.value.events.filter((event): event is T => event.type === type)
-const displayRange = computed(() => {
-  const start = new Date(store.day.value.range.start)
-  start.setHours(9, 0, 0, 0)
-  const end = new Date(store.day.value.range.start)
-  end.setHours(18, 0, 0, 0)
-  return { start: start.getTime(), end: end.getTime() }
-})
+const displayRange = computed(() => timelineRange(store.day.value.range, rangeMode.value))
+const axisTicks = computed(() => timelineTicks(rangeMode.value))
+const rangeLabel = computed(() => rangeMode.value === 'day' ? '00:00 – 24:00' : '09:00 – 18:00')
 
 const deviceSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   byType<DeviceStateInterval>('device'),
@@ -148,7 +144,13 @@ function durationParts(value: number | null): DurationPart[] {
 
     <article class="full-timeline" aria-labelledby="activity-tracks-title">
       <header class="track-header">
-        <button type="button" class="timeline-range-button"><PhCalendarBlank :size="18" /><strong id="activity-tracks-title">时间范围</strong><span>09:00 – 18:00</span><PhCaretDown :size="13" /></button>
+        <div class="timeline-range-control">
+          <div><strong id="activity-tracks-title">时间范围</strong><span>{{ rangeLabel }}</span></div>
+          <div class="timeline-range-options" role="group" aria-label="时间线显示范围">
+            <button type="button" :aria-pressed="rangeMode === 'day'" @click="rangeMode = 'day'">全天</button>
+            <button type="button" :aria-pressed="rangeMode === 'work'" @click="rangeMode = 'work'">工作时段</button>
+          </div>
+        </div>
         <div class="track-actions">
           <div class="timeline-legend" aria-label="时间线颜色说明">
             <span><i class="device" />设备</span><span><i class="app" />应用</span><span><i class="ai" />AI</span><span><i class="media" />媒体</span><span><i class="muted-hatch" />离开<span class="sr-only">设备非活跃</span></span>
@@ -167,7 +169,7 @@ function durationParts(value: number | null): DurationPart[] {
       <template v-if="activityDataAvailable">
         <div class="timeline-axis">
           <span></span>
-          <div class="timeline-axis__ticks"><span v-for="hour in 10" :key="hour" :style="{ left: `${(hour - 1) / 9 * 100}%` }">{{ String(hour + 8).padStart(2, '0') }}:00</span></div>
+          <div class="timeline-axis__ticks"><span v-for="tick in axisTicks" :key="tick.label" :style="{ left: `${tick.percent}%` }">{{ tick.label }}</span></div>
         </div>
         <div class="timeline-tracks">
           <div v-if="nowPercent !== null" class="timeline-now-indicator" :style="{ left: `calc(146px + 14px + ${nowPercent}% * (100% - 146px - 14px - 18px - 18px) / 100)` }" aria-hidden="true" />

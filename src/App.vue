@@ -27,6 +27,7 @@ import AppMark from './components/AppMark.vue'
 import CloseDialog from './components/CloseDialog.vue'
 import { useNow } from './composables/useNow'
 import { runtimeSyncStatus } from './stores/runtimeStatus'
+import { registerListenersIndependently } from './platform/listenerRegistry'
 
 const store = useAppStore()
 const { nowMs } = useNow()
@@ -143,28 +144,34 @@ watch(
 onMounted(async () => {
   store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
   window.addEventListener('keydown', handleKeydown)
-  cleanups.push(...await Promise.all([
-    listenDesktop<boolean>('recording-status', (recording) => {
+  const listenerError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    store.showToast(`桌面事件监听暂不可用：${message}`)
+  }
+  cleanups.push(...await registerListenersIndependently([
+    () => listenDesktop<boolean>('recording-status', (recording) => {
       store.state.recording = recording
       store.state.recordingStatus = 'ready'
       store.state.recordingMessage = recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
     }),
-    listenDesktop<string>('recording-error', (message) => {
+    () => listenDesktop<string>('recording-error', (message) => {
       store.state.recordingStatus = 'error'
       store.state.recordingMessage = message
       store.showToast(message)
     }),
-    listenDesktop<string>('navigate-to', (page) => router.push({ name: page })),
-    listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }),
-    listenDesktop<{ continuousMinutes: number }>('rest-reminder-due', ({ continuousMinutes }) => {
-      store.showToast(`休息提醒：已连续使用 ${continuousMinutes} 分钟`)
+    () => listenDesktop<string>('navigate-to', (page) => router.push({ name: page })),
+    () => listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }),
+    () => listenDesktop<{ occurrenceId: string; continuousMinutes: number }>('rest-reminder-due', (occurrence) => {
+      if (store.receiveReminder(occurrence)) {
+        store.showToast(`休息提醒：已连续使用 ${occurrence.continuousMinutes} 分钟`)
+      }
     }),
-    listenDesktop<string>('rest-reminder-error', (message) => {
+    () => listenDesktop<string>('rest-reminder-error', (message) => {
       store.showToast(`系统通知发送失败：${message}`)
     }),
-    listenDesktop('native-close-requested', () => requestClose()),
-    listenWindowResize(() => { void syncMaximized() }),
-  ]))
+    () => listenDesktop('native-close-requested', () => requestClose()),
+    () => listenWindowResize(() => { void syncMaximized() }),
+  ], listenerError))
   await store.syncRecording()
   await syncMaximized()
 })
