@@ -4,7 +4,7 @@ pub(super) const SAMPLE_INTERVAL_SECONDS: u64 = 10;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) enum DeviceState {
+pub(crate) enum DeviceState {
     Active,
     Idle,
     Locked,
@@ -13,23 +13,23 @@ pub(super) enum DeviceState {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct ActivityObservation {
-    pub(super) device_state: DeviceState,
-    pub(super) app_id: Option<String>,
-    pub(super) app_name: Option<String>,
-    pub(super) ai_tool: bool,
+pub(crate) struct ActivityObservation {
+    pub(crate) device_state: DeviceState,
+    pub(crate) app_id: Option<String>,
+    pub(crate) app_name: Option<String>,
+    pub(crate) ai_tool: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ActivitySlice {
-    pub(super) version: u8,
-    pub(super) start: u64,
-    pub(super) end: u64,
+    pub(crate) version: u8,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
     #[serde(default)]
-    pub(super) generation: u64,
+    pub(crate) generation: u64,
     #[serde(flatten)]
-    pub(super) observation: ActivityObservation,
+    pub(crate) observation: ActivityObservation,
 }
 
 #[derive(Debug, Serialize)]
@@ -100,8 +100,8 @@ impl ActivitySnapshot {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ActivityError {
-    pub(super) code: &'static str,
-    pub(super) message: String,
+    pub(crate) code: &'static str,
+    pub(crate) message: String,
 }
 
 impl ActivityError {

@@ -1,4 +1,6 @@
 mod activity;
+mod data_files;
+mod data_management;
 mod icons;
 mod keyboard;
 mod provider_activity;
@@ -132,6 +134,16 @@ fn transition_recording(
         .recording_transition
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    transition_recording_locked(app, state, collector, recording, true)
+}
+
+fn transition_recording_locked(
+    app: &AppHandle,
+    state: &RuntimeState,
+    collector: &ActivityCollector,
+    recording: bool,
+    persist_setting: bool,
+) -> Result<bool, String> {
     let previous = state.recording.load(Ordering::Acquire);
     if previous == recording {
         return Ok(recording);
@@ -140,7 +152,9 @@ fn transition_recording(
     let previous_generation = state.recording_generation.load(Ordering::Acquire);
     let generation = previous_generation.wrapping_add(1);
     let at = unix_millis()?;
-    settings::save_recording(recording)?;
+    if persist_setting {
+        settings::save_recording(recording)?;
+    }
 
     // Keyboard hook events snapshot these atomics at hook time. Update them at the same
     // command boundary that is sent to the activity collector.
@@ -153,7 +167,11 @@ fn transition_recording(
         state
             .recording_generation
             .store(previous_generation, Ordering::Release);
-        let rollback = settings::save_recording(previous);
+        let rollback = if persist_setting {
+            settings::save_recording(previous)
+        } else {
+            Ok(())
+        };
         return Err(match rollback {
             Ok(()) => error,
             Err(rollback_error) => {
@@ -179,6 +197,67 @@ fn set_recording_state(
     recording: bool,
 ) -> Result<bool, String> {
     transition_recording(&app, &state, &collector, recording)
+}
+
+fn with_local_data_quiesced<T>(
+    app: &AppHandle,
+    state: &RuntimeState,
+    activity: &ActivityCollector,
+    keyboard: &KeyboardCollector,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    let _transition = state
+        .recording_transition
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let was_recording = state.recording.load(Ordering::Acquire);
+    if was_recording {
+        transition_recording_locked(app, state, activity, false, false)?;
+    }
+    let operation_result = keyboard.flush().and_then(|()| operation());
+    let restore_result = if was_recording {
+        transition_recording_locked(app, state, activity, true, false).map(|_| ())
+    } else {
+        Ok(())
+    };
+    match (operation_result, restore_result) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(restore_error)) => {
+            Err(format!("数据操作完成，但恢复采集失败：{restore_error}"))
+        }
+        (Err(error), Err(restore_error)) => Err(format!("{error}；恢复采集失败：{restore_error}")),
+    }
+}
+
+#[tauri::command]
+fn export_local_data(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    activity: State<'_, ActivityCollector>,
+    keyboard: State<'_, KeyboardCollector>,
+    format: String,
+) -> Result<data_management::ExportResult, String> {
+    with_local_data_quiesced(&app, &state, &activity, &keyboard, || {
+        data_management::export(&format)
+    })
+}
+
+#[tauri::command]
+fn clear_local_data(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    activity: State<'_, ActivityCollector>,
+    keyboard: State<'_, KeyboardCollector>,
+    confirmation: String,
+) -> Result<data_management::LocalDataStatus, String> {
+    if confirmation != "DELETE_ALL_LOCAL_DATA" {
+        return Err("删除确认无效".into());
+    }
+    with_local_data_quiesced(&app, &state, &activity, &keyboard, || {
+        data_management::clear_records()
+    })?;
+    data_management::get_local_data_status()
 }
 
 #[tauri::command]
@@ -236,6 +315,9 @@ pub fn run() {
             // owned by the NSIS installer; portable builds never self-register.
             #[cfg(windows)]
             windows_shell::configure_process_identity();
+            if let Err(error) = data_management::apply_saved_retention() {
+                eprintln!("iTime 数据保留期清理失败：{error}");
+            }
 
             let (recording, generation, recording_now) = {
                 let runtime = app.state::<RuntimeState>();
@@ -348,6 +430,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_recording_state,
             set_recording_state,
+            data_management::get_local_data_status,
+            data_management::set_data_retention,
+            data_management::open_local_data_directory,
+            export_local_data,
+            clear_local_data,
             quit_app,
             configure_reminders,
             activity::get_activity_snapshot,

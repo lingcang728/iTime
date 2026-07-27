@@ -1,39 +1,21 @@
 use super::model::{ActivityError, ActivitySlice, ActivitySnapshot};
+use crate::data_files::{self, ACTIVITY_PREFIX};
 use std::{
-    fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    path::PathBuf,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
     thread,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 const MAX_QUERY_MILLIS: u64 = 32 * 24 * 60 * 60 * 1_000;
 
-fn data_file_path() -> Result<PathBuf, ActivityError> {
-    let local = std::env::var_os("LOCALAPPDATA").ok_or_else(|| ActivityError {
-        code: "not_found",
-        message: "Windows LOCALAPPDATA 路径不可用".into(),
-    })?;
-    Ok(PathBuf::from(local)
-        .join("iTime")
-        .join("Data")
-        .join("activity-v1.jsonl"))
-}
-
 fn append_slice_once(slice: &ActivitySlice) -> Result<(), ActivityError> {
-    let path = data_file_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(ActivityError::io)?;
-    }
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(ActivityError::io)?;
-    serde_json::to_writer(&mut file, slice).map_err(ActivityError::io)?;
-    file.write_all(b"\n").map_err(ActivityError::io)?;
-    file.flush().map_err(ActivityError::io)?;
-    file.sync_data().map_err(ActivityError::io)
+    let root = data_files::data_dir().map_err(ActivityError::io)?;
+    let json = serde_json::to_vec(slice).map_err(ActivityError::io)?;
+    data_files::append_json_line(&root, ACTIVITY_PREFIX, slice.start, &json)
+        .map(|_| ())
+        .map_err(ActivityError::io)
 }
 
 pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
@@ -50,12 +32,39 @@ pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
     Err(last_error.unwrap_or_else(|| ActivityError::io("活动记录写入失败")))
 }
 
-fn modified_millis(path: &PathBuf) -> u128 {
-    fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-        .and_then(|value| value.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map_or(0, |duration| duration.as_millis())
+pub(crate) fn read_all_records_from(
+    root: &Path,
+) -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
+    let paths = data_files::record_files_in(root, ACTIVITY_PREFIX).map_err(ActivityError::io)?;
+    let mut records = Vec::new();
+    let mut skipped = 0;
+    let mut updated_at = 0;
+    for path in paths {
+        updated_at = updated_at.max(data_files::modified_millis(&path));
+        let file = File::open(&path).map_err(ActivityError::io)?;
+        for line in BufReader::new(file).lines() {
+            let Ok(line) = line else {
+                skipped += 1;
+                continue;
+            };
+            let Ok(slice) = serde_json::from_str::<ActivitySlice>(&line) else {
+                skipped += 1;
+                continue;
+            };
+            if slice.version != 1 || slice.end <= slice.start {
+                skipped += 1;
+                continue;
+            }
+            records.push(slice);
+        }
+    }
+    records.sort_by_key(|slice| (slice.start, slice.end, slice.generation));
+    Ok((records, skipped, updated_at))
+}
+
+pub(crate) fn read_all_records() -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
+    let root = data_files::data_dir().map_err(ActivityError::io)?;
+    read_all_records_from(&root)
 }
 
 fn can_merge(previous: &ActivitySlice, next: &ActivitySlice) -> bool {
@@ -77,30 +86,10 @@ pub(super) fn read_snapshot(start: u64, end: u64) -> Result<ActivitySnapshot, Ac
     if start >= end || end - start > MAX_QUERY_MILLIS {
         return Err(ActivityError::invalid_range());
     }
-    let path = data_file_path()?;
-    if !path.is_file() {
-        return Ok(ActivitySnapshot::new(0, None, 0, Vec::new()));
-    }
-    let file = OpenOptions::new()
-        .read(true)
-        .open(&path)
-        .map_err(ActivityError::io)?;
+    let (records, skipped, updated_at) = read_all_records()?;
     let mut intervals: Vec<ActivitySlice> = Vec::new();
-    let mut skipped = 0;
     let mut recorded_from = None;
-    for line in BufReader::new(file).lines() {
-        let Ok(line) = line else {
-            skipped += 1;
-            continue;
-        };
-        let Ok(slice) = serde_json::from_str::<ActivitySlice>(&line) else {
-            skipped += 1;
-            continue;
-        };
-        if slice.version != 1 {
-            skipped += 1;
-            continue;
-        }
+    for slice in records {
         recorded_from =
             Some(recorded_from.map_or(slice.start, |value: u64| value.min(slice.start)));
         let Some(slice) = clip(slice, start, end) else {
@@ -115,7 +104,7 @@ pub(super) fn read_snapshot(start: u64, end: u64) -> Result<ActivitySnapshot, Ac
         intervals.push(slice);
     }
     Ok(ActivitySnapshot::new(
-        modified_millis(&path),
+        u128::from(updated_at),
         recorded_from,
         skipped,
         intervals,
@@ -126,6 +115,16 @@ pub(super) fn read_snapshot(start: u64, end: u64) -> Result<ActivitySnapshot, Ac
 mod tests {
     use super::*;
     use crate::activity::model::{ActivityObservation, DeviceState};
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn fixture_root(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "itime-activity-storage-{name}-{}-{}",
+            std::process::id(),
+            data_files::unix_millis()
+        ))
+    }
 
     fn slice(start: u64, end: u64) -> ActivitySlice {
         ActivitySlice {
@@ -157,5 +156,29 @@ mod tests {
         let mut second = slice(10, 20);
         second.generation = first.generation + 1;
         assert!(!can_merge(&first, &second));
+    }
+
+    #[test]
+    fn reads_legacy_and_rotated_files_and_recovers_after_bad_lines() {
+        let root = fixture_root("rotated");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("activity-v1.jsonl"),
+            format!(
+                "{}\nnot-json\n",
+                serde_json::to_string(&slice(0, 10)).unwrap()
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("activity-2026-07-27-v1.jsonl"),
+            format!("{}\n", serde_json::to_string(&slice(10, 20)).unwrap()),
+        )
+        .unwrap();
+        let (records, skipped, _) = read_all_records_from(&root).unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(records.len(), 2);
+        assert_eq!(skipped, 1);
+        assert_eq!((records[0].start, records[1].start), (0, 10));
     }
 }

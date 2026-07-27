@@ -1,8 +1,9 @@
+use crate::data_files::{self, KEYBOARD_PREFIX};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, BufWriter, Write},
+    fs::File,
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
@@ -10,7 +11,7 @@ use std::{
         Arc, Mutex, OnceLock,
     },
     thread::{self, JoinHandle},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 use tauri::State;
 use windows::Win32::{
@@ -54,6 +55,7 @@ const BLOCKING_MODIFIERS: u8 = MOD_LCTRL | MOD_RCTRL | MOD_LALT | MOD_RALT | MOD
 #[derive(Debug)]
 enum KeyboardMessage {
     Key { timestamp: u64, generation: u64 },
+    Flush(SyncSender<Result<(), String>>),
     Shutdown(SyncSender<Result<(), String>>),
 }
 
@@ -91,14 +93,14 @@ struct KeyboardRuntime {
 
 static KEYBOARD_RUNTIME: OnceLock<KeyboardRuntime> = OnceLock::new();
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct KeyboardRecord {
-    version: u8,
-    start: u64,
+pub(crate) struct KeyboardRecord {
+    pub(crate) version: u8,
+    pub(crate) start: u64,
     #[serde(default)]
-    generation: u64,
-    key_strokes: u64,
+    pub(crate) generation: u64,
+    pub(crate) key_strokes: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -199,20 +201,21 @@ impl KeyboardHealth {
 
 #[derive(Clone)]
 pub(crate) struct KeyboardService {
-    path: PathBuf,
+    root: PathBuf,
     health: Arc<KeyboardHealth>,
 }
 
 impl KeyboardService {
     pub(crate) fn new() -> Self {
         Self {
-            path: keyboard_path(),
+            root: data_files::data_dir()
+                .unwrap_or_else(|_| std::env::temp_dir().join("iTime").join("Data")),
             health: Arc::new(KeyboardHealth::default()),
         }
     }
 
     fn snapshot(&self, start: u64, end: u64) -> Result<KeyboardSnapshot, String> {
-        read_snapshot(&self.path, start, end, &self.health)
+        read_snapshot(&self.root, start, end, &self.health)
     }
 }
 
@@ -245,11 +248,11 @@ impl KeyboardCollector {
             health: service.health.clone(),
         });
 
-        let writer_path = service.path.clone();
+        let writer_root = service.root.clone();
         let writer_health = service.health.clone();
         let writer_thread = thread::spawn(move || {
             writer_health.writer_running.store(true, Ordering::Release);
-            writer_loop(receiver, &writer_path, &writer_health, FLUSH_INTERVAL);
+            writer_loop(receiver, &writer_root, &writer_health, FLUSH_INTERVAL);
             writer_health.writer_running.store(false, Ordering::Release);
         });
 
@@ -357,6 +360,19 @@ impl KeyboardCollector {
         }
         shutdown_result
     }
+
+    pub(crate) fn flush(&self) -> Result<(), String> {
+        if self.stopped.load(Ordering::Acquire) {
+            return Err("键盘写入线程已经停止".into());
+        }
+        let (reply, response) = mpsc::sync_channel(1);
+        self.sender
+            .send(KeyboardMessage::Flush(reply))
+            .map_err(|_| "键盘写入队列不可用".to_string())?;
+        response
+            .recv_timeout(CONTROL_TIMEOUT)
+            .map_err(|_| "键盘写入线程未及时完成刷新".to_string())?
+    }
 }
 
 impl Drop for KeyboardCollector {
@@ -454,7 +470,7 @@ fn send_key_event(runtime: &KeyboardRuntime, timestamp: u64, generation: u64) {
 
 fn writer_loop(
     receiver: Receiver<KeyboardMessage>,
-    path: &Path,
+    root: &Path,
     health: &KeyboardHealth,
     flush_interval: Duration,
 ) {
@@ -470,8 +486,12 @@ fn writer_loop(
                 let minute = timestamp / MINUTE_MILLIS * MINUTE_MILLIS;
                 *pending.entry((generation, minute)).or_default() += 1;
             }
+            Ok(KeyboardMessage::Flush(reply)) => {
+                let _ = reply.send(flush_pending(root, &mut pending, health));
+                next_flush = Instant::now() + flush_interval;
+            }
             Ok(KeyboardMessage::Shutdown(reply)) => {
-                let result = flush_pending(path, &mut pending, health);
+                let result = flush_pending(root, &mut pending, health);
                 let should_stop = result.is_ok();
                 let _ = reply.send(result);
                 if should_stop {
@@ -480,84 +500,100 @@ fn writer_loop(
                 next_flush = Instant::now() + flush_interval;
             }
             Err(RecvTimeoutError::Timeout) => {
-                let _ = flush_pending(path, &mut pending, health);
+                let _ = flush_pending(root, &mut pending, health);
                 next_flush = Instant::now() + flush_interval;
             }
             Err(RecvTimeoutError::Disconnected) => {
-                let _ = flush_pending(path, &mut pending, health);
+                let _ = flush_pending(root, &mut pending, health);
                 break;
             }
         }
         if Instant::now() >= next_flush {
-            let _ = flush_pending(path, &mut pending, health);
+            let _ = flush_pending(root, &mut pending, health);
             next_flush = Instant::now() + flush_interval;
         }
     }
 }
 
-fn write_pending_once(path: &Path, pending: &BTreeMap<(u64, u64), u64>) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|error| error.to_string())?;
-    let mut writer = BufWriter::new(file);
-    for ((generation, start), key_strokes) in pending {
-        serde_json::to_writer(
-            &mut writer,
-            &KeyboardRecord {
-                version: 1,
-                start: *start,
-                generation: *generation,
-                key_strokes: *key_strokes,
-            },
-        )
-        .map_err(|error| error.to_string())?;
-        writer.write_all(b"\n").map_err(|error| error.to_string())?;
-    }
-    writer.flush().map_err(|error| error.to_string())?;
-    writer
-        .get_ref()
-        .sync_data()
-        .map_err(|error| error.to_string())
+fn write_record_once(root: &Path, record: &KeyboardRecord) -> Result<(), String> {
+    let json = serde_json::to_vec(record).map_err(|error| error.to_string())?;
+    data_files::append_json_line(root, KEYBOARD_PREFIX, record.start, &json).map(|_| ())
 }
 
 fn flush_pending(
-    path: &Path,
+    root: &Path,
     pending: &mut BTreeMap<(u64, u64), u64>,
     health: &KeyboardHealth,
 ) -> Result<(), String> {
     if pending.is_empty() {
         return Ok(());
     }
-    let mut last_error = None;
-    for attempt in 0..WRITE_ATTEMPTS {
-        match write_pending_once(path, pending) {
-            Ok(()) => {
-                pending.clear();
-                health.mark_write(unix_millis());
-                return Ok(());
+    let keys = pending.keys().copied().collect::<Vec<_>>();
+    for (generation, start) in keys {
+        let key_strokes = pending.get(&(generation, start)).copied().unwrap_or(0);
+        let record = KeyboardRecord {
+            version: 1,
+            start,
+            generation,
+            key_strokes,
+        };
+        let mut last_error = None;
+        let mut written = false;
+        for attempt in 0..WRITE_ATTEMPTS {
+            match write_record_once(root, &record) {
+                Ok(()) => {
+                    written = true;
+                    break;
+                }
+                Err(error) => last_error = Some(error),
             }
-            Err(error) => last_error = Some(error),
+            if attempt + 1 < WRITE_ATTEMPTS {
+                thread::sleep(Duration::from_millis(50 * (attempt as u64 + 1)));
+            }
         }
-        if attempt + 1 < WRITE_ATTEMPTS {
-            thread::sleep(Duration::from_millis(50 * (attempt as u64 + 1)));
+        if written {
+            pending.remove(&(generation, start));
+            continue;
+        }
+        health.write_failures.fetch_add(1, Ordering::AcqRel);
+        let message = format!(
+            "键盘字符键计数写入失败：{}",
+            last_error.unwrap_or_else(|| "未知错误".into())
+        );
+        health.set_error(message.clone());
+        return Err(message);
+    }
+    health.mark_write(unix_millis());
+    Ok(())
+}
+
+pub(crate) fn read_all_records_from(
+    root: &Path,
+) -> Result<(Vec<KeyboardRecord>, usize, u64), String> {
+    let paths = data_files::record_files_in(root, KEYBOARD_PREFIX)?;
+    let mut records = Vec::new();
+    let mut skipped_records = 0;
+    let mut updated_at = 0;
+    for path in paths {
+        updated_at = updated_at.max(data_files::modified_millis(&path));
+        let reader = BufReader::new(File::open(&path).map_err(|error| error.to_string())?);
+        for line in reader.lines() {
+            let Ok(line) = line else {
+                skipped_records += 1;
+                continue;
+            };
+            match serde_json::from_str::<KeyboardRecord>(&line) {
+                Ok(record) if record.version == 1 && record.key_strokes > 0 => records.push(record),
+                _ => skipped_records += 1,
+            }
         }
     }
-    health.write_failures.fetch_add(1, Ordering::AcqRel);
-    let message = format!(
-        "键盘字符键计数写入失败：{}",
-        last_error.unwrap_or_else(|| "未知错误".into())
-    );
-    health.set_error(message.clone());
-    Err(message)
+    records.sort_by_key(|record| (record.start, record.generation));
+    Ok((records, skipped_records, updated_at))
 }
 
 fn read_snapshot(
-    path: &Path,
+    root: &Path,
     start: u64,
     end: u64,
     health: &KeyboardHealth,
@@ -566,31 +602,17 @@ fn read_snapshot(
         return Err("键盘统计查询区间无效".into());
     }
     let mut counts = BTreeMap::<u64, u64>::new();
-    let mut skipped_records = 0;
-    if path.is_file() {
-        let reader = BufReader::new(File::open(path).map_err(|error| error.to_string())?);
-        for line in reader.lines() {
-            let line = match line {
-                Ok(line) => line,
-                Err(error) => {
-                    skipped_records += 1;
-                    health.read_failures.fetch_add(1, Ordering::AcqRel);
-                    health.set_error(format!("键盘字符键计数读取失败：{error}"));
-                    continue;
-                }
-            };
-            match serde_json::from_str::<KeyboardRecord>(&line) {
-                Ok(record)
-                    if record.version == 1
-                        && record.key_strokes > 0
-                        && record.start < end
-                        && record.start.saturating_add(MINUTE_MILLIS) > start =>
-                {
-                    *counts.entry(record.start).or_default() += record.key_strokes;
-                }
-                Ok(_) => {}
-                Err(_) => skipped_records += 1,
-            }
+    let (records, skipped_records, updated_at) = match read_all_records_from(root) {
+        Ok(result) => result,
+        Err(error) => {
+            health.read_failures.fetch_add(1, Ordering::AcqRel);
+            health.set_error(format!("键盘字符键计数读取失败：{error}"));
+            return Err(error);
+        }
+    };
+    for record in records {
+        if record.start < end && record.start.saturating_add(MINUTE_MILLIS) > start {
+            *counts.entry(record.start).or_default() += record.key_strokes;
         }
     }
     let buckets = counts
@@ -604,7 +626,7 @@ fn read_snapshot(
         .collect();
     Ok(KeyboardSnapshot {
         source: "iTime Windows 字符键按下次数",
-        updated_at: modified_millis(path).max(health.last_write_at.load(Ordering::Acquire)),
+        updated_at: updated_at.max(health.last_write_at.load(Ordering::Acquire)),
         skipped_records,
         buckets,
         capabilities: KeyboardCapabilities {
@@ -621,41 +643,18 @@ fn read_snapshot(
     })
 }
 
-fn keyboard_path() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("iTime")
-        .join("Data")
-        .join("keyboard-v1.jsonl")
-}
-
-fn modified_millis(path: &Path) -> u64 {
-    fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-        .and_then(system_millis)
-        .unwrap_or(0)
-}
-
 fn unix_millis() -> u64 {
-    system_millis(SystemTime::now()).unwrap_or(0)
-}
-
-fn system_millis(value: SystemTime) -> Option<u64> {
-    value
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+    data_files::unix_millis()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
-    fn fixture_path(name: &str) -> PathBuf {
+    fn fixture_root(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "itime-keyboard-{name}-{}-{}.jsonl",
+            "itime-keyboard-{name}-{}-{}",
             std::process::id(),
             unix_millis()
         ))
@@ -718,15 +717,15 @@ mod tests {
 
     #[test]
     fn continuous_input_flushes_on_independent_deadline() {
-        let path = fixture_path("continuous");
+        let root = fixture_root("continuous");
         let (sender, receiver) = mpsc::sync_channel(128);
         let health = Arc::new(KeyboardHealth::default());
         let writer_health = health.clone();
-        let writer_path = path.clone();
+        let writer_root = root.clone();
         let writer = thread::spawn(move || {
             writer_loop(
                 receiver,
-                &writer_path,
+                &writer_root,
                 &writer_health,
                 Duration::from_millis(20),
             );
@@ -741,24 +740,26 @@ mod tests {
             thread::sleep(Duration::from_millis(2));
         }
         assert!(
-            path.is_file(),
+            !data_files::record_files_in(&root, KEYBOARD_PREFIX)
+                .unwrap()
+                .is_empty(),
             "periodic deadline should flush before silence"
         );
         let (reply, response) = mpsc::sync_channel(1);
         sender.send(KeyboardMessage::Shutdown(reply)).unwrap();
         response.recv_timeout(CONTROL_TIMEOUT).unwrap().unwrap();
         writer.join().unwrap();
-        let _ = fs::remove_file(path);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn write_failure_is_bounded_reported_and_keeps_pending_data() {
-        let path = fixture_path("write-failure");
-        fs::create_dir_all(&path).unwrap();
+        let root = fixture_root("write-failure");
+        fs::write(&root, b"not-a-directory").unwrap();
         let mut pending = BTreeMap::from([((1, MINUTE_MILLIS), 3)]);
         let health = KeyboardHealth::default();
-        let result = flush_pending(&path, &mut pending, &health);
-        let _ = fs::remove_dir_all(&path);
+        let result = flush_pending(&root, &mut pending, &health);
+        let _ = fs::remove_file(&root);
 
         assert!(result.is_err());
         assert_eq!(pending.len(), 1);
@@ -768,15 +769,15 @@ mod tests {
 
     #[test]
     fn shutdown_message_flushes_pending_events() {
-        let path = fixture_path("shutdown");
+        let root = fixture_root("shutdown");
         let (sender, receiver) = mpsc::sync_channel(8);
         let health = Arc::new(KeyboardHealth::default());
         let writer_health = health.clone();
-        let writer_path = path.clone();
+        let writer_root = root.clone();
         let writer = thread::spawn(move || {
             writer_loop(
                 receiver,
-                &writer_path,
+                &writer_root,
                 &writer_health,
                 Duration::from_secs(60),
             );
@@ -791,14 +792,16 @@ mod tests {
         sender.send(KeyboardMessage::Shutdown(reply)).unwrap();
         response.recv_timeout(CONTROL_TIMEOUT).unwrap().unwrap();
         writer.join().unwrap();
-        let snapshot = read_snapshot(&path, 0, 2 * MINUTE_MILLIS, &health).unwrap();
-        let _ = fs::remove_file(path);
+        let snapshot = read_snapshot(&root, 0, 2 * MINUTE_MILLIS, &health).unwrap();
+        let _ = fs::remove_dir_all(root);
         assert_eq!(snapshot.buckets[0].key_strokes, 1);
     }
 
     #[test]
     fn bad_line_does_not_hide_later_valid_records() {
-        let path = fixture_path("bad-line");
+        let root = fixture_root("bad-line");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("keyboard-v1.jsonl");
         fs::write(
             &path,
             concat!(
@@ -812,15 +815,17 @@ mod tests {
         )
         .unwrap();
         let health = KeyboardHealth::default();
-        let snapshot = read_snapshot(&path, 0, 180_000, &health).unwrap();
-        let _ = fs::remove_file(&path);
+        let snapshot = read_snapshot(&root, 0, 180_000, &health).unwrap();
+        let _ = fs::remove_dir_all(&root);
         assert_eq!(snapshot.skipped_records, 1);
         assert_eq!(snapshot.buckets.len(), 2);
     }
 
     #[test]
     fn aggregates_duplicate_minute_records_without_key_identity() {
-        let path = fixture_path("aggregate");
+        let root = fixture_root("aggregate");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("keyboard-v1.jsonl");
         fs::write(
             &path,
             concat!(
@@ -834,8 +839,8 @@ mod tests {
         )
         .unwrap();
         let health = KeyboardHealth::default();
-        let snapshot = read_snapshot(&path, 0, 180_000, &health).unwrap();
-        let _ = fs::remove_file(&path);
+        let snapshot = read_snapshot(&root, 0, 180_000, &health).unwrap();
+        let _ = fs::remove_dir_all(&root);
         assert_eq!(snapshot.buckets.len(), 2);
         assert_eq!(snapshot.buckets[0].key_strokes, 7);
         let json = serde_json::to_string(&snapshot).unwrap();

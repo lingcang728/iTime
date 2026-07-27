@@ -23,6 +23,16 @@ import {
   setDesktopAutostart,
 } from '../platform/autostart'
 import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
+import {
+  clearAllLocalData,
+  exportLocalData,
+  loadLocalDataStatus,
+  openLocalDataDirectory,
+  saveDataRetention,
+  type DataExportFormat,
+  type DataRetentionDays,
+  type LocalDataStatus,
+} from '../platform/localData'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
 import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark, type ResolvedTheme, type ThemeMode } from './theme'
 
@@ -32,6 +42,21 @@ export type ClosePreference = 'ask' | 'hide' | 'quit'
 export interface ReminderOccurrence {
   occurrenceId: string
   continuousMinutes: number
+}
+
+const previewLocalData: LocalDataStatus = {
+  directory: '仅桌面版显示实际数据目录',
+  retentionDays: null,
+  fileCount: 0,
+  sizeBytes: 0,
+  lastWriteAt: null,
+  activityRecords: 0,
+  keyboardRecords: 0,
+  skippedRecords: 0,
+  startAt: null,
+  endAt: null,
+  health: 'empty',
+  message: '浏览器预览不会读取、导出或删除本机数据',
 }
 
 const persisted = loadPersistedState()
@@ -65,6 +90,11 @@ const state = reactive({
   autostartEnabled: false,
   autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   autostartMessage: desktopRuntime ? '正在读取 Windows 启动设置' : '仅桌面版可设置开机自启动',
+  localDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'empty' | 'degraded' | 'error' | 'ready',
+  localDataMessage: desktopRuntime ? '正在检查本地数据目录' : previewLocalData.message,
+  localData: { ...previewLocalData },
+  localDataBusy: null as null | 'open' | 'json' | 'csv' | 'retention' | 'clear',
+  localDataExportMessage: '',
   selectedToolId: null as string | null,
   detailDrawerOpen: false,
   closeDialogOpen: false,
@@ -269,6 +299,7 @@ function deleteInputDate(date: string): void {
 let inputRequest = 0
 let activityRequest = 0
 let providerRequest = 0
+let localDataRequest = 0
 let toastRequest = 0
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -508,6 +539,102 @@ function showToast(message: string): void {
   }, 2600)
 }
 
+function applyLocalDataStatus(status: LocalDataStatus): void {
+  state.localData = status
+  state.localDataStatus = status.health
+  state.localDataMessage = status.message
+}
+
+async function refreshLocalData(): Promise<void> {
+  if (!desktopRuntime) return
+  const request = ++localDataRequest
+  state.localDataStatus = 'loading'
+  state.localDataMessage = '正在检查本地数据目录'
+  try {
+    const status = await loadLocalDataStatus()
+    if (request !== localDataRequest) return
+    applyLocalDataStatus(status)
+  } catch (error) {
+    if (request !== localDataRequest) return
+    state.localDataStatus = 'error'
+    state.localDataMessage = errorMessage(error, '无法读取本地数据状态')
+  }
+}
+
+async function openLocalData(): Promise<void> {
+  if (!desktopRuntime || state.localDataBusy) return
+  state.localDataBusy = 'open'
+  try {
+    await openLocalDataDirectory()
+  } catch (error) {
+    showToast(errorMessage(error, '无法打开本地数据目录'))
+  } finally {
+    state.localDataBusy = null
+  }
+}
+
+async function updateDataRetention(retentionDays: DataRetentionDays): Promise<void> {
+  if (!desktopRuntime || state.localDataBusy) return
+  state.localDataBusy = 'retention'
+  state.localDataStatus = 'loading'
+  state.localDataMessage = '正在保存保留期并安全清理旧分片'
+  try {
+    applyLocalDataStatus(await saveDataRetention(retentionDays))
+    await Promise.all([refreshInputData(), refreshActivityData()])
+    showToast(retentionDays === null ? '本地数据将永久保留' : `本地数据将保留 ${retentionDays} 天`)
+  } catch (error) {
+    state.localDataStatus = 'error'
+    state.localDataMessage = errorMessage(error, '无法更新数据保留期')
+    showToast(state.localDataMessage)
+  } finally {
+    state.localDataBusy = null
+  }
+}
+
+async function exportLocalRecords(format: DataExportFormat): Promise<void> {
+  if (!desktopRuntime || state.localDataBusy) return
+  state.localDataBusy = format
+  state.localDataExportMessage = `正在生成 ${format.toUpperCase()} 导出`
+  try {
+    const result = await exportLocalData(format)
+    state.localDataExportMessage = `已导出 ${result.activityRecords + result.keyboardRecords} 条记录：${result.path}`
+    await refreshLocalData()
+    showToast(`${format.toUpperCase()} 导出已写入 Data\\Exports`)
+  } catch (error) {
+    state.localDataExportMessage = errorMessage(error, `无法导出 ${format.toUpperCase()}`)
+    showToast(state.localDataExportMessage)
+  } finally {
+    state.localDataBusy = null
+  }
+}
+
+async function clearLocalRecords(): Promise<boolean> {
+  if (!desktopRuntime || state.localDataBusy) return false
+  state.localDataBusy = 'clear'
+  state.localDataStatus = 'loading'
+  state.localDataMessage = '正在暂停采集并删除本地记录'
+  try {
+    const status = await clearAllLocalData()
+    liveActivityDataset.value = { version: 'itime-local-activity-v1', events: [] }
+    liveKeyboardDataset.value = { version: 'itime-keyboard-v1', events: [] }
+    liveInputProvider.value = null
+    inputDates.value = []
+    activityDates.value = []
+    updateAvailableDates()
+    applyLocalDataStatus(status)
+    await Promise.all([refreshInputData(), refreshActivityData()])
+    showToast('本地活动与字符键计数已删除')
+    return true
+  } catch (error) {
+    state.localDataStatus = 'error'
+    state.localDataMessage = errorMessage(error, '无法删除全部本地数据')
+    showToast(state.localDataMessage)
+    return false
+  } finally {
+    state.localDataBusy = null
+  }
+}
+
 function receiveReminder(occurrence: ReminderOccurrence): boolean {
   if (state.dismissedReminderOccurrences.includes(occurrence.occurrenceId)) return false
   state.currentReminder = occurrence
@@ -547,6 +674,11 @@ export function useAppStore() {
     updateProviderConsent,
     refreshAutostart,
     setAutostart,
+    refreshLocalData,
+    openLocalData,
+    updateDataRetention,
+    exportLocalRecords,
+    clearLocalRecords,
     showToast,
     receiveReminder,
     dismissCurrentReminder,
@@ -613,6 +745,7 @@ if (desktopRuntime) {
 
   void (async () => {
     await syncProviderConsent()
+    await refreshLocalData()
     refreshNow(state.providerConsentStatus === 'ready')
     await refreshAutostart()
   })()

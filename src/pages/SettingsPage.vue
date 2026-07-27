@@ -1,26 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   PhArrowClockwise,
   PhChartBar,
+  PhDatabase,
   PhDesktop,
+  PhDownloadSimple,
+  PhFolderOpen,
   PhHardDrives,
   PhKeyboard,
   PhMoon,
   PhPalette,
-  PhPauseCircle,
   PhPower,
   PhPulse,
   PhRobot,
   PhShieldCheck,
   PhSun,
   PhTerminalWindow,
+  PhTrash,
   PhTray,
 } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
+import { isTauriRuntime } from '../platform/desktop'
 import { useAppStore } from '../stores/appStore'
 
 const store = useAppStore()
+const desktopControlsAvailable = isTauriRuntime()
+const deleteArmed = ref(false)
 
 const inputStatusLabel = computed(() => ({
   loading: '正在连接',
@@ -48,6 +54,40 @@ const providerStatusLabel = computed(() => ({
 const providerEnabled = computed(() => (
   store.state.providerConsent.codexEnabled || store.state.providerConsent.claudeEnabled
 ))
+
+const localDataStatusLabel = computed(() => ({
+  loading: '正在处理',
+  preview: '桌面版功能',
+  empty: '暂无本地记录',
+  degraded: '部分记录可恢复',
+  error: '数据操作失败',
+  ready: '本地数据正常',
+}[store.state.localDataStatus]))
+
+const localDataBusy = computed(() => store.state.localDataBusy !== null)
+const retentionValue = computed(() => store.state.localData.retentionDays?.toString() ?? 'permanent')
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function formatMoment(value: number | null): string {
+  if (value === null) return '暂无'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value)
+}
+
+const localDataRange = computed(() => {
+  const { startAt, endAt } = store.state.localData
+  if (startAt === null || endAt === null) return '暂无可导出记录'
+  return `${formatMoment(startAt)} – ${formatMoment(endAt)}`
+})
 
 const inputFacts = computed(() => {
   const capabilities = store.input.value.capabilities
@@ -89,7 +129,19 @@ async function updateClaudeAccess(event: Event): Promise<void> {
   await store.updateProviderConsent({ noticeSeen: true, claudeEnabled: checkedValue(event) })
 }
 
-onMounted(() => void store.refreshAutostart())
+async function updateRetention(event: Event): Promise<void> {
+  const value = event.currentTarget instanceof HTMLSelectElement ? event.currentTarget.value : 'permanent'
+  await store.updateDataRetention(value === 'permanent' ? null : Number(value) as 90 | 365)
+}
+
+async function confirmClearLocalData(): Promise<void> {
+  if (await store.clearLocalRecords()) deleteArmed.value = false
+}
+
+onMounted(() => {
+  void store.refreshAutostart()
+  void store.refreshLocalData()
+})
 </script>
 
 <template>
@@ -159,6 +211,44 @@ onMounted(() => void store.refreshAutostart())
           </template>
         </section>
 
+        <section class="settings-group local-data-section" aria-labelledby="local-data-title">
+          <header class="settings-group__header">
+            <div><h2 id="local-data-title">本地数据管理</h2><p>检查存储范围，导出可重新读取的记录，或明确删除全部本地统计。</p></div>
+          </header>
+          <div :class="['source-status', 'local-data-status', store.state.localDataStatus]" role="status" aria-live="polite">
+            <span class="status-dot"></span>
+            <div><strong>{{ localDataStatusLabel }}</strong><p>{{ store.state.localDataMessage }}</p></div>
+          </div>
+          <dl class="local-data-facts">
+            <div><dt>数据位置</dt><dd :title="store.state.localData.directory">{{ store.state.localData.directory }}</dd></div>
+            <div><dt>记录范围</dt><dd>{{ localDataRange }}</dd></div>
+            <div><dt>最后写入</dt><dd>{{ formatMoment(store.state.localData.lastWriteAt) }}</dd></div>
+            <div><dt>占用空间</dt><dd>{{ formatBytes(store.state.localData.sizeBytes) }} · {{ store.state.localData.fileCount }} 个分片</dd></div>
+            <div><dt>导出内容</dt><dd>{{ store.state.localData.activityRecords }} 条活动 · {{ store.state.localData.keyboardRecords }} 条字符键计数</dd></div>
+          </dl>
+          <label class="retention-control">
+            <span><strong>自动保留期</strong><small>升级后默认永久；只清理过期且已关闭的日期分片。</small></span>
+            <select :value="retentionValue" :disabled="!desktopControlsAvailable || localDataBusy" @change="updateRetention">
+              <option value="permanent">永久</option>
+              <option value="365">365 天</option>
+              <option value="90">90 天</option>
+            </select>
+          </label>
+          <div class="local-data-actions">
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.openLocalData"><PhFolderOpen :size="17" />打开目录</button>
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('json')"><PhDownloadSimple :size="17" />导出 JSON</button>
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('csv')"><PhDownloadSimple :size="17" />导出 CSV</button>
+            <button class="danger-action" type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="deleteArmed = true"><PhTrash :size="17" />删除全部</button>
+          </div>
+          <p v-if="store.state.localDataExportMessage" class="export-result">{{ store.state.localDataExportMessage }}</p>
+          <div v-if="deleteArmed" class="delete-confirmation" role="alert">
+            <PhTrash :size="21" aria-hidden="true" />
+            <div><strong>确认删除全部本地活动与字符键计数？</strong><p>iTime 会先暂停采集并刷新文件，导出文件不会删除。此操作无法撤销。</p></div>
+            <button type="button" :disabled="localDataBusy" @click="deleteArmed = false">取消</button>
+            <button class="confirm-delete" type="button" :disabled="localDataBusy" @click="confirmClearLocalData">确认删除</button>
+          </div>
+        </section>
+
         <section class="settings-group appearance-section" aria-labelledby="appearance-title">
           <header class="settings-group__header">
             <div><h2 id="appearance-title">外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
@@ -189,7 +279,7 @@ onMounted(() => void store.refreshAutostart())
         </section>
 
         <section class="data-boundary">
-          <PhPauseCircle :size="22" weight="regular" aria-hidden="true" />
+          <PhDatabase :size="22" weight="regular" aria-hidden="true" />
           <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器。Provider 活动仅在用户逐项授权后读取对应本机会话时间元数据。</p></div>
         </section>
       </aside>
