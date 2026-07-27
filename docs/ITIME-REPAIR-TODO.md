@@ -245,10 +245,20 @@
 
 - [ ] 官网从 manifest 或 Release API 获得版本、大小和 SHA-256。
 - [ ] 更新隐私说明、下载链接验证、canonical/OG URL 和移动菜单行为。
-- [ ] 生产依赖审计为 CI 阻断，开发依赖逐项审慎升级。
+- [x] 生产依赖审计为 CI 阻断，开发依赖逐项审慎升级。
 - [ ] 许可证由所有者确认；若发布前仍未确认，删除 README/网站“开源”声明。
 
 许可证状态：等待所有者决定 MIT 或保持无许可证。
+
+阶段 5.3 当前证据（2026-07-27）：
+
+- Windows CI 和不可变发布工作流都在完整验证前执行 `npm run audit:prod`，显式使用 npm
+  官方安全审计端点；生产依赖审计为 0 个漏洞。
+- `vue-tsc` 从 2.2.12 升级到 3.3.8，移除旧 `@vue/language-core` / `minimatch` 告警。
+  `@vue/test-utils` 保持当前 2.4.11，只把其声明的 `js-beautify` 精确覆盖到 2.0.3；
+  对应 `editorconfig`、`glob`、`minimatch` 和 `brace-expansion` 均进入已修复版本。
+- 完整 npm 审计从 8 个开发链高危降为 0；Node 24.15.0 下 `npm run verify:full` 通过
+  34 个前端测试文件 / 122 项测试、77 项 Rust 测试及全部视觉门禁，截图差异为 0。
 
 ## 阶段 6：原生 QA 与 0.1.1 发布
 
