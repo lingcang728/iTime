@@ -33,6 +33,7 @@ import {
   type DataRetentionDays,
   type LocalDataStatus,
 } from '../platform/localData'
+import type { ActivityDataStatus, InputDataStatus } from './dataAvailability'
 import { loadPersistedState, savePersistedState, type PersistedState } from './persistedState'
 import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark, type ResolvedTheme, type ThemeMode } from './theme'
 
@@ -78,11 +79,11 @@ function localDate(value = new Date()): string {
 const state = reactive({
   selectedDate: desktopRuntime ? localDate() : mockDates[mockDates.length - 1],
   availableDates: desktopRuntime ? [localDate()] : [...mockDates],
-  inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
+  inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as InputDataStatus,
   inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
-  activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
+  activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as ActivityDataStatus,
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
-  providerDataStatus: (desktopRuntime ? 'disabled' : 'preview') as 'disabled' | 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
+  providerDataStatus: (desktopRuntime ? 'disabled' : 'preview') as ActivityDataStatus,
   providerDataMessage: desktopRuntime ? '未授权读取 Provider 本机会话' : '浏览器预览数据',
   providerConsent: desktopRuntime ? { ...defaultProviderConsent } : previewProviderConsent,
   providerConsentStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
@@ -317,6 +318,8 @@ function errorMessage(error: unknown, fallback: string): string {
 async function refreshInputData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++inputRequest
+  state.inputDataStatus = 'loading'
+  state.inputDataMessage = '正在读取 iTime 本机输入记录'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 32)
@@ -330,10 +333,10 @@ async function refreshInputData(): Promise<void> {
     updateAvailableDates()
     const { health } = result.snapshot
     if (!health.collectorRunning) {
-      state.inputDataStatus = 'unavailable'
+      state.inputDataStatus = 'error'
       state.inputDataMessage = 'Windows 键盘计数器未运行'
     } else if (!health.writerRunning || health.queueDisconnected) {
-      state.inputDataStatus = 'unavailable'
+      state.inputDataStatus = 'error'
       state.inputDataMessage = health.lastError || '键盘字符键计数写入线程未运行'
     } else if (health.droppedEvents > 0) {
       state.inputDataStatus = 'degraded'
@@ -345,17 +348,18 @@ async function refreshInputData(): Promise<void> {
     } else if (health.lastError) {
       state.inputDataStatus = 'degraded'
       state.inputDataMessage = health.lastError
-    } else {
+    } else if (result.snapshot.buckets.length) {
       state.inputDataStatus = 'ready'
-      state.inputDataMessage = result.snapshot.buckets.length
-        ? 'iTime 键盘字符键计数已连接'
-        : '键盘计数已启动；从本次版本启用后开始记录'
+      state.inputDataMessage = 'iTime 键盘字符键计数已连接'
+    } else {
+      state.inputDataStatus = 'empty'
+      state.inputDataMessage = '键盘计数已启动；从本次版本启用后开始记录'
     }
     state.lastDataRefreshAt = Date.now()
     state.migrationState = 'ready'
   } catch (error) {
     if (request !== inputRequest) return
-    state.inputDataStatus = 'unavailable'
+    state.inputDataStatus = 'error'
     state.inputDataMessage = errorMessage(error, '本机输入数据暂时不可用')
   }
 }
@@ -363,6 +367,8 @@ async function refreshInputData(): Promise<void> {
 async function refreshActivityData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++activityRequest
+  state.activityDataStatus = 'loading'
+  state.activityDataMessage = '正在读取 iTime 本机活动记录'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
@@ -375,25 +381,26 @@ async function refreshActivityData(): Promise<void> {
       ...result.dataset.events.map((event) => localDate(new Date(event.start))),
     ])].sort()
     updateAvailableDates()
-    if (result.snapshot.health.lastError) {
+    if (!result.snapshot.health.collectorRunning) {
+      state.activityDataStatus = 'error'
+      state.activityDataMessage = '本机活动采集器未运行'
+    } else if (result.snapshot.health.lastError) {
       state.activityDataStatus = 'degraded'
       state.activityDataMessage = `采集写入异常：${result.snapshot.health.lastError}`
     } else if (result.snapshot.skippedRecords > 0) {
       state.activityDataStatus = 'degraded'
       state.activityDataMessage = `已跳过 ${result.snapshot.skippedRecords} 条损坏或不兼容的活动记录`
-    } else if (!result.snapshot.health.collectorRunning) {
-      state.activityDataStatus = 'unavailable'
-      state.activityDataMessage = '本机活动采集器未运行'
-    } else {
+    } else if (result.snapshot.intervals.length) {
       state.activityDataStatus = 'ready'
-      state.activityDataMessage = result.snapshot.intervals.length
-        ? '本机活动已连接；仅统计启用后的记录'
-        : '已开始记录；接入前的应用历史不会补造'
+      state.activityDataMessage = '本机活动已连接；仅统计启用后的记录'
+    } else {
+      state.activityDataStatus = 'empty'
+      state.activityDataMessage = '已开始记录；接入前的应用历史不会补造'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== activityRequest) return
-    state.activityDataStatus = 'unavailable'
+    state.activityDataStatus = 'error'
     state.activityDataMessage = errorMessage(error, 'iTime 本机活动记录暂时不可用')
   }
 }
@@ -409,6 +416,8 @@ async function refreshProviderData(): Promise<void> {
     return
   }
   const request = ++providerRequest
+  state.providerDataStatus = 'loading'
+  state.providerDataMessage = '正在读取已授权的 Provider 本机会话'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
@@ -427,7 +436,7 @@ async function refreshProviderData(): Promise<void> {
         result.snapshot.consent.codexEnabled && 'Codex',
         result.snapshot.consent.claudeEnabled && 'Claude Code',
       ].filter(Boolean).join('、')
-      state.providerDataStatus = 'unavailable'
+      state.providerDataStatus = 'error'
       if (result.snapshot.diagnostics.permissionFailures > 0) {
         state.providerDataMessage = `已授权的 ${enabled} 会话目录没有读取权限`
       } else if (result.snapshot.diagnostics.readFailures > 0) {
@@ -451,16 +460,17 @@ async function refreshProviderData(): Promise<void> {
         ].filter(Boolean).join('、')
         state.providerDataMessage = `${missing || '部分 Provider'} 的已授权会话目录不可用`
       }
-    } else {
+    } else if (result.snapshot.intervals.length) {
       state.providerDataStatus = 'ready'
-      state.providerDataMessage = result.snapshot.intervals.length
-        ? `已读取 ${result.snapshot.intervals.length} 个本机 Provider 执行区间`
-        : 'Provider 会话已连接；所选日期未检测到执行区间'
+      state.providerDataMessage = `已读取 ${result.snapshot.intervals.length} 个本机 Provider 执行区间`
+    } else {
+      state.providerDataStatus = 'empty'
+      state.providerDataMessage = 'Provider 会话已连接；所选日期未检测到执行区间'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== providerRequest) return
-    state.providerDataStatus = 'unavailable'
+    state.providerDataStatus = 'error'
     state.providerDataMessage = errorMessage(error, 'Codex 与 Claude Code 本机会话暂时不可用')
   }
 }
@@ -480,7 +490,7 @@ async function syncProviderConsent(): Promise<void> {
     }
   } catch (error) {
     state.providerConsentStatus = 'error'
-    state.providerDataStatus = 'unavailable'
+    state.providerDataStatus = 'error'
     state.providerDataMessage = errorMessage(error, '无法读取 Provider 授权设置')
   }
 }

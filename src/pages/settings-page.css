@@ -143,8 +143,8 @@
 .source-status { display: flex; align-items: center; gap: 11px; margin-top: 12px; padding: 16px 4px; border-bottom: 1px solid var(--border-soft); }
 .status-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); }
 .source-status.ready .status-dot { background: var(--accent-strong); }
+.source-status.empty .status-dot { background: var(--text-muted); }
 .source-status.degraded .status-dot { background: var(--warning, #c98418); }
-.source-status.unavailable .status-dot { background: var(--danger); }
 .source-status.error .status-dot { background: var(--danger); }
 .source-status.disabled .status-dot { background: var(--text-muted); }
 .source-status strong { font-size: var(--text-body); }

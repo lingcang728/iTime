@@ -24,8 +24,28 @@ describe('runtime sync status', () => {
       desktop: true,
       now: 1_000,
       lastUpdatedAt: null,
-      statuses: ['ready', 'unavailable'],
+      statuses: ['ready', 'error'],
       messages: ['', 'Provider 未授权'],
-    })).toMatchObject({ title: '部分数据不可用', detail: 'Provider 未授权' })
+    })).toMatchObject({ title: '部分数据读取失败', detail: 'Provider 未授权', state: 'error' })
+  })
+
+  it('distinguishes successful empty sources from failures', () => {
+    expect(runtimeSyncStatus({
+      desktop: true,
+      now: 1_000,
+      lastUpdatedAt: 900,
+      statuses: ['empty', 'empty', 'disabled'],
+      messages: ['', '', ''],
+    })).toEqual({ title: '暂无本机记录', detail: '采集已连接，等待第一条记录', state: 'empty' })
+  })
+
+  it('shows background refreshes as loading even after an earlier success', () => {
+    expect(runtimeSyncStatus({
+      desktop: true,
+      now: 2_000,
+      lastUpdatedAt: 1_000,
+      statuses: ['ready', 'loading', 'disabled'],
+      messages: ['', '', ''],
+    })).toEqual({ title: '正在读取本机数据', detail: '正在刷新已显示记录', state: 'loading' })
   })
 })

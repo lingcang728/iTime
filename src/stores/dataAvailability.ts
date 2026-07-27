@@ -1,5 +1,5 @@
-export type ActivityDataStatus = 'disabled' | 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable'
-export type InputDataStatus = 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable'
+export type ActivityDataStatus = 'disabled' | 'loading' | 'preview' | 'empty' | 'ready' | 'degraded' | 'error'
+export type InputDataStatus = 'loading' | 'preview' | 'empty' | 'ready' | 'degraded' | 'error'
 
 export function hasActivityData(status: ActivityDataStatus): boolean {
   return status === 'preview' || status === 'ready' || status === 'degraded'

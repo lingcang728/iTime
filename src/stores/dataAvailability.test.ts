@@ -8,7 +8,8 @@ describe('data availability states', () => {
     expect(hasActivityData('degraded')).toBe(true)
     expect(hasActivityData('disabled')).toBe(false)
     expect(hasActivityData('loading')).toBe(false)
-    expect(hasActivityData('unavailable')).toBe(false)
+    expect(hasActivityData('empty')).toBe(false)
+    expect(hasActivityData('error')).toBe(false)
   })
 
   it('does not turn empty input snapshots into available data', () => {
@@ -16,6 +17,7 @@ describe('data availability states', () => {
     expect(hasInputData('ready')).toBe(true)
     expect(hasInputData('degraded')).toBe(true)
     expect(hasInputData('loading')).toBe(false)
-    expect(hasInputData('unavailable')).toBe(false)
+    expect(hasInputData('empty')).toBe(false)
+    expect(hasInputData('error')).toBe(false)
   })
 })

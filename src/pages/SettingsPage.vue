@@ -31,9 +31,10 @@ const deleteArmed = ref(false)
 const inputStatusLabel = computed(() => ({
   loading: '正在连接',
   preview: '预览数据',
+  empty: '等待首条记录',
   ready: '本机已连接',
   degraded: '部分可用',
-  unavailable: '暂时不可用',
+  error: '读取失败',
 }[store.state.inputDataStatus]))
 
 const autostartStatusLabel = computed(() => ({
@@ -46,9 +47,10 @@ const providerStatusLabel = computed(() => ({
   disabled: '未授权',
   loading: '正在读取',
   preview: '预览数据',
+  empty: '暂无执行记录',
   ready: '本机已连接',
   degraded: '部分可用',
-  unavailable: '暂时不可用',
+  error: '读取失败',
 }[store.state.providerDataStatus]))
 
 const providerEnabled = computed(() => (

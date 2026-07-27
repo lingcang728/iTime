@@ -20,11 +20,16 @@ const pageSubtitles: Record<InputDataStatus, string> = {
   ready: '直接统计 Windows 字符键敲击；不保存键值或输入内容',
   preview: '展示浏览器预览数据；桌面版直接统计字符键敲击',
   loading: '正在连接 iTime 键盘计数器',
+  empty: '键盘计数器已连接；等待第一条字符键记录',
   degraded: '键盘计数器部分可用；请查看状态详情',
-  unavailable: '键盘计数器暂时不可用',
+  error: '键盘计数器读取失败',
 }
 const pageSubtitle = computed(() => pageSubtitles[store.state.inputDataStatus])
-const unavailableTitle = computed(() => store.state.inputDataStatus === 'loading' ? '正在读取输入记录' : '输入记录暂不可用')
+const sourceStateTitle = computed(() => {
+  if (store.state.inputDataStatus === 'loading') return '正在读取输入记录'
+  if (store.state.inputDataStatus === 'empty') return '暂无字符键记录'
+  return '输入记录读取失败'
+})
 
 function metricValue(value: string): string {
   return inputDataAvailable.value ? value : '—'
@@ -45,7 +50,7 @@ function metricDetail(detail: string): string {
     </div>
 
     <div v-if="!inputDataAvailable" class="section-state input-source-state" :data-state="store.state.inputDataStatus">
-      <strong>{{ unavailableTitle }}</strong><span>{{ store.state.inputDataMessage }}</span>
+      <strong>{{ sourceStateTitle }}</strong><span>{{ store.state.inputDataMessage }}</span>
     </div>
     <template v-else>
       <div class="input-history-wrap">

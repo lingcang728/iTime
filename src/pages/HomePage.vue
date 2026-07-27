@@ -79,9 +79,11 @@ const switchComparison = computed(() => comparisonLabel(
   (value) => `${Math.round(value)} 次`,
 ))
 
-const rankingEmptyTitle = computed(() => activityDataAvailable.value
-  ? '等待第一条应用活动'
-  : store.state.activityDataStatus === 'loading' ? '正在读取活动记录' : '活动记录暂不可用')
+const rankingEmptyTitle = computed(() => {
+  if (activityDataAvailable.value || store.state.activityDataStatus === 'empty') return '等待第一条应用活动'
+  if (store.state.activityDataStatus === 'loading') return '正在读取活动记录'
+  return '活动记录读取失败'
+})
 const rankingEmptyDetail = computed(() => activityDataAvailable.value
   ? 'iTime 已开始记录，新活动会自动出现在这里。'
   : store.state.activityDataMessage)

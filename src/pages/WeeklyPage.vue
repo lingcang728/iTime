@@ -23,7 +23,11 @@ import { formatClock, formatDuration, formatNumber } from '../utils/format'
 const store = useAppStore()
 const hour = 3_600_000
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
-const unavailableTitle = computed(() => store.state.activityDataStatus === 'loading' ? '正在读取本周活动记录' : '本周活动记录暂不可用')
+const sourceStateTitle = computed(() => {
+  if (store.state.activityDataStatus === 'loading') return '正在读取本周活动记录'
+  if (store.state.activityDataStatus === 'empty') return '本周暂无活动记录'
+  return '本周活动记录读取失败'
+})
 const summary = computed(() => buildWeeklySummary(store.week.value))
 const trendPoints = computed(() => summary.value.days.map((day) => ({
   label: day.label,
@@ -101,7 +105,7 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
     <PageHeader title="周报" :subtitle="summary.rangeLabel" range-label="本周" />
 
     <div v-if="!activityDataAvailable" class="section-state weekly-source-state" :data-state="store.state.activityDataStatus">
-      <strong>{{ unavailableTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
+      <strong>{{ sourceStateTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
     </div>
 
     <template v-else>

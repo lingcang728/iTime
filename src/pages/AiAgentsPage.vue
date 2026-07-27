@@ -19,7 +19,7 @@ import type { AiInteractionInterval, AiToolStatus, AiToolSummary, AiWorkInterval
 import { bestActivityWindow, peakConcurrencyWindow } from '../domain/intervals'
 import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
-import { hasActivityData } from '../stores/dataAvailability'
+import { hasActivityData, type ActivityDataStatus } from '../stores/dataAvailability'
 import { formatClock, formatDuration, formatRatio } from '../utils/format'
 
 interface DurationPart {
@@ -32,6 +32,15 @@ const statusLabels: Record<AiToolStatus, string> = { running: '运行中', compl
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const providerDataAvailable = computed(() => hasActivityData(store.state.providerDataStatus))
 const timelineDataAvailable = computed(() => activityDataAvailable.value || providerDataAvailable.value)
+function sourceStateTitle(label: string, status: ActivityDataStatus): string {
+  if (status === 'loading') return `${label}：正在读取`
+  if (status === 'empty') return `${label}：暂无记录`
+  if (status === 'disabled') return `${label}：未授权`
+  if (status === 'error') return `${label}：读取失败`
+  return label
+}
+const activitySourceTitle = computed(() => sourceStateTitle('AI 前台活动', store.state.activityDataStatus))
+const providerSourceTitle = computed(() => sourceStateTitle('Provider 执行', store.state.providerDataStatus))
 const aiWork = computed(() => store.day.value.events
   .filter((event): event is AiWorkInterval => event.type === 'aiWork')
   .sort((first, second) => first.start - second.start))
@@ -163,10 +172,10 @@ const insight = computed(() => {
 
     <div v-if="!activityDataAvailable || !providerDataAvailable" class="ai-source-stack">
       <div v-if="!activityDataAvailable" class="section-state ai-source-state" :data-state="store.state.activityDataStatus">
-        <strong>AI 前台活动来源</strong><span>{{ store.state.activityDataMessage }}</span>
+        <strong>{{ activitySourceTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
       </div>
       <div v-if="!providerDataAvailable" class="section-state ai-source-state" :data-state="store.state.providerDataStatus">
-        <strong>Provider 执行来源</strong><span>{{ store.state.providerDataMessage }}</span>
+        <strong>{{ providerSourceTitle }}</strong><span>{{ store.state.providerDataMessage }}</span>
       </div>
     </div>
 

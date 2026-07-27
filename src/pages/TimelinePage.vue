@@ -86,8 +86,16 @@ const mediaSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   start: event.start, end: event.end, color: 'var(--timeline-media)', kind: 'media', variant: event.awayPlayback ? 'hatched' : 'solid', muted: event.awayPlayback, title: event.appName,
 })))
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
-const sourceLabel = computed(() => ({ ready: '本机活动记录', degraded: '部分本机记录', preview: '预览数据', loading: '正在读取', unavailable: '暂不可用' }[store.state.activityDataStatus]))
-const unavailableTitle = computed(() => store.state.activityDataStatus === 'loading' ? '正在读取活动记录' : '活动记录暂不可用')
+const sourceLabel = computed(() => {
+  if (store.state.activityDataStatus === 'degraded') return '部分本机记录'
+  if (store.state.activityDataStatus === 'preview') return '预览数据'
+  return '本机活动记录'
+})
+const sourceStateTitle = computed(() => {
+  if (store.state.activityDataStatus === 'loading') return '正在读取活动记录'
+  if (store.state.activityDataStatus === 'empty') return '当天暂无活动记录'
+  return '活动记录读取失败'
+})
 const parallelRatio = computed(() => {
   const coverage = store.day.value.aiCoverage.value
   const overlap = store.day.value.parallelOverlap.value
@@ -185,7 +193,7 @@ function durationParts(value: number | null): DurationPart[] {
         </div>
       </template>
       <div v-else class="section-state timeline-source-state" :data-state="store.state.activityDataStatus">
-        <strong>{{ unavailableTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
+        <strong>{{ sourceStateTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
       </div>
     </article>
   </section>

@@ -30,7 +30,11 @@ const goalDraft = reactive<GoalDraft>({
 })
 const quietDraft = reactive({ start: store.state.quietStart, end: store.state.quietEnd })
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
-const unavailableTitle = computed(() => store.state.activityDataStatus === 'loading' ? '正在读取目标进度' : '目标进度暂不可用')
+const sourceStateTitle = computed(() => {
+  if (store.state.activityDataStatus === 'loading') return '正在读取目标进度'
+  if (store.state.activityDataStatus === 'empty') return '暂无可计算的目标进度'
+  return '目标进度读取失败'
+})
 const goalIcons: Record<GoalId, Component> = {
   learning: markRaw(PhBookOpen),
   development: markRaw(PhCode),
@@ -104,7 +108,7 @@ function saveQuietHours(): void {
       </article>
     </section>
     <div v-else class="section-state goals-source-state" :data-state="store.state.activityDataStatus">
-      <strong>{{ unavailableTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
+      <strong>{{ sourceStateTitle }}</strong><span>{{ store.state.activityDataMessage }}</span>
     </div>
 
     <div class="goals-layout">
