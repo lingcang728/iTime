@@ -49,7 +49,18 @@ def url(page, query="theme=light"):
 
 
 def wait_ready(page):
+    if "#/" not in page.url:
+        raise RuntimeError(f"视觉测试 URL 缺少页面路由：{page.url}")
+    page_id = page.url.rsplit("#/", 1)[1].split("?", 1)[0]
+    selectors = page_geometry_selectors.get(page_id)
+    if not selectors:
+        raise RuntimeError(f"视觉测试页面路由不受支持：{page_id}")
+    page.wait_for_function(
+        "(expected) => location.hash === `#/${expected}`",
+        arg=page_id,
+    )
     page.wait_for_selector(".page")
+    page.wait_for_selector(selectors[0])
     page.wait_for_timeout(250)
 
 
