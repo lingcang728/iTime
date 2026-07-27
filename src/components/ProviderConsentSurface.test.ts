@@ -6,9 +6,15 @@ import { useAppStore } from '../stores/appStore'
 
 const store = useAppStore()
 const originalConsent = { ...store.state.providerConsent }
+const originalRecording = store.state.recording
+const originalRecordingStatus = store.state.recordingStatus
+const originalRecordingMessage = store.state.recordingMessage
 
 afterEach(() => {
   store.state.providerConsent = { ...originalConsent }
+  store.state.recording = originalRecording
+  store.state.recordingStatus = originalRecordingStatus
+  store.state.recordingMessage = originalRecordingMessage
 })
 
 describe('Provider consent surface', () => {
@@ -35,6 +41,23 @@ describe('Provider consent surface', () => {
     expect(wrapper.text()).toContain('%USERPROFILE%\\.claude\\projects')
     expect(switches[0].attributes('checked')).toBeUndefined()
     expect(switches[1].attributes('checked')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('disables the recording switch while the backend transition is pending', async () => {
+    store.state.recordingStatus = 'loading'
+    store.state.recordingMessage = '正在暂停并刷新当前片段'
+    const wrapper = mount(SettingsPage, {
+      global: { stubs: { PageHeader: true } },
+    })
+    const activityRow = wrapper.findAll('.control-row')
+      .find((row) => row.text().includes('活动记录'))
+    expect(activityRow?.text()).toContain('正在暂停并刷新当前片段')
+    expect(activityRow?.get('input').attributes('disabled')).toBeDefined()
+
+    store.state.recordingStatus = 'ready'
+    await nextTick()
+    expect(activityRow?.get('input').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 })

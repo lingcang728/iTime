@@ -59,7 +59,9 @@ fn modified_millis(path: &PathBuf) -> u128 {
 }
 
 fn can_merge(previous: &ActivitySlice, next: &ActivitySlice) -> bool {
-    previous.end == next.start && previous.observation == next.observation
+    previous.end == next.start
+        && previous.generation == next.generation
+        && previous.observation == next.observation
 }
 
 fn clip(mut slice: ActivitySlice, start: u64, end: u64) -> Option<ActivitySlice> {
@@ -130,6 +132,7 @@ mod tests {
             version: 1,
             start,
             end,
+            generation: 1,
             observation: ActivityObservation {
                 device_state: DeviceState::Active,
                 app_id: Some("code".into()),
@@ -146,5 +149,13 @@ mod tests {
         assert!(can_merge(&first, &second));
         first.end = second.end;
         assert_eq!((first.start, first.end), (5, 20));
+    }
+
+    #[test]
+    fn never_merges_equal_observations_across_recording_generations() {
+        let first = slice(0, 10);
+        let mut second = slice(10, 20);
+        second.generation = first.generation + 1;
+        assert!(!can_merge(&first, &second));
     }
 }

@@ -46,10 +46,10 @@ export async function quitApplication(): Promise<void> {
   await invoke('quit_app')
 }
 
-export async function setDesktopRecording(recording: boolean): Promise<void> {
-  if (!isTauriRuntime()) return
+export async function setDesktopRecording(recording: boolean): Promise<boolean> {
+  if (!isTauriRuntime()) return recording
   const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('set_recording_state', { recording })
+  return invoke<boolean>('set_recording_state', { recording })
 }
 
 export async function getDesktopRecording(): Promise<boolean> {

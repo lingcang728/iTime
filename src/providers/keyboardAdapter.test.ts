@@ -14,11 +14,22 @@ const raw = {
     contentCaptured: false,
     keyIdentityCaptured: false,
     directKeyCount: true,
+    modifierCombinationsExcluded: true,
+    shiftCharacterKeysIncluded: true,
     granularity: 'minute',
     timezoneSemantics: 'local-time',
     historicalBackfill: false,
   },
-  health: { collectorRunning: true, lastWriteAt: 3 * minute, lastError: null },
+  health: {
+    collectorRunning: true,
+    writerRunning: true,
+    lastWriteAt: 3 * minute,
+    lastError: null,
+    droppedEvents: 0,
+    writeFailures: 0,
+    readFailures: 0,
+    queueDisconnected: false,
+  },
 }
 
 describe('native keyboard adapter', () => {
@@ -50,5 +61,16 @@ describe('native keyboard adapter', () => {
       ...raw,
       capabilities: { ...raw.capabilities, keyIdentityCaptured: true },
     })).toThrow()
+  })
+
+  it('requires observable queue and persistence health', () => {
+    expect(() => parseKeyboardSnapshot({
+      ...raw,
+      health: { ...raw.health, droppedEvents: -1 },
+    })).toThrow()
+    expect(parseKeyboardSnapshot({
+      ...raw,
+      health: { ...raw.health, droppedEvents: 2, writeFailures: 1 },
+    }).health).toEqual(expect.objectContaining({ droppedEvents: 2, writeFailures: 1 }))
   })
 })

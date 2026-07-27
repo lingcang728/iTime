@@ -23,14 +23,21 @@ const keyboardSnapshotSchema = z.object({
     contentCaptured: z.literal(false),
     keyIdentityCaptured: z.literal(false),
     directKeyCount: z.literal(true),
+    modifierCombinationsExcluded: z.literal(true),
+    shiftCharacterKeysIncluded: z.literal(true),
     granularity: z.literal('minute'),
     timezoneSemantics: z.literal('local-time'),
     historicalBackfill: z.literal(false),
   }),
   health: z.object({
     collectorRunning: z.boolean(),
+    writerRunning: z.boolean(),
     lastWriteAt: z.number().int().nonnegative().nullable(),
     lastError: z.string().nullable(),
+    droppedEvents: z.number().int().nonnegative(),
+    writeFailures: z.number().int().nonnegative(),
+    readFailures: z.number().int().nonnegative(),
+    queueDisconnected: z.boolean(),
   }),
 })
 

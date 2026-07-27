@@ -144,8 +144,16 @@ onMounted(async () => {
   store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
   window.addEventListener('keydown', handleKeydown)
   cleanups.push(...await Promise.all([
-    listenDesktop<boolean>('recording-status', (recording) => { store.state.recording = recording }),
-    listenDesktop<string>('recording-error', (message) => store.showToast(message)),
+    listenDesktop<boolean>('recording-status', (recording) => {
+      store.state.recording = recording
+      store.state.recordingStatus = 'ready'
+      store.state.recordingMessage = recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
+    }),
+    listenDesktop<string>('recording-error', (message) => {
+      store.state.recordingStatus = 'error'
+      store.state.recordingMessage = message
+      store.showToast(message)
+    }),
     listenDesktop<string>('navigate-to', (page) => router.push({ name: page })),
     listenDesktop('toggle-reminders', () => { store.state.reminders = !store.state.reminders }),
     listenDesktop<{ continuousMinutes: number }>('rest-reminder-due', ({ continuousMinutes }) => {

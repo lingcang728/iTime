@@ -26,6 +26,7 @@ const inputStatusLabel = computed(() => ({
   loading: '正在连接',
   preview: '预览数据',
   ready: '本机已连接',
+  degraded: '部分可用',
   unavailable: '暂时不可用',
 }[store.state.inputDataStatus]))
 
@@ -113,8 +114,8 @@ onMounted(() => void store.refreshAutostart())
             </label>
             <label class="control-row">
               <span class="control-icon"><PhChartBar :size="20" /></span>
-              <div><strong>活动记录</strong><span>{{ store.state.recording ? '正在记录启用后的本机活动' : '当前已暂停记录' }}</span></div>
-              <span class="toggle"><input :checked="store.state.recording" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
+              <div><strong>活动记录</strong><span>{{ store.state.recordingMessage }}</span></div>
+              <span class="toggle"><input :checked="store.state.recording" :disabled="store.state.recordingStatus === 'loading'" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
             </label>
           </div>
         </section>

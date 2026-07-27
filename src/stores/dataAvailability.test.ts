@@ -14,6 +14,7 @@ describe('data availability states', () => {
   it('does not turn empty input snapshots into available data', () => {
     expect(hasInputData('preview')).toBe(true)
     expect(hasInputData('ready')).toBe(true)
+    expect(hasInputData('degraded')).toBe(true)
     expect(hasInputData('loading')).toBe(false)
     expect(hasInputData('unavailable')).toBe(false)
   })

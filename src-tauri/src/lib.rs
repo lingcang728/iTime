@@ -16,6 +16,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -33,6 +34,7 @@ const AUTOSTART_ARG: &str = "--autostart";
 struct RuntimeState {
     recording: Arc<AtomicBool>,
     recording_generation: Arc<AtomicU64>,
+    recording_transition: Mutex<()>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
     window_fitted: AtomicBool,
     maximize_on_first_show: bool,
@@ -111,6 +113,59 @@ fn apply_recording_state(app: &AppHandle, recording: bool) {
     let _ = app.emit("recording-status", recording);
 }
 
+fn unix_millis() -> Result<u64, String> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("系统时间不可用：{error}"))
+        .and_then(|duration| {
+            u64::try_from(duration.as_millis()).map_err(|_| "系统时间超出支持范围".to_string())
+        })
+}
+
+fn transition_recording(
+    app: &AppHandle,
+    state: &RuntimeState,
+    collector: &ActivityCollector,
+    recording: bool,
+) -> Result<bool, String> {
+    let _transition = state
+        .recording_transition
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let previous = state.recording.load(Ordering::Acquire);
+    if previous == recording {
+        return Ok(recording);
+    }
+
+    let previous_generation = state.recording_generation.load(Ordering::Acquire);
+    let generation = previous_generation.wrapping_add(1);
+    let at = unix_millis()?;
+    settings::save_recording(recording)?;
+
+    // Keyboard hook events snapshot these atomics at hook time. Update them at the same
+    // command boundary that is sent to the activity collector.
+    state
+        .recording_generation
+        .store(generation, Ordering::Release);
+    state.recording.store(recording, Ordering::Release);
+    if let Err(error) = collector.set_recording(recording, generation, at) {
+        state.recording.store(previous, Ordering::Release);
+        state
+            .recording_generation
+            .store(previous_generation, Ordering::Release);
+        let rollback = settings::save_recording(previous);
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => {
+                format!("{error}；恢复记录设置失败：{rollback_error}")
+            }
+        });
+    }
+
+    apply_recording_state(app, recording);
+    Ok(recording)
+}
+
 #[tauri::command]
 fn get_recording_state(state: State<'_, RuntimeState>) -> bool {
     state.recording.load(Ordering::Acquire)
@@ -120,20 +175,18 @@ fn get_recording_state(state: State<'_, RuntimeState>) -> bool {
 fn set_recording_state(
     app: AppHandle,
     state: State<'_, RuntimeState>,
+    collector: State<'_, ActivityCollector>,
     recording: bool,
-) -> Result<(), String> {
-    settings::save_recording(recording)?;
-    let previous = state.recording.swap(recording, Ordering::AcqRel);
-    if previous != recording {
-        state.recording_generation.fetch_add(1, Ordering::AcqRel);
-    }
-    apply_recording_state(&app, recording);
-    Ok(())
+) -> Result<bool, String> {
+    transition_recording(&app, &state, &collector, recording)
 }
 
 #[tauri::command]
-fn quit_app(app: AppHandle) {
+fn quit_app(app: AppHandle) -> Result<(), String> {
+    app.state::<ActivityCollector>().shutdown(unix_millis()?)?;
+    app.state::<KeyboardCollector>().shutdown()?;
     app.exit(0);
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -146,6 +199,7 @@ pub fn run() {
         .manage(RuntimeState {
             recording: recording.clone(),
             recording_generation: recording_generation.clone(),
+            recording_transition: Mutex::new(()),
             toggle_item: Mutex::new(None),
             window_fitted: AtomicBool::new(false),
             maximize_on_first_show: launched_from_autostart(&launch_args),
@@ -178,9 +232,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            // Make portable + installed builds discoverable via Windows Search / Start Menu.
+            // This identity is process-local. Persistent shell registration is
+            // owned by the NSIS installer; portable builds never self-register.
             #[cfg(windows)]
-            windows_shell::ensure_windows_app_discovery();
+            windows_shell::configure_process_identity();
 
             let (recording, generation, recording_now) = {
                 let runtime = app.state::<RuntimeState>();
@@ -194,13 +249,13 @@ pub fn run() {
             let keyboard = (*app.state::<KeyboardService>()).clone();
             let reminders = (*app.state::<ReminderService>()).clone();
             app.manage(ActivityCollector::start(
-                recording.clone(),
-                generation,
+                recording_now,
+                generation.load(Ordering::Acquire),
                 icons,
                 reminders,
                 app.handle().clone(),
             ));
-            app.manage(KeyboardCollector::start(keyboard, recording));
+            app.manage(KeyboardCollector::start(keyboard, recording, generation));
             let open = MenuItem::with_id(app, "open", "打开 iTime", true, None::<&str>)?;
             let toggle = MenuItem::with_id(
                 app,
@@ -240,12 +295,9 @@ pub fn run() {
                     "toggle" => {
                         let state = app.state::<RuntimeState>();
                         let recording = !state.recording.load(Ordering::Acquire);
-                        match settings::save_recording(recording) {
-                            Ok(()) => {
-                                state.recording.store(recording, Ordering::Release);
-                                state.recording_generation.fetch_add(1, Ordering::AcqRel);
-                                apply_recording_state(app, recording);
-                            }
+                        let collector = app.state::<ActivityCollector>();
+                        match transition_recording(app, &state, &collector, recording) {
+                            Ok(_) => {}
                             Err(error) => {
                                 let _ = app.emit("recording-error", error);
                             }
@@ -258,7 +310,16 @@ pub fn run() {
                     "reminders" => {
                         let _ = app.emit("toggle-reminders", ());
                     }
-                    "quit" => app.exit(0),
+                    "quit" => {
+                        let result = unix_millis()
+                            .and_then(|at| app.state::<ActivityCollector>().shutdown(at))
+                            .and_then(|()| app.state::<KeyboardCollector>().shutdown());
+                        if let Err(error) = result {
+                            let _ = app.emit("recording-error", error);
+                        } else {
+                            app.exit(0);
+                        }
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {

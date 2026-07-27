@@ -26,6 +26,8 @@ pub(crate) struct ActivitySlice {
     pub(super) version: u8,
     pub(super) start: u64,
     pub(super) end: u64,
+    #[serde(default)]
+    pub(super) generation: u64,
     #[serde(flatten)]
     pub(super) observation: ActivityObservation,
 }

@@ -6,7 +6,7 @@ import PageHeader from '../components/PageHeader.vue'
 import InputHistoryPanel from '../components/input/InputHistoryPanel.vue'
 import { metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
-import { hasInputData } from '../stores/dataAvailability'
+import { hasInputData, type InputDataStatus } from '../stores/dataAvailability'
 import { formatNumber } from '../utils/format'
 
 const store = useAppStore()
@@ -16,12 +16,14 @@ const averageCharacters = computed(() => {
   const activeMinutes = snapshot.value.history.filter((point) => point.keyStrokes > 0).length
   return activeMinutes ? snapshot.value.cumulative.keyStrokes / activeMinutes : 0
 })
-const pageSubtitle = computed(() => ({
+const pageSubtitles: Record<InputDataStatus, string> = {
   ready: '直接统计 Windows 字符键敲击；不保存键值或输入内容',
   preview: '展示浏览器预览数据；桌面版直接统计字符键敲击',
   loading: '正在连接 iTime 键盘计数器',
+  degraded: '键盘计数器部分可用；请查看状态详情',
   unavailable: '键盘计数器暂时不可用',
-}[store.state.inputDataStatus]))
+}
+const pageSubtitle = computed(() => pageSubtitles[store.state.inputDataStatus])
 const unavailableTitle = computed(() => store.state.inputDataStatus === 'loading' ? '正在读取输入记录' : '输入记录暂不可用')
 
 function metricValue(value: string): string {
@@ -39,7 +41,7 @@ function metricDetail(detail: string): string {
 
     <div class="input-stat-strip">
       <MetricCard label="字符键按下总次数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期的字符键按下事件计数')" :icon="PhKeyboard" tone="accent" :info="metricInfo('inputKeyStrokes')" />
-      <MetricCard label="活跃分钟平均字符键按下" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有字符键记录的分钟；不是最终上屏字数')" :icon="PhChartLineUp" tone="neutral" :info="metricInfo('inputKeyStrokes')" />
+      <MetricCard label="活跃分钟平均字符键按下" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有字符键记录的分钟；不等同于最终上屏文字')" :icon="PhChartLineUp" tone="neutral" :info="metricInfo('inputKeyStrokes')" />
     </div>
 
     <div v-if="!inputDataAvailable" class="section-state input-source-state" :data-state="store.state.inputDataStatus">

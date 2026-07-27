@@ -28,10 +28,17 @@ impl ComGuard {
         // reserved pointer, and the documented apartment flag is a valid value.
         let result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
         Self {
-            should_uninitialize: result.is_ok(),
+            should_uninitialize: com_initialization_needs_uninitialize(result),
             _thread_affine: PhantomData,
         }
     }
+}
+
+fn com_initialization_needs_uninitialize(result: windows::core::HRESULT) -> bool {
+    // Both S_OK and S_FALSE are successful CoInitializeEx calls and each must
+    // be paired with CoUninitialize on this thread. Failures, including
+    // RPC_E_CHANGED_MODE, do not transfer initialization ownership.
+    result.is_ok()
 }
 
 impl Drop for ComGuard {
@@ -230,4 +237,19 @@ pub(super) fn default_application_icon(size: u32) -> Result<RgbaImage, ExtractEr
     let icon = unsafe { LoadIconW(None, IDI_APPLICATION) }
         .map_err(|error| ExtractError::Api(format!("LoadIconW: {error}")))?;
     gdi::hicon_to_rgba(icon, size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::com_initialization_needs_uninitialize;
+    use windows::core::HRESULT;
+
+    #[test]
+    fn com_cleanup_pairs_both_success_results_but_not_failures() {
+        assert!(com_initialization_needs_uninitialize(HRESULT(0))); // S_OK
+        assert!(com_initialization_needs_uninitialize(HRESULT(1))); // S_FALSE
+        assert!(!com_initialization_needs_uninitialize(HRESULT(
+            0x8001_0106u32 as i32
+        ))); // RPC_E_CHANGED_MODE
+    }
 }

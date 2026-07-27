@@ -1,24 +1,32 @@
 import { isTauriRuntime } from './desktop'
 
-export async function getAutostartEnabled(): Promise<boolean> {
-  if (!isTauriRuntime()) return false
-  const { isEnabled } = await import('@tauri-apps/plugin-autostart')
+export async function queryAutostartState(
+  isEnabled: () => Promise<boolean>,
+): Promise<boolean> {
   return isEnabled()
 }
 
-export async function refreshDesktopAutostartRegistration(): Promise<boolean> {
+export async function changeAutostartState(
+  enabled: boolean,
+  api: {
+    enable: () => Promise<void>
+    disable: () => Promise<void>
+    isEnabled: () => Promise<boolean>
+  },
+): Promise<boolean> {
+  if (enabled) await api.enable()
+  else await api.disable()
+  return api.isEnabled()
+}
+
+export async function getAutostartEnabled(): Promise<boolean> {
   if (!isTauriRuntime()) return false
-  const { disable, enable, isEnabled } = await import('@tauri-apps/plugin-autostart')
-  if (!await isEnabled()) return false
-  await disable()
-  await enable()
-  return isEnabled()
+  const { isEnabled } = await import('@tauri-apps/plugin-autostart')
+  return queryAutostartState(isEnabled)
 }
 
 export async function setDesktopAutostart(enabled: boolean): Promise<boolean> {
   if (!isTauriRuntime()) return false
   const { disable, enable, isEnabled } = await import('@tauri-apps/plugin-autostart')
-  if (enabled) await enable()
-  else await disable()
-  return isEnabled()
+  return changeAutostartState(enabled, { disable, enable, isEnabled })
 }

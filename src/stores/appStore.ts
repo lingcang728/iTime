@@ -20,7 +20,6 @@ import {
 import { loadKeyboardData } from '../providers/keyboardAdapter'
 import {
   getAutostartEnabled,
-  refreshDesktopAutostartRegistration,
   setDesktopAutostart,
 } from '../platform/autostart'
 import { getDesktopRecording, isTauriRuntime, setDesktopRecording } from '../platform/desktop'
@@ -50,7 +49,7 @@ function localDate(value = new Date()): string {
 const state = reactive({
   selectedDate: desktopRuntime ? localDate() : mockDates[mockDates.length - 1],
   availableDates: desktopRuntime ? [localDate()] : [...mockDates],
-  inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'unavailable',
+  inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
@@ -69,6 +68,8 @@ const state = reactive({
   toast: '',
   ...persisted,
   recording: true,
+  recordingStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
+  recordingMessage: desktopRuntime ? '正在向采集器确认状态' : '浏览器预览不写入本机记录',
 })
 
 const liveActivityDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
@@ -220,19 +221,32 @@ function closeTool(): void {
 }
 
 async function setRecording(recording: boolean): Promise<void> {
+  if (state.recordingStatus === 'loading') return
+  const previous = state.recording
+  state.recordingStatus = 'loading'
+  state.recordingMessage = recording ? '正在继续记录' : '正在暂停并刷新当前片段'
   try {
-    await setDesktopRecording(recording)
-    state.recording = recording
+    state.recording = await setDesktopRecording(recording)
+    state.recordingStatus = 'ready'
+    state.recordingMessage = state.recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
   } catch (error) {
-    showToast(errorMessage(error, '无法修改活动记录状态'))
+    state.recording = previous
+    state.recordingStatus = 'error'
+    state.recordingMessage = errorMessage(error, '无法修改活动记录状态')
+    showToast(state.recordingMessage)
   }
 }
 
 async function syncRecording(): Promise<void> {
+  state.recordingStatus = 'loading'
   try {
     state.recording = await getDesktopRecording()
+    state.recordingStatus = 'ready'
+    state.recordingMessage = state.recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
   } catch (error) {
-    showToast(errorMessage(error, '无法读取活动记录状态'))
+    state.recordingStatus = 'error'
+    state.recordingMessage = errorMessage(error, '无法读取活动记录状态')
+    showToast(state.recordingMessage)
   }
 }
 
@@ -276,12 +290,23 @@ async function refreshInputData(): Promise<void> {
     liveKeyboardDataset.value = result.dataset
     inputDates.value = dates
     updateAvailableDates()
-    if (result.snapshot.health.lastError) {
-      state.inputDataStatus = 'unavailable'
-      state.inputDataMessage = result.snapshot.health.lastError
-    } else if (!result.snapshot.health.collectorRunning) {
+    const { health } = result.snapshot
+    if (!health.collectorRunning) {
       state.inputDataStatus = 'unavailable'
       state.inputDataMessage = 'Windows 键盘计数器未运行'
+    } else if (!health.writerRunning || health.queueDisconnected) {
+      state.inputDataStatus = 'unavailable'
+      state.inputDataMessage = health.lastError || '键盘字符键计数写入线程未运行'
+    } else if (health.droppedEvents > 0) {
+      state.inputDataStatus = 'degraded'
+      state.inputDataMessage = `键盘计数部分可用；队列拥塞已丢弃 ${health.droppedEvents} 次字符键事件`
+    } else if (health.writeFailures > 0 || health.readFailures > 0 || result.snapshot.skippedRecords > 0) {
+      state.inputDataStatus = 'degraded'
+      state.inputDataMessage = health.lastError
+        || `键盘计数部分可用；已跳过 ${result.snapshot.skippedRecords} 条损坏记录`
+    } else if (health.lastError) {
+      state.inputDataStatus = 'degraded'
+      state.inputDataMessage = health.lastError
     } else {
       state.inputDataStatus = 'ready'
       state.inputDataMessage = result.snapshot.buckets.length
@@ -444,9 +469,6 @@ async function refreshAutostart(): Promise<void> {
   state.autostartStatus = 'loading'
   try {
     state.autostartEnabled = await getAutostartEnabled()
-    if (state.autostartEnabled) {
-      state.autostartEnabled = await refreshDesktopAutostartRegistration()
-    }
     state.autostartStatus = 'ready'
     state.autostartMessage = state.autostartEnabled ? '已由 Windows 注册开机启动' : '当前不会随 Windows 启动'
   } catch (error) {
@@ -456,7 +478,7 @@ async function refreshAutostart(): Promise<void> {
 }
 
 async function setAutostart(enabled: boolean): Promise<void> {
-  if (!desktopRuntime) return
+  if (!desktopRuntime || state.autostartStatus === 'loading') return
   state.autostartStatus = 'loading'
   try {
     const confirmed = await setDesktopAutostart(enabled)
