@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:native": "pwsh -NoProfile -File scripts/native-release-smoke.ps1",
     "test:visual": "pwsh -NoProfile -File scripts/visual-test.ps1",
     "visual:compare": "node scripts/compare-visual.mjs",
     "verify:website": "node scripts/verify-website.mjs",

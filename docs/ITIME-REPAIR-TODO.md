@@ -4,7 +4,7 @@
 
 执行来源：`C:\Users\15pro\Desktop\iTime-修复计划-2026-07-26.md`
 
-当前状态：阶段 0–3 已完成，阶段 4 进行中
+当前状态：阶段 0–5 已完成，阶段 6 进行中
 
 本文是当前修复工作的唯一仓库内进度入口。上一轮已完成的审计闭环已归档到
 `docs/archive/ITIME-REPAIR-TODO-2026-07-18.md`。
@@ -277,17 +277,35 @@
 
 ## 阶段 6：原生 QA 与 0.1.1 发布
 
-- [ ] `npm ci`、`npm run verify:full`、生产依赖审计和全部新增测试通过。
+- [x] `npm ci`、`npm run verify:full`、生产依赖审计和全部新增测试通过。
 - [ ] 真实 Tauri/WebView2 覆盖首次启动、托盘、退出、暂停/继续、键盘、
   Provider、提醒、自启动、数据管理和异常恢复。
 - [ ] 安装版/便携版注册所有权矩阵通过。
-- [ ] package/npm/Cargo/Tauri 版本统一为 `0.1.1`。
+- [x] package/npm/Cargo/Tauri 版本统一为 `0.1.1`。
 - [ ] `npm run package:release` 生成本轮两个 EXE 和有效 manifest。
 - [ ] 完整 diff 只提交源码与配置，排除本地产物。
 - [ ] 分片提交全部推送，远端分支与本地一致。
 - [ ] 创建不可变 `v0.1.1` 标签和 GitHub Release，仅上传本轮两个 EXE。
 - [ ] 官网重新下载资产后独立核对 SHA-256。
 - [ ] 最终工作树干净。
+
+阶段 6 当前证据（2026-07-27）：
+
+- 从干净依赖状态完成 `npm ci`，完整 npm 审计与生产依赖审计均为 0 个漏洞。
+  `npm run verify:full` 通过 34 个前端测试文件 / 122 项测试、77 项 Rust 测试、
+  TypeScript/Vite、网站检查、rustfmt、Clippy、交互矩阵与 28 张零差异视觉截图。
+- package、package-lock、Cargo.lock、Cargo.toml 与 Tauri 配置的版本均为 `0.1.1`。
+- 新增 `npm run test:native`，复用本机共享 Python Playwright，不在项目安装浏览器或运行时。
+  它以隔离的本地数据和 WebView2 目录启动真实 Release EXE，真实调用 Tauri IPC，并确认
+  暂停/继续后端回执、Provider 首次默认关闭且扫描文件数为 0、90 天与永久保留期、
+  JSON/CSV 原子导出、错误删除确认被拒绝、正确清空且保留导出、提醒开关、设置页原生表面、
+  关闭提示、隐藏到托盘和恢复窗口全部通过。
+- 本机 WebView2 `150.0.4078.99` 的固定 CDP 端口不监听；QA 改用官方支持的
+  `--remote-debugging-port=0`，从隔离数据目录读取临时端口，并只在
+  `ITIME_NATIVE_QA=1` 时启用发布构建检查器。验收后精确停止本轮 EXE、删除隔离运行目录，
+  确认调试端口关闭，便携版前后的 App Paths、开始菜单和自启动快照完全相同。
+- 真实安装、升级、便携路径含空格、卸载后保留便携版、最终重装与自启动恢复仍在本阶段
+  后半段执行；正式干净 manifest、远端 CI、标签、Release 和官网下载复核尚未提前勾选。
 
 ## 约束与延期
 

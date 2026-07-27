@@ -1,5 +1,7 @@
 # Dependencies & build output
 node_modules/
+__pycache__/
+*.py[cod]
 dist/
 coverage/
 .vite/

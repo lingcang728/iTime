@@ -23,6 +23,7 @@
         "resizable": true,
         "minimizable": true,
         "maximizable": true,
+        "devtools": true,
         "visible": false
       }
     ],

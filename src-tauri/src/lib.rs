@@ -417,6 +417,9 @@ pub fn run() {
                 .build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
+                if std::env::var("ITIME_NATIVE_QA").ok().as_deref() == Some("1") {
+                    window.open_devtools();
+                }
                 let app_handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
