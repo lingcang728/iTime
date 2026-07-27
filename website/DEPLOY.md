@@ -54,7 +54,7 @@ Cloudflare 会显示实际分配的 `https://<项目名>.pages.dev` 地址。不
 
 ### 6（可选）. 自定义域名
 
-在 Pages 项目 → **Custom domains** 可绑定自己的域名。  
+在 Pages 项目 → **Custom domains** 可绑定自己的域名。
 你当前要求使用 **免费 `*.pages.dev` 域名即可**，这一步可跳过。
 
 ---
