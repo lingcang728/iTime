@@ -9,7 +9,6 @@
 [![Version](https://img.shields.io/github/v/release/lingcang728/iTime?color=blue&label=version)](https://github.com/lingcang728/iTime/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/lingcang728/iTime/releases)
 [![Download](https://img.shields.io/github/downloads/lingcang728/iTime/total?label=downloads&color=brightgreen)](https://github.com/lingcang728/iTime/releases/latest)
-[![Release](https://img.shields.io/badge/release-v0.1.0-informational)](https://github.com/lingcang728/iTime/releases/tag/v0.1.0)
 
 **本地优先 · 隐私友好 · Windows 桌面**
 
@@ -53,8 +52,8 @@
 
 ### ⌨️ 输入足迹
 
-- 键鼠活跃与输入节奏（本机有可用数据时）
-- 若安装了 KeyStats，iTime **只读**接入日级统计，不改动其文件或启动项
+- 在本机按分钟汇总字符键按下次数与活跃节奏
+- 不保存键值、组合键身份或输入内容；Ctrl / Alt / Win 组合不计数
 
 ### 📈 周报
 
@@ -102,11 +101,11 @@
 
 ### 选择合适的包
 
-从 **[Releases · v0.1.0](https://github.com/lingcang728/iTime/releases/tag/v0.1.0)** 下载：
+从 **[GitHub Releases 最新正式版](https://github.com/lingcang728/iTime/releases/latest)** 下载：
 
 | 文件 | 说明 | 推荐 |
 | --- | --- | :---: |
-| `iTime_0.1.0_x64-setup.exe` | 安装版，可进开始菜单 | ✅ |
+| `iTime_<version>_x64-setup.exe` | 安装版，可进开始菜单 | ✅ |
 | `iTime.exe` | 便携版，双击即用 | 需要免安装时 |
 
 请只从本仓库 Releases 获取安装包，避免第三方转载。
@@ -119,7 +118,7 @@
 | --- | --- |
 | 🆕 **从启用后开始记** | 打开并保持运行后，才会持续采样前台应用；安装前的时间不会自动补上 |
 | 🤖 **AI 时长是估算** | 统计的是「该 AI 工具是否在前台」，不等于后台 agent 真正跑了多久 |
-| ⌨️ **键鼠数据可选** | 有 KeyStats 数据时只读接入；历史做不到的细项会标为不可用 |
+| ⌨️ **字符键本机统计** | 只统计字符键按下次数；不保存具体键值、组合键身份或输入内容 |
 | ⏸️ **可随时暂停** | 设置里可暂停记录，也可开关开机自启 |
 
 ---
@@ -158,7 +157,7 @@
 
 <br/>
 
-不会。iTime **不**读取或保存窗口标题、文档名、对话内容、具体按键内容；也**不**保存完整程序路径、用户名等敏感标识。
+不会。iTime **不**读取或保存窗口标题、文档名、聊天正文、提示词、具体按键或完整程序路径。字符键只在本机按分钟计数，不保存键值。
 
 </details>
 
@@ -167,7 +166,7 @@
 
 <br/>
 
-活动记录保存在本机（本地数据目录）。当前版本**不会**把使用数据上传到我们的服务器，也没有账号云同步。
+活动记录保存在本机数据目录。设置页可以打开数据目录、导出 JSON/CSV、选择永久/365 天/90 天保留期，或在二次确认后清空。当前版本**不会**把使用数据上传到我们的服务器，也没有账号云同步。
 
 </details>
 
@@ -187,11 +186,20 @@
 iTime 把隐私当成默认选项，而不是附加条款：
 
 - ✅ 数据默认只在你电脑上
-- ❌ 不读窗口标题 / 文档名 / 聊天与键入内容
+- ✅ Codex / Claude Code Provider 逐项授权后，只解析会话时间和事件类型元数据
+- ✅ 支持 JSON/CSV 导出、保留期和二次确认清空
+- ❌ 不读窗口标题 / 文档名 / 聊天正文 / 提示词 / 具体按键
+- ❌ Provider 未授权时不扫描对应会话目录
 - ❌ 不把使用数据上传到我们的服务器（当前版本）
 - 🛡️ 应用身份经本地处理后再使用
 
 你可以把它当成 **「只在本机的时间记账本」**。
+
+---
+
+## 📄 许可证状态
+
+本仓库的源代码可公开查看和反馈，但当前没有 `LICENSE` 文件。源代码可见不等于授予复制、修改或再分发权；在所有者明确选择许可证前，保留全部权利。
 
 ---
 

@@ -802,6 +802,12 @@ a:hover {
   word-break: break-all;
 }
 
+.download-size {
+  min-height: 1.25em;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
 .download-card > p:not(.download-label):not(.download-file) {
   margin: 0 0 0.4rem;
   color: var(--text-secondary);
@@ -895,6 +901,11 @@ a:hover {
 .copy-btn.is-copied {
   color: var(--text);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.copy-btn:disabled {
+  cursor: wait;
+  opacity: 0.48;
 }
 
 .hash-cmd {

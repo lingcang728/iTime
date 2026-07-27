@@ -7,10 +7,19 @@
 在仓库根目录：
 
 ```powershell
-npx --yes serve website -p 4173
+python -m http.server 4173 --directory website
 ```
 
 浏览器打开 `http://127.0.0.1:4173`。
+
+## 自动校验
+
+```powershell
+npm run verify:website
+```
+
+校验覆盖 Release API 对接、SHA-256 元数据、站内锚点、外部 HTTPS 链接、
+canonical / Open Graph 信息、移动菜单行为和缓存策略。
 
 ## 部署
 
@@ -25,3 +34,6 @@ npx --yes serve website -p 4173
 - 最新版本更新日志
 - 下载（GitHub Releases）
 - SHA-256 校验值
+
+版本、发布时间、文件名、大小、下载地址和 SHA-256 由浏览器从 GitHub 最新正式
+Release API 读取，不在 HTML 中手工维护。

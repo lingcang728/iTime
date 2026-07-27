@@ -8,7 +8,10 @@
   <meta property="og:title" content="iTime - 看清时间，也看清 AI" />
   <meta property="og:description" content="本机记录屏幕时间，单独标出 AI 工具前台占用。数据只留在你电脑上。" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="./assets/screenshots/home.png" />
+  <meta property="og:url" content="https://github.com/lingcang728/iTime" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/lingcang728/iTime/main/website/assets/screenshots/home.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://github.com/lingcang728/iTime" />
   <link rel="icon" type="image/png" href="./assets/icon.png" />
   <title>iTime - 看清时间，也看清 AI</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -70,7 +73,7 @@
           <h1>记录你的屏幕时间，也记录 AI 替你工作的时间</h1>
           <p class="lede">自动记录前台应用占用，单独标出 AI 工具的前台时间。数据只留在本机，不上传云端。</p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime_0.1.0_x64-setup.exe">下载安装包</a>
+            <a class="btn btn-primary" data-release-link="installer" href="https://github.com/lingcang728/iTime/releases/latest">下载安装包</a>
             <a
               class="btn btn-star"
               href="https://github.com/lingcang728/iTime"
@@ -83,7 +86,7 @@
               给 GitHub 点 Star
             </a>
           </div>
-          <p class="hero-meta">当前版本 v0.1.0 · Windows 10 / 11 64 位 · 需 WebView2 · 开源欢迎 Star</p>
+          <p class="hero-meta">当前版本 <strong data-release-version>正在读取</strong> · Windows 10 / 11 64 位 · 需 WebView2 · 公开仓库欢迎 Star</p>
         </div>
         <figure class="hero-visual">
           <img
@@ -164,11 +167,11 @@
           <article class="feature-row">
             <div class="feature-text">
               <h3>输入足迹与目标</h3>
-              <p>有本机键鼠数据时展示活跃与节奏。目标与提醒帮你设定使用边界。</p>
+              <p>直接在本机汇总字符键按下次数与活跃节奏。目标与提醒帮你设定使用边界。</p>
             </div>
             <ul class="feature-points">
-              <li>只读接入 KeyStats 日级统计（可选）</li>
-              <li>不保存具体按键内容</li>
+              <li>按分钟聚合字符键按下次数</li>
+              <li>不保存键值、组合键身份或输入内容</li>
               <li>主题、开机自启、暂停记录</li>
             </ul>
           </article>
@@ -218,18 +221,18 @@
             <h3>我们做什么</h3>
             <ul>
               <li>在本机采样前台应用占用</li>
-              <li>把活动记录保存在本地数据目录</li>
-              <li>对 AI 工具前台时间做可标注的估算</li>
-              <li>在设置中提供暂停记录与自启控制</li>
+              <li>按分钟汇总字符键次数，不保存键值</li>
+              <li>经逐项授权后，只解析 Codex / Claude Code 会话的时间与事件元数据</li>
+              <li>提供 JSON/CSV 导出、保留期和二次确认清空</li>
             </ul>
           </div>
           <div class="privacy-card privacy-no">
             <h3>我们不做什么</h3>
             <ul>
               <li>不读取或保存窗口标题、文档名</li>
-              <li>不读取聊天内容、提示词或具体按键</li>
+              <li>不读取聊天正文、提示词、具体按键或完整程序路径</li>
               <li>不把使用数据上传到我们的服务器（当前版本）</li>
-              <li>不改动 KeyStats 文件或启动项（仅只读接入）</li>
+              <li>Provider 未授权时不扫描对应会话目录</li>
             </ul>
           </div>
         </div>
@@ -245,22 +248,15 @@
     <section id="changelog" class="section">
       <div class="shell">
         <div class="section-head">
-          <h2>最新版本更新日志</h2>
-          <p>当前发布：<strong>v0.1.0</strong>（2026-07-18）</p>
+          <h2>最新正式版本</h2>
+          <p>当前发布：<strong data-release-version>正在读取</strong>（<span data-release-date>以 GitHub Release 为准</span>）</p>
         </div>
         <article class="changelog-card">
           <header class="changelog-head">
-            <h3>iTime v0.1.0</h3>
-            <a class="text-link" href="https://github.com/lingcang728/iTime/releases/tag/v0.1.0" rel="noopener noreferrer" target="_blank">在 GitHub 查看</a>
+            <h3>iTime <span data-release-version>最新版本</span></h3>
+            <a class="text-link" data-release-page href="https://github.com/lingcang728/iTime/releases/latest" rel="noopener noreferrer" target="_blank">在 GitHub 查看</a>
           </header>
-          <p>本地优先 Windows 桌面应用：前台屏幕时间 + AI 工具前台活动估算。</p>
-          <ul>
-            <li>首页概览、应用排行与今日时间线</li>
-            <li>AI 代理前台活跃与工具明细（诚实标注估算）</li>
-            <li>时间线、周报、输入足迹与目标提醒</li>
-            <li>主题、开机自启、暂停记录等设置</li>
-            <li>提供安装包与便携版两个下载形态</li>
-          </ul>
+          <p>完整更新说明以 GitHub Release 页面为准。本站自动核验并展示该正式版本的两个 Windows 资产。</p>
           <div class="changelog-meta">
             <span>技术栈：Tauri 2 · Vue 3 · TypeScript · Vite · Rust</span>
             <span>活动数据从启用后开始采样，不回填历史</span>
@@ -280,10 +276,11 @@
           <article class="download-card download-card--primary">
             <p class="download-label">推荐</p>
             <h3>安装版</h3>
-            <p class="download-file">iTime_0.1.0_x64-setup.exe</p>
+            <p class="download-file" data-release-file="installer">正在读取安装包信息</p>
+            <p class="download-size" data-release-size="installer"></p>
             <p>NSIS 安装包，当前用户模式，一般不需要管理员权限。可进入开始菜单。</p>
             <div class="download-actions">
-              <a class="btn btn-primary" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime_0.1.0_x64-setup.exe">下载安装包</a>
+              <a class="btn btn-primary" data-release-link="installer" href="https://github.com/lingcang728/iTime/releases/latest">下载安装包</a>
               <a
                 class="btn btn-star"
                 href="https://github.com/lingcang728/iTime"
@@ -300,15 +297,16 @@
           <article class="download-card">
             <p class="download-label">便携</p>
             <h3>可执行文件</h3>
-            <p class="download-file">iTime.exe</p>
+            <p class="download-file" data-release-file="portable">正在读取便携版信息</p>
+            <p class="download-size" data-release-size="portable"></p>
             <p>双击即用，适合不想安装的场景。同样只建议从官方 Releases 下载。</p>
-            <a class="btn btn-ghost" href="https://github.com/lingcang728/iTime/releases/download/v0.1.0/iTime.exe">下载便携版</a>
+            <a class="btn btn-ghost" data-release-link="portable" href="https://github.com/lingcang728/iTime/releases/latest">下载便携版</a>
           </article>
         </div>
 
-        <aside class="star-banner" aria-label="支持开源">
+        <aside class="star-banner" aria-label="支持 iTime">
           <div class="star-banner-copy">
-            <p class="star-banner-label">开源项目</p>
+            <p class="star-banner-label">公开仓库</p>
             <h3>喜欢 iTime？去 GitHub 点个 Star</h3>
             <p>Star 能帮更多人发现这个本地优先的屏幕时间工具，也是对独立开发最大的鼓励。</p>
           </div>
@@ -349,27 +347,26 @@
         <div class="hash-box" id="checksums">
           <div class="hash-head">
             <h3>SHA-256 校验值</h3>
-            <p>下载后可用 PowerShell 校验，确认文件与发布一致。</p>
+            <p id="release-status" role="status" aria-live="polite">正在从 GitHub Release 读取版本、大小和校验值。</p>
           </div>
           <div class="hash-rows">
             <div class="hash-row">
               <div class="hash-meta">
-                <span class="hash-name">iTime_0.1.0_x64-setup.exe</span>
-                <button type="button" class="copy-btn" data-copy="2577fe7b6ea082bab5a7f1d182ee06ed222eff46efc7fa09d3e5776e394fb7a9">复制</button>
+                <span class="hash-name" data-release-file="installer">安装包</span>
+                <button type="button" class="copy-btn" data-copy-role="installer" disabled>复制</button>
               </div>
-              <code class="hash-value">2577fe7b6ea082bab5a7f1d182ee06ed222eff46efc7fa09d3e5776e394fb7a9</code>
+              <code class="hash-value" data-release-sha="installer">等待 Release API</code>
             </div>
             <div class="hash-row">
               <div class="hash-meta">
-                <span class="hash-name">iTime.exe</span>
-                <button type="button" class="copy-btn" data-copy="ee180192e0acfdea36d9c16e160fbbb9ef184b9d43ccbf2410dd40d6d2ce75aa">复制</button>
+                <span class="hash-name" data-release-file="portable">便携版</span>
+                <button type="button" class="copy-btn" data-copy-role="portable" disabled>复制</button>
               </div>
-              <code class="hash-value">ee180192e0acfdea36d9c16e160fbbb9ef184b9d43ccbf2410dd40d6d2ce75aa</code>
+              <code class="hash-value" data-release-sha="portable">等待 Release API</code>
             </div>
           </div>
-          <pre class="hash-cmd" tabindex="0"><code>Get-FileHash .\iTime_0.1.0_x64-setup.exe -Algorithm SHA256
-Get-FileHash .\iTime.exe -Algorithm SHA256</code></pre>
-          <p class="hash-note">上述哈希对应 GitHub Release <strong>v0.1.0</strong> 资产。新版本发布后请以 Release 页面为准更新本站数值。</p>
+          <pre class="hash-cmd" tabindex="0"><code data-release-command>请先等待最新 Release 元数据加载。</code></pre>
+          <p class="hash-note">版本、文件名、大小、下载链接和 SHA-256 均来自 GitHub 最新正式 Release API，不在网页中手工维护。</p>
         </div>
       </div>
     </section>
@@ -395,7 +392,7 @@ Get-FileHash .\iTime.exe -Algorithm SHA256</code></pre>
         <a href="https://github.com/lingcang728/iTime/issues" rel="noopener noreferrer" target="_blank">Issues</a>
         <a href="#privacy">隐私</a>
       </div>
-      <p class="footer-copy">开源桌面应用 · 本地优先 · 截图为演示数据 · 欢迎 Star</p>
+      <p class="footer-copy">公开仓库 · 本地优先 · 截图为演示数据 · 欢迎 Star</p>
     </div>
   </footer>
 

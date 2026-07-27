@@ -34,7 +34,7 @@ website/
 
 | 配置项 | 填写值 |
 | --- | --- |
-| Project name | `itime`（会得到 `itime.pages.dev`；若被占用可改成 `itime-app` 等） |
+| Project name | 使用账号下唯一名称，例如 `itime-desktop` |
 | Production branch | `main` |
 | **Root directory** | **`website`** |
 | Framework preset | **None** |
@@ -47,9 +47,8 @@ website/
 
 点击 **Save and Deploy**。大约 1 分钟内会生成类似：
 
-```text
-https://itime.pages.dev
-```
+Cloudflare 会显示实际分配的 `https://<项目名>.pages.dev` 地址。不要把
+`https://itime.pages.dev` 当作本项目地址；该域名当前属于无关站点。
 
 之后每次 `main` 有 push，Pages 会自动重新部署。
 
@@ -63,7 +62,7 @@ https://itime.pages.dev
 ## 备选方式 A：拖拽上传（最快试看）
 
 1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** → **Upload assets**
-2. 项目名填 `itime`
+2. 项目名填写账号下尚未使用的唯一名称，例如 `itime-desktop`
 3. 把本机 `website` 文件夹里的内容打成 zip，或直接拖入 `index.html`、`styles.css`、`main.js`、`_headers`、`assets/`
 4. 部署后得到 `*.pages.dev` 链接
 
@@ -76,18 +75,19 @@ https://itime.pages.dev
 需要你在本机登录 Cloudflare，**不必把密码发给 AI**。
 
 ```powershell
-# 1) 安装（若尚未安装）
-npm install -g wrangler
+# 1) 先检查是否已有 Wrangler，已安装就直接复用
+Get-Command wrangler -ErrorAction SilentlyContinue
 
-# 2) 登录（浏览器授权一次）
+# 2) 已安装时登录（浏览器授权一次）
 wrangler login
 
 # 3) 在仓库根目录部署 website 文件夹
 cd C:\Users\15pro\Desktop\MyProject\iTime
-npx wrangler pages deploy website --project-name=itime
+wrangler pages deploy website --project-name=itime-desktop
 ```
 
-首次会提示创建 Pages 项目。成功后终端会打印访问 URL。
+若本机没有 Wrangler，先按仓库全局规则搜索全局 npm 根目录和构建缓存，确认不存在
+后再决定安装。首次部署会提示创建 Pages 项目，成功后终端会打印访问 URL。
 
 若希望 AI 代你执行 CLI 部署，只需提供 **API Token**（权限：`Cloudflare Pages:Edit` + 账户读），**不要**分享账号密码。更推荐上面的 Git 连接，零密钥共享。
 
@@ -117,12 +117,11 @@ npx wrangler pages deploy website --project-name=itime
 
 ## 更新官网内容
 
-1. 改 `website/index.html`（文案、版本号、哈希）
+1. 改 `website/index.html`（文案和页面结构）
 2. 换图：替换 `website/assets/screenshots/`
-3. 提交并 push 到 `main` → Pages 自动更新
+3. 运行 `npm run verify:website`
+4. 提交并 push 到 `main` → Pages 自动更新
 
-发布新版本软件时，记得同步更新：
-
-- 下载链接中的 tag / 文件名
-- 「更新日志」章节
-- SHA-256（以 GitHub Release 资产 digest 为准）
+发布新版本后，页面会从 GitHub 最新正式 Release API 自动读取 tag、发布时间、文件名、
+大小、下载地址和 SHA-256。若 API 不可用，页面只引导用户前往 Releases，不显示未经
+验证的旧哈希。
