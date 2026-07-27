@@ -200,6 +200,12 @@ try {
 
     & $releaseVerifier -ReleaseDirectory $releaseDirectory
     if ($LASTEXITCODE -ne 0) { throw '发布 manifest 独立校验失败。' }
+
+    # Sync the current-user install used by the desktop shortcut so the user
+    # always opens this build after package:release (not a stale AppData copy).
+    $localDeploy = Join-Path $PSScriptRoot 'deploy-local-install.ps1'
+    & $localDeploy -ReleaseExecutable $destinationExecutable
+    if ($LASTEXITCODE -ne 0) { throw '本机安装目录 / 桌面快捷方式同步失败。' }
   } catch {
     if ($wroteDestinationExecutable -and (Test-Path -LiteralPath $backupExecutable)) {
       Copy-WithRetry -Source $backupExecutable -Destination $destinationExecutable
