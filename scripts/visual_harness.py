@@ -59,9 +59,37 @@ def wait_ready(page):
         "(expected) => location.hash === `#/${expected}`",
         arg=page_id,
     )
-    page.wait_for_selector(".page")
-    page.wait_for_selector(selectors[0])
-    page.wait_for_timeout(250)
+    page.locator(".page").wait_for(state="visible")
+    page.locator(selectors[0]).first.wait_for(state="visible")
+    page.wait_for_function(
+        """(selector) => {
+          const page = document.querySelector('.page')
+          const target = document.querySelector(selector)
+          if (!page || !target || !page.contains(target)) return false
+          const pageStyle = getComputedStyle(page)
+          const targetStyle = getComputedStyle(target)
+          return pageStyle.opacity === '1'
+            && pageStyle.visibility !== 'hidden'
+            && targetStyle.visibility !== 'hidden'
+            && target.getBoundingClientRect().height > 0
+            && target.textContent.trim().length > 0
+        }""",
+        arg=selectors[0],
+    )
+
+
+def capture_stable(page, path):
+    previous = None
+    for _ in range(8):
+        current = page.screenshot(animations="disabled")
+        if current == previous:
+            Path(path).write_bytes(current)
+            return
+        previous = current
+        page.evaluate(
+            "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+        )
+    raise RuntimeError(f"页面在连续绘制帧之间未稳定：{path}")
 
 
 def inspect_layout(page):
@@ -361,7 +389,7 @@ with sync_playwright() as playwright:
         for page_id in pages:
             page.goto(url(page_id))
             wait_ready(page)
-            page.screenshot(path=output / f"wide-{page_id}.png")
+            capture_stable(page, output / f"wide-{page_id}.png")
             report["pages"][page_id] = inspect_layout(page)
             report["themeContrast"]["light"][page_id] = inspect_contrast_positions(page)
             report["themeGeometry"]["light"][page_id] = inspect_geometry(page, page_id)
@@ -369,7 +397,7 @@ with sync_playwright() as playwright:
             for ratio in [0.5, 1.0]:
                 reached = page.evaluate("ratio => { const content=document.querySelector('.page-viewport'); const target=(content.scrollHeight-content.clientHeight)*ratio; content.scrollTo(0,target); return {top:content.scrollTop,max:content.scrollHeight-content.clientHeight}; }", ratio)
                 page.wait_for_timeout(80)
-                page.screenshot(path=output / f"wide-{page_id}-scroll-{int(ratio * 100)}.png")
+                capture_stable(page, output / f"wide-{page_id}-scroll-{int(ratio * 100)}.png")
                 scroll_checks.append({"ratio": ratio, "reached": reached, "layout": inspect_layout(page)})
             report["scroll"][page_id] = scroll_checks
             page.evaluate("document.querySelector('.page-viewport').scrollTo(0, 0)")
@@ -408,7 +436,7 @@ with sync_playwright() as playwright:
                 and abs(boundary["content"]["bottom"] - boundary["viewportHeight"]) <= 1
             )
             report["wheelBoundary"][page_id] = boundary
-            page.screenshot(path=output / f"wheel-boundary-{page_id}.png")
+            capture_stable(page, output / f"wheel-boundary-{page_id}.png")
 
         page.emulate_media(reduced_motion="no-preference")
         page.goto(url("ai"))
@@ -477,7 +505,7 @@ with sync_playwright() as playwright:
             mode_motion["duration"] >= 550
             and "cubic-bezier" in mode_motion["easing"]
         )
-        page.screenshot(path=output / "interaction-input-bar.png")
+        capture_stable(page, output / "interaction-input-bar.png")
 
         shared_datum = page.locator(".input-trend-chart .trend-hit-node").last
         shared_datum_key = shared_datum.get_attribute("data-datum-key")
@@ -489,7 +517,7 @@ with sync_playwright() as playwright:
             {"key": shared_datum_key, "node": shared_datum_handle},
         )
         page.wait_for_timeout(720)
-        page.screenshot(path=output / "interaction-input-bar-30.png")
+        capture_stable(page, output / "interaction-input-bar-30.png")
 
         page.get_by_role("button", name="折线").click()
         page.wait_for_timeout(40)
@@ -498,7 +526,7 @@ with sync_playwright() as playwright:
         )
         page.wait_for_timeout(720)
         dense_visible_markers = page.locator(".input-trend-chart .trend-point.is-marker-visible").count()
-        page.screenshot(path=output / "interaction-input-line-30.png")
+        capture_stable(page, output / "interaction-input-line-30.png")
 
         page.get_by_role("button", name="7 天").click()
         contracting_state = chart_root.get_attribute("data-range-motion")
@@ -547,10 +575,10 @@ with sync_playwright() as playwright:
         wait_ready(page)
         page.get_by_role("button", name="30 天").click()
         page.wait_for_timeout(720)
-        page.screenshot(path=output / "interaction-input-line-30-dark.png")
+        capture_stable(page, output / "interaction-input-line-30-dark.png")
         page.get_by_role("button", name="柱状").click()
         page.wait_for_timeout(720)
-        page.screenshot(path=output / "interaction-input-bar-30-dark.png")
+        capture_stable(page, output / "interaction-input-bar-30-dark.png")
 
         page.goto(url("timeline"))
         wait_ready(page)
@@ -724,7 +752,7 @@ with sync_playwright() as playwright:
         for page_id in ["home", "ai", "weekly"]:
             compact_page.goto(url(page_id, "reference=compact&theme=light"))
             wait_ready(compact_page)
-            compact_page.screenshot(path=output / f"reference-{page_id}.png")
+            capture_stable(compact_page, output / f"reference-{page_id}.png")
         compact.close()
 
         dark = browser.new_context(viewport={"width": 1540, "height": 944}, color_scheme="dark", locale="zh-CN", timezone_id="Asia/Shanghai", reduced_motion="reduce")
@@ -732,7 +760,7 @@ with sync_playwright() as playwright:
         for page_id in pages:
             dark_page.goto(url(page_id, "theme=dark"))
             wait_ready(dark_page)
-            dark_page.screenshot(path=output / f"dark-{page_id}.png")
+            capture_stable(dark_page, output / f"dark-{page_id}.png")
             report["themeContrast"]["dark"][page_id] = inspect_contrast_positions(dark_page)
             report["themeGeometry"]["dark"][page_id] = inspect_geometry(dark_page, page_id)
             report["themeGeometry"]["comparison"][page_id] = compare_theme_geometry(
@@ -748,7 +776,7 @@ with sync_playwright() as playwright:
             dpi_page = context.new_page()
             dpi_page.goto(url("home"))
             wait_ready(dpi_page)
-            dpi_page.screenshot(path=output / f"dpi-{int(scale * 100)}-home.png")
+            capture_stable(dpi_page, output / f"dpi-{int(scale * 100)}-home.png")
             layout = inspect_layout(dpi_page)
             layout["scale"] = scale
             report["dpi"].append(layout)
