@@ -198,7 +198,7 @@ try {
       Remove-Item -LiteralPath $stale.FullName -Force
     }
 
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $releaseVerifier -ReleaseDirectory $releaseDirectory
+    & $releaseVerifier -ReleaseDirectory $releaseDirectory
     if ($LASTEXITCODE -ne 0) { throw '发布 manifest 独立校验失败。' }
   } catch {
     if ($wroteDestinationExecutable -and (Test-Path -LiteralPath $backupExecutable)) {
