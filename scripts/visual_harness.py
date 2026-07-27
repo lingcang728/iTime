@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 
 root = Path(__file__).resolve().parents[1]
@@ -555,11 +555,25 @@ with sync_playwright() as playwright:
         page.goto(url("timeline"))
         wait_ready(page)
         timeline_segments = page.locator(".activity-lane .lane-segment")
-        timeline_segments.first.focus()
-        page.wait_for_timeout(140)
+        timeline_tooltip_visible = False
+        if timeline_segments.count() > 0:
+            timeline_segments.first.focus()
+            try:
+                page.wait_for_function(
+                    """() => {
+                        const segment = document.activeElement
+                        if (!segment?.matches('.activity-lane .lane-segment')) return false
+                        const tooltip = segment.querySelector('[role="tooltip"]')
+                        return tooltip && getComputedStyle(tooltip).opacity === '1'
+                    }""",
+                    timeout=3000,
+                )
+                timeline_tooltip_visible = True
+            except PlaywrightTimeoutError:
+                pass
         report["interactions"]["timelineInteraction"] = (
             timeline_segments.count() > 0
-            and timeline_segments.first.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
+            and timeline_tooltip_visible
             and page.get_by_text("输入密度", exact=True).count() == 0
             and page.get_by_text("语音输入", exact=True).count() == 0
         )
