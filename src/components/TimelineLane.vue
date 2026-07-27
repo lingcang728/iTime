@@ -4,7 +4,7 @@ import type { TimeRange, TimelineSegment } from '../domain/events'
 import { formatClock } from '../utils/format'
 const props = defineProps<{ range: TimeRange; segments: TimelineSegment[]; label?: string }>()
 const kindLabels = {
-  attention: '主动注意力',
+  attention: '前台专注',
   agent: 'AI 代理',
   media: '离座播放',
   other: '其他活动',

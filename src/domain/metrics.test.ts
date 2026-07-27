@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AiInteractionInterval, AiWorkInterval, DeviceStateInterval, ForegroundAppInterval, TimeEvent } from './events'
-import { aggregateCategories, deriveDaySnapshot } from './metrics'
+import { aggregateCategories, countForegroundSwitches, deriveDaySnapshot } from './metrics'
 import { MockDataProvider } from '../providers/prototypeDataProvider'
 
 const evidence = {
@@ -25,6 +25,8 @@ describe('daily metrics', () => {
     ]
     const result = deriveDaySnapshot(events, range)
     expect(result.foregroundActivity.value).toBe(60)
+    expect(result.foregroundFocusRatio.value).toBe(0.6)
+    expect(result.foregroundSwitches.value).toBe(0)
     expect(result.aiInteraction.value).toBe(20)
     expect(result.aiEffective.value).toBe(80)
     expect(result.aiCoverage.value).toBe(60)
@@ -33,6 +35,16 @@ describe('daily metrics', () => {
     expect(result.totalDuration.value).toBe(70)
     expect(result.aiLeverage.value).toBe(4)
     expect(result.parallelGain.value).toBeCloseTo(4 / 3)
+  })
+
+  it('counts only real foreground identity transitions', () => {
+    const foreground: ForegroundAppInterval[] = [
+      event<ForegroundAppInterval>({ id: 'a-1', type: 'foreground', appId: 'a', appName: 'Editor', category: '开发', color: '#000', start: 0, end: 10, ...evidence }),
+      event<ForegroundAppInterval>({ id: 'a-2', type: 'foreground', appId: 'a', appName: 'Editor', category: '开发', color: '#000', start: 10, end: 20, ...evidence }),
+      event<ForegroundAppInterval>({ id: 'b', type: 'foreground', appId: 'b', appName: 'Browser', category: '浏览', color: '#000', start: 20, end: 30, ...evidence }),
+      event<ForegroundAppInterval>({ id: 'a-3', type: 'foreground', appId: 'a', appName: 'Editor', category: '开发', color: '#000', start: 30, end: 40, ...evidence }),
+    ]
+    expect(countForegroundSwitches(foreground)).toBe(2)
   })
 
   it('returns an unavailable ratio when its denominator is zero', () => {

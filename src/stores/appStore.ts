@@ -44,6 +44,7 @@ const state = reactive({
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
   providerDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   providerDataMessage: desktopRuntime ? '正在读取 Codex 与 Claude Code 本机会话' : '浏览器预览数据',
+  lastDataRefreshAt: desktopRuntime ? null as number | null : Date.now(),
   autostartEnabled: false,
   autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   autostartMessage: desktopRuntime ? '正在读取 Windows 启动设置' : '仅桌面版可设置开机自启动',
@@ -273,6 +274,7 @@ async function refreshInputData(): Promise<void> {
         ? 'iTime 键盘字符键计数已连接'
         : '键盘计数已启动；从本次版本启用后开始记录'
     }
+    state.lastDataRefreshAt = Date.now()
     state.migrationState = 'ready'
   } catch (error) {
     if (request !== inputRequest) return
@@ -311,6 +313,7 @@ async function refreshActivityData(): Promise<void> {
         ? '本机活动已连接；仅统计启用后的记录'
         : '已开始记录；接入前的应用历史不会补造'
     }
+    state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== activityRequest) return
     state.activityDataStatus = 'unavailable'
@@ -343,6 +346,7 @@ async function refreshProviderData(): Promise<void> {
         ? `已读取 ${result.snapshot.intervals.length} 个本机 Provider 执行区间`
         : 'Provider 会话已连接；所选日期未检测到执行区间'
     }
+    state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== providerRequest) return
     state.providerDataStatus = 'unavailable'

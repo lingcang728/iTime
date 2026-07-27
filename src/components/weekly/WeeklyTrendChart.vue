@@ -66,12 +66,12 @@ function focusPoint(index: number, event: FocusEvent): void {
 <template>
   <div class="trend" @mouseleave="activeIndex = null">
     <div class="trend__legend">
-      <span><i class="attention"></i>主动注意力</span>
+      <span><i class="attention"></i>前台专注</span>
       <span><i class="ai"></i>AI 前台活跃</span>
       <small>悬停或聚焦查看每日数值</small>
     </div>
     <div v-if="values.length" class="trend__plot">
-      <svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="本周主动注意力与 AI 前台活跃趋势图">
+      <svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="本周前台专注与 AI 前台活跃趋势图">
         <line v-for="y in [44, 114, 184]" :key="y" x1="46" :y1="y" x2="654" :y2="y" class="trend__grid" />
         <Transition name="trend-draw" appear>
           <g :key="drawEpoch">
@@ -84,7 +84,7 @@ function focusPoint(index: number, event: FocusEvent): void {
           :key="`${point.label}-${point.note}`"
           :tabindex="point.attention === null && point.ai === null ? -1 : 0"
           role="img"
-          :aria-label="`${point.label} ${point.note}，主动注意力 ${valueLabel(point.attention)}，AI 前台活跃 ${valueLabel(point.ai)}`"
+          :aria-label="`${point.label} ${point.note}，前台专注 ${valueLabel(point.attention)}，AI 前台活跃 ${valueLabel(point.ai)}`"
           @mouseenter="activeIndex = index"
           @focus="focusPoint(index, $event)"
           @blur="activeIndex = null"
@@ -100,7 +100,7 @@ function focusPoint(index: number, event: FocusEvent): void {
         role="tooltip"
       >
         <strong>{{ active.label }} {{ active.note }}</strong>
-        <span>主动注意力 {{ valueLabel(active.attention) }}</span>
+        <span>前台专注 {{ valueLabel(active.attention) }}</span>
         <span>AI 前台活跃 {{ valueLabel(active.ai) }}</span>
       </div>
     </div>

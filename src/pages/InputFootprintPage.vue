@@ -4,6 +4,7 @@ import { PhChartLineUp, PhKeyboard } from '@phosphor-icons/vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import InputHistoryPanel from '../components/input/InputHistoryPanel.vue'
+import { metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasInputData } from '../stores/dataAvailability'
 import { formatNumber } from '../utils/format'
@@ -37,8 +38,8 @@ function metricDetail(detail: string): string {
     <PageHeader title="键盘输入统计" :subtitle="pageSubtitle" />
 
     <div class="input-stat-strip">
-      <MetricCard label="总输入字数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期字符键敲击总量')" :icon="PhKeyboard" tone="accent" />
-      <MetricCard label="平均输入字数" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有输入记录的分钟')" :icon="PhChartLineUp" tone="neutral" />
+      <MetricCard label="字符键按下总次数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期的字符键按下事件计数')" :icon="PhKeyboard" tone="accent" :info="metricInfo('inputKeyStrokes')" />
+      <MetricCard label="活跃分钟平均字符键按下" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有字符键记录的分钟；不是最终上屏字数')" :icon="PhChartLineUp" tone="neutral" :info="metricInfo('inputKeyStrokes')" />
     </div>
 
     <div v-if="!inputDataAvailable" class="section-state input-source-state" :data-state="store.state.inputDataStatus">

@@ -53,9 +53,8 @@ describe('AI agent surface', () => {
       },
     })
     expect(wrapper.text()).toContain('今日洞察')
-    expect(wrapper.text()).toContain('执行区间来自 Codex/Claude Code 本机会话时间事件')
-    expect(wrapper.text()).toContain('不读取会话内容')
-    expect(wrapper.text()).toContain('高效时段')
+    expect(wrapper.text()).toContain('执行区间来自已授权的 Codex/Claude Code 本机会话时间与事件类型元数据')
+    expect(wrapper.text()).toContain('最活跃时段')
     expect(wrapper.text()).toContain('最佳并发时段')
     expect(wrapper.findComponent({ name: 'ProviderActivityIcon' }).exists()).toBe(true)
   })

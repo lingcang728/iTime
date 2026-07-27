@@ -16,8 +16,9 @@ import ApplicationIcon from '../components/ApplicationIcon.vue'
 import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import ProviderActivityIcon from '../components/ProviderActivityIcon.vue'
-import type { AiInteractionInterval, AiToolStatus, AiToolSummary, AiWorkInterval, StatValue } from '../domain/events'
+import type { AiInteractionInterval, AiToolStatus, AiToolSummary, AiWorkInterval } from '../domain/events'
 import { bestActivityWindow, peakConcurrencyWindow } from '../domain/intervals'
+import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration, formatRatio } from '../utils/format'
@@ -85,20 +86,39 @@ function durationParts(value: number | null, zeroWhenConnected = false): Duratio
   return [{ amount: hours.toFixed(1), unit: '小时' }]
 }
 
-function metricDelta(current: StatValue, previous: StatValue, kind: 'duration' | 'ratio' | 'count'): string {
-  if (current.value === null) return current.basis
-  if (previous.value === null) return '今日首次检测到'
-  const difference = current.value - previous.value
-  const sign = difference > 0 ? '+' : difference < 0 ? '−' : ''
-  if (kind === 'duration') return difference === 0 ? '与昨日持平' : `较昨日 ${sign}${formatDuration(Math.abs(difference), true)}`
-  if (kind === 'ratio') return difference === 0 ? '与昨日持平' : `较昨日 ${sign}${Math.abs(difference).toFixed(1)}×`
-  return difference === 0 ? '与昨日持平' : `较昨日 ${sign}${Math.abs(Math.round(difference))} 个`
-}
-
 function providerMetricValue(value: number | null, format: (input: number) => string): string {
   if (value !== null) return format(value)
   return providerDataAvailable.value ? format(0) : '—'
 }
+
+function providerMetricNumber(value: number | null): number | null {
+  return value ?? (providerDataAvailable.value ? 0 : null)
+}
+
+const interactionComparison = computed(() => comparisonLabel(
+  store.day.value.aiInteraction.value,
+  previousDay.value?.aiInteraction.value ?? null,
+  (value) => formatDuration(value, true),
+))
+const coverageComparison = computed(() => comparisonLabel(
+  providerMetricNumber(store.day.value.aiCoverage.value),
+  previousDay.value ? providerMetricNumber(previousDay.value.aiCoverage.value) : null,
+  (value) => formatDuration(value, true),
+))
+const leverageComparison = computed(() => comparisonLabel(
+  providerMetricNumber(store.day.value.aiLeverage.value),
+  previousDay.value ? providerMetricNumber(previousDay.value.aiLeverage.value) : null,
+  (value) => `${value.toFixed(1)}×`,
+))
+const concurrencyComparison = computed(() => comparisonLabel(
+  providerMetricNumber(store.day.value.maxConcurrency.value),
+  previousDay.value ? providerMetricNumber(previousDay.value.maxConcurrency.value) : null,
+  (value) => `${Math.round(value)} 个`,
+))
+const interactionTrend = computed(() => store.week.value.map((day) => day.aiInteraction.value ?? 0))
+const coverageTrend = computed(() => store.week.value.map((day) => day.aiCoverage.value ?? 0))
+const leverageTrend = computed(() => store.week.value.map((day) => day.aiLeverage.value ?? 0))
+const concurrencyTrend = computed(() => store.week.value.map((day) => day.maxConcurrency.value ?? 0))
 
 function toolDuration(tool: AiToolSummary): number {
   return tool.taskCount ? tool.effectiveDuration : tool.foregroundDuration
@@ -133,13 +153,13 @@ const insight = computed(() => {
 
 <template>
   <section class="page ai-page">
-    <PageHeader title="AI 代理" subtitle="智能代理在后台为你执行任务，提升产出与效率。" />
+    <PageHeader title="AI 代理" subtitle="查看可验证的 AI 前台活动与获授权 Provider 时间事件。" />
 
     <div class="ai-metrics">
-      <MetricCard label="AI 前台活跃" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="activityDataAvailable ? metricDelta(store.day.value.aiInteraction, previousDay?.aiInteraction ?? store.day.value.aiInteraction, 'duration') : store.state.activityDataMessage" :icon="PhUser" visual="bars" info="设备活跃且 AI 工具处于前台的可验证时长。" />
-      <MetricCard label="Provider 执行覆盖" :value-parts="durationParts(store.day.value.aiCoverage.value, true)" :detail="providerDataAvailable ? metricDelta(store.day.value.aiCoverage, previousDay?.aiCoverage ?? store.day.value.aiCoverage, 'duration') : store.state.providerDataMessage" :icon="PhStack" visual="bars" info="至少一个 Provider 报告执行的自然时间覆盖。" />
-      <MetricCard label="AI 杠杆率" :value="providerMetricValue(store.day.value.aiLeverage.value, (value) => formatRatio(value))" :detail="providerDataAvailable ? metricDelta(store.day.value.aiLeverage, previousDay?.aiLeverage ?? store.day.value.aiLeverage, 'ratio') : store.state.providerDataMessage" :icon="PhChartLineUp" visual="ring" info="Provider 累计执行时长与 AI 前台活跃时长之比；没有执行时显示 0。" />
-      <MetricCard label="最高并发" :value="providerMetricValue(store.day.value.maxConcurrency.value, (value) => `${Math.round(value)} 个`)" :detail="providerDataAvailable ? metricDelta(store.day.value.maxConcurrency, previousDay?.maxConcurrency ?? store.day.value.maxConcurrency, 'count') : store.state.providerDataMessage" :icon="PhPulse" visual="bars" info="同一时刻有执行证据的工具峰值；没有执行时显示 0。" />
+      <MetricCard :label="metricDefinitions.aiInteraction.name" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="activityDataAvailable ? interactionComparison : store.state.activityDataMessage" :icon="PhUser" visual="bars" :trend="interactionTrend" :info="metricInfo('aiInteraction')" />
+      <MetricCard :label="metricDefinitions.providerCoverage.name" :value-parts="durationParts(store.day.value.aiCoverage.value, true)" :detail="providerDataAvailable ? coverageComparison : store.state.providerDataMessage" :icon="PhStack" visual="bars" :trend="coverageTrend" :info="metricInfo('providerCoverage')" />
+      <MetricCard :label="metricDefinitions.aiLeverage.name" :value="providerMetricValue(store.day.value.aiLeverage.value, (value) => formatRatio(value))" :detail="providerDataAvailable ? leverageComparison : store.state.providerDataMessage" :icon="PhChartLineUp" visual="bars" :trend="leverageTrend" :info="metricInfo('aiLeverage')" />
+      <MetricCard :label="metricDefinitions.providerConcurrency.name" :value="providerMetricValue(store.day.value.maxConcurrency.value, (value) => `${Math.round(value)} 个`)" :detail="providerDataAvailable ? concurrencyComparison : store.state.providerDataMessage" :icon="PhPulse" visual="bars" :trend="concurrencyTrend" :info="metricInfo('providerConcurrency')" />
     </div>
 
     <div v-if="!activityDataAvailable || !providerDataAvailable" class="ai-source-stack">
@@ -168,7 +188,7 @@ const insight = computed(() => {
             <div><strong>{{ row.title }}</strong><small>{{ row.toolName }} · {{ row.detail }}</small></div>
             <span class="ai-activity-meta"><b>{{ formatDuration(row.end - row.start, true) }}</b><small>置信度 {{ Math.round(row.confidence * 100) }}%</small></span>
           </article>
-          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '执行区间来自 Codex/Claude Code 本机会话时间事件，不读取会话内容。' : '今天没有 Provider 执行事件，当前展示可验证的 AI 前台活跃。' }}</p>
+          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '执行区间来自已授权的 Codex/Claude Code 本机会话时间与事件类型元数据。' : '今天没有 Provider 执行事件，当前展示可验证的 AI 前台活跃。' }}</p>
         </div>
         <div v-else class="ai-tool-list__empty">今天尚未检测到 AI 工具活动。</div>
       </section>
@@ -195,9 +215,9 @@ const insight = computed(() => {
 
     <article v-if="activityDataAvailable" class="ai-insight">
       <span class="ai-insight__icon"><PhSparkle :size="21" weight="fill" /></span>
-      <div class="ai-insight__copy"><span>今日洞察</span><h2>{{ insight.title }}</h2><p>{{ insight.detail }}<template v-if="topTool"> {{ topTool.toolName }} 是今天贡献最高的工具。</template></p></div>
+      <div class="ai-insight__copy"><span>今日洞察</span><h2>{{ insight.title }}</h2><p>{{ insight.detail }}<template v-if="topTool"> {{ topTool.toolName }} 是今天记录时长最多的工具。</template></p></div>
       <dl>
-        <div><dt><PhClock :size="18" />高效时段</dt><dd>{{ efficiencyRange }}</dd></div>
+        <div><dt><PhClock :size="18" />最活跃时段</dt><dd>{{ efficiencyRange }}</dd></div>
         <div><dt><PhChartLineUp :size="18" />AI 执行占比</dt><dd>{{ formatRatio(aiShare) }}</dd></div>
         <div><dt><PhLightning :size="18" />最佳并发时段</dt><dd>{{ bestConcurrencyRange }}</dd></div>
       </dl>

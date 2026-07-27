@@ -72,6 +72,19 @@ function deriveApps(foreground: ForegroundAppInterval[], activeRanges: TimeRange
   return [...totals.values()].sort((a, b) => b.duration - a.duration)
 }
 
+export function countForegroundSwitches(foreground: ForegroundAppInterval[]): number {
+  const identities = [...foreground]
+    .sort((first, second) => first.start - second.start || first.end - second.end)
+    .map((event) => canonicalAppKey(event.appName) ?? event.appId)
+  let switches = 0
+  let previous: string | null = null
+  for (const identity of identities) {
+    if (previous !== null && identity !== previous) switches += 1
+    previous = identity
+  }
+  return switches
+}
+
 export function aggregateCategories(apps: AppDuration[]): CategoryDuration[] {
   const totalDuration = apps.reduce((total, app) => total + app.duration, 0)
   const categories = new Map<string, Omit<CategoryDuration, 'share'>>()
@@ -139,6 +152,14 @@ export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySna
   const aiCoverageRanges = mergeRanges(aiRanges)
   const interactionRanges = mergeRanges(aiInteractions)
   const foregroundDuration = durationOf(foregroundRanges)
+  const activeForeground = foreground.filter((event) => durationOf(intersectRanges([event], activeRanges)) > 0)
+  const computerDuration = durationOf(availableDevice)
+  const foregroundFocusRatio = computerDuration > 0 && foreground.length && activeDevice.length
+    ? foregroundDuration / computerDuration
+    : null
+  const foregroundSwitches = foreground.length && activeDevice.length
+    ? countForegroundSwitches(activeForeground)
+    : null
   const effectiveDuration = summedDuration(aiRanges)
   const coverageDuration = durationOf(aiCoverageRanges)
   const interactionDuration = durationOf(interactionRanges)
@@ -155,8 +176,10 @@ export function deriveDaySnapshot(events: TimeEvent[], range: TimeRange): DaySna
 
   return {
     range,
-    computerActivity: metric(durationOf(availableDevice), 'milliseconds', range, 'union', availableDevice, '设备状态数据不足'),
+    computerActivity: metric(computerDuration, 'milliseconds', range, 'union', availableDevice, '设备状态数据不足'),
     foregroundActivity: metric(foreground.length && activeDevice.length ? foregroundDuration : null, 'milliseconds', range, 'intersection', [...foreground, ...activeDevice], '前台活动数据不足'),
+    foregroundFocusRatio: metric(foregroundFocusRatio, 'ratio', range, 'ratio', [...foreground, ...availableDevice], '缺少设备活动或前台应用数据'),
+    foregroundSwitches: metric(foregroundSwitches, 'count', range, 'sum', [...foreground, ...activeDevice], '缺少前台应用序列'),
     aiInteraction: metric(interactionDuration, 'milliseconds', range, 'union', aiInteractions, 'AI 前台活跃数据不足'),
     aiEffective: metric(effectiveDuration, 'milliseconds', range, 'sum', aiWork, 'AI 工具执行区间不足'),
     aiCoverage: metric(coverageDuration, 'milliseconds', range, 'union', aiWork, 'AI 工具执行区间不足'),

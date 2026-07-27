@@ -141,6 +141,8 @@ export interface DaySnapshot {
   range: TimeRange
   computerActivity: StatValue
   foregroundActivity: StatValue
+  foregroundFocusRatio: StatValue
+  foregroundSwitches: StatValue
   aiInteraction: StatValue
   aiEffective: StatValue
   aiCoverage: StatValue

@@ -13,6 +13,7 @@ import MetricCard from '../components/MetricCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { coalesceRangesBy, mergeRanges } from '../domain/intervals'
 import type { ForegroundAppInterval } from '../domain/events'
+import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration } from '../utils/format'
@@ -48,21 +49,38 @@ const timelineRows = computed(() => foregroundEvents.value.slice(0, 8).map((even
   ...event,
   category: appCategories.value.get(event.appId) ?? event.category,
 })))
-const focusPercent = computed(() => computerDuration.value
-  ? Math.round((foregroundDuration.value ?? 0) / computerDuration.value * 100)
-  : 0)
+const focusRatio = computed(() => store.day.value.foregroundFocusRatio.value)
+const focusPercent = computed(() => focusRatio.value === null ? null : Math.round(focusRatio.value * 100))
+const switchCount = computed(() => store.day.value.foregroundSwitches.value)
+const previousDay = computed(() => store.week.value.at(-2) ?? null)
 const topApp = computed(() => rankingRows.value[0] ?? null)
 const longestInterval = computed(() => [...foregroundEvents.value]
   .sort((first, second) => (second.end - second.start) - (first.end - first.start))[0] ?? null)
 // P4: real trend arrays for MetricCard decorative bars
 const computerTrend = computed(() => store.week.value.map((d) => d.computerActivity.value ?? 0))
 const foregroundTrend = computed(() => store.week.value.map((d) => d.foregroundActivity.value ?? 0))
-const switchTrend = computed(() => {
-  // count foreground switch events per day
-  return store.week.value.map((d) => {
-    return d.events.filter((e) => e.type === 'foreground').length
-  })
-})
+const focusTrend = computed(() => store.week.value.map((d) => d.foregroundFocusRatio.value ?? 0))
+const switchTrend = computed(() => store.week.value.map((d) => d.foregroundSwitches.value ?? 0))
+const computerComparison = computed(() => comparisonLabel(
+  computerDuration.value,
+  previousDay.value?.computerActivity.value ?? null,
+  (value) => formatDuration(value, true),
+))
+const foregroundComparison = computed(() => comparisonLabel(
+  foregroundDuration.value,
+  previousDay.value?.foregroundActivity.value ?? null,
+  (value) => formatDuration(value, true),
+))
+const focusComparison = computed(() => comparisonLabel(
+  focusRatio.value,
+  previousDay.value?.foregroundFocusRatio.value ?? null,
+  (value) => `${Math.round(value * 100)} 个百分点`,
+))
+const switchComparison = computed(() => comparisonLabel(
+  switchCount.value,
+  previousDay.value?.foregroundSwitches.value ?? null,
+  (value) => `${Math.round(value)} 次`,
+))
 
 const rankingEmptyTitle = computed(() => activityDataAvailable.value
   ? '等待第一条应用活动'
@@ -135,10 +153,10 @@ onBeforeUnmount(() => {
     <PageHeader title="首页" subtitle="概览你的专注与时间分布，AI 帮你更好地安排每一天。" />
 
     <div class="metrics-grid metrics-grid--home">
-      <MetricCard label="总使用时长" :value-parts="durationParts(computerDuration)" detail="较昨日  +1.2 小时" :icon="PhClock" visual="bars" :trend="computerTrend" />
-      <MetricCard label="深度工作时长" :value-parts="durationParts(foregroundDuration)" detail="较昨日  +0.4 小时" :icon="PhTarget" visual="bars" :trend="foregroundTrend" />
-      <MetricCard label="专注度" :value="`${focusPercent}%`" detail="较昨日  +6%" :icon="PhEye" visual="ring" />
-      <MetricCard label="切换次数" :value="`${foregroundEvents.length} 次`" detail="较昨日  -8 次" :icon="PhPulse" visual="bars" :trend="switchTrend" />
+      <MetricCard :label="metricDefinitions.computerActivity.name" :value-parts="durationParts(computerDuration)" :detail="computerComparison" :icon="PhClock" visual="bars" :trend="computerTrend" :info="metricInfo('computerActivity')" />
+      <MetricCard :label="metricDefinitions.foregroundActivity.name" :value-parts="durationParts(foregroundDuration)" :detail="foregroundComparison" :icon="PhTarget" visual="bars" :trend="foregroundTrend" :info="metricInfo('foregroundActivity')" />
+      <MetricCard :label="metricDefinitions.foregroundFocusRatio.name" :value="focusPercent === null ? '—' : `${focusPercent}%`" :detail="focusComparison" :icon="PhEye" visual="ring" :progress="focusRatio" :trend="focusTrend" :info="metricInfo('foregroundFocusRatio')" />
+      <MetricCard :label="metricDefinitions.foregroundSwitches.name" :value="switchCount === null ? '—' : `${switchCount} 次`" :detail="switchComparison" :icon="PhPulse" visual="bars" :trend="switchTrend" :info="metricInfo('foregroundSwitches')" />
     </div>
 
     <div class="home-data-grid">
@@ -188,12 +206,13 @@ onBeforeUnmount(() => {
       <span class="insight-mark"><PhSparkle :size="22" weight="fill" /></span>
       <div class="insight-copy">
         <strong>今日洞察</strong>
-        <p>你的深度工作时长为 {{ formatDuration(foregroundDuration ?? 0, true) }}，专注度达到 {{ focusPercent }}%。</p>
-        <small>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)} 是今天最长的连续工作区间。` : '记录更多活动后，这里会给出更准确的工作节奏建议。' }}</small>
+        <p v-if="foregroundDuration !== null && focusPercent !== null">今天记录到 {{ formatDuration(foregroundDuration, true) }} 的前台专注，约占设备活动的 {{ focusPercent }}%。</p>
+        <p v-else>当前缺少完整的设备活动或前台应用数据，暂不生成占比结论。</p>
+        <small>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)} 是今天最长的连续前台区间。` : '记录更多活动后，这里会显示可验证的前台节奏。' }}</small>
       </div>
-      <div class="insight-stat"><small>高效时段</small><strong>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '—' }}</strong></div>
+      <div class="insight-stat"><small>最长前台区间</small><strong>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '—' }}</strong></div>
       <div class="insight-stat"><small>专注时长最长应用</small><strong>{{ topApp?.appName ?? '—' }}<template v-if="topApp">（{{ formatDuration(topApp.duration, true) }}）</template></strong></div>
-      <div class="insight-stat"><small>最佳专注时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
+      <div class="insight-stat"><small>最长区间时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
       <div v-if="reminderVisible" class="wellbeing-card">
         <PhEye :size="18" />
         <span>已连续使用 {{ formatDuration(continuousDuration, true) }}</span>

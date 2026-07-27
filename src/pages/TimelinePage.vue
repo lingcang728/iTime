@@ -23,6 +23,7 @@ import type {
   TimeEvent,
 } from '../domain/events'
 import { coalesceRangesBy } from '../domain/intervals'
+import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatDuration, formatRatio } from '../utils/format'
@@ -96,6 +97,37 @@ const parallelRatio = computed(() => {
   const overlap = store.day.value.parallelOverlap.value
   return coverage && overlap !== null ? overlap / coverage : null
 })
+const previousDay = computed(() => store.week.value.at(-2) ?? null)
+const previousParallelRatio = computed(() => {
+  const previous = previousDay.value
+  const coverage = previous?.aiCoverage.value
+  const overlap = previous?.parallelOverlap.value
+  return typeof coverage === 'number' && coverage > 0 && typeof overlap === 'number'
+    ? overlap / coverage
+    : null
+})
+const foregroundComparison = computed(() => comparisonLabel(
+  store.day.value.foregroundActivity.value,
+  previousDay.value?.foregroundActivity.value ?? null,
+  (value) => formatDuration(value, true),
+))
+const aiComparison = computed(() => comparisonLabel(
+  store.day.value.aiInteraction.value,
+  previousDay.value?.aiInteraction.value ?? null,
+  (value) => formatDuration(value, true),
+))
+const parallelComparison = computed(() => comparisonLabel(
+  parallelRatio.value,
+  previousParallelRatio.value,
+  (value) => `${Math.round(value * 100)} 个百分点`,
+))
+const foregroundTrend = computed(() => store.week.value.map((day) => day.foregroundActivity.value ?? 0))
+const aiTrend = computed(() => store.week.value.map((day) => day.aiInteraction.value ?? 0))
+const parallelTrend = computed(() => store.week.value.map((day) => {
+  const coverage = day.aiCoverage.value
+  const overlap = day.parallelOverlap.value
+  return coverage && overlap !== null ? overlap / coverage : 0
+}))
 
 function durationParts(value: number | null): DurationPart[] {
   if (value === null) return [{ amount: '—', unit: '暂无数据' }]
@@ -109,9 +141,9 @@ function durationParts(value: number | null): DurationPart[] {
     <PageHeader title="时间线" subtitle="回顾你的设备活动、应用使用、AI 前台与媒体播放的时间分布与切换轨迹。" />
 
     <div class="timeline-overview">
-      <MetricCard label="前台活动" :value-parts="durationParts(store.day.value.foregroundActivity.value)" detail="较昨日  +1.2 小时" :icon="PhDesktop" visual="bars" />
-      <MetricCard label="AI 前台活跃" :value-parts="durationParts(store.day.value.aiInteraction.value)" detail="较昨日  +0.4 小时" :icon="PhSparkle" visual="bars" />
-      <MetricCard label="Provider 并行" :value="formatRatio(parallelRatio)" detail="较昨日  +6%" :icon="PhStack" visual="bars" />
+      <MetricCard :label="metricDefinitions.foregroundActivity.name" :value-parts="durationParts(store.day.value.foregroundActivity.value)" :detail="foregroundComparison" :icon="PhDesktop" visual="bars" :trend="foregroundTrend" :info="metricInfo('foregroundActivity')" />
+      <MetricCard :label="metricDefinitions.aiInteraction.name" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="aiComparison" :icon="PhSparkle" visual="bars" :trend="aiTrend" :info="metricInfo('aiInteraction')" />
+      <MetricCard :label="metricDefinitions.providerParallelRatio.name" :value="formatRatio(parallelRatio)" :detail="parallelComparison" :icon="PhStack" visual="bars" :trend="parallelTrend" :info="metricInfo('providerParallelRatio')" />
     </div>
 
     <article class="full-timeline" aria-labelledby="activity-tracks-title">

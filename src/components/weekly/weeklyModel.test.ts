@@ -15,10 +15,13 @@ describe('weekly summary', () => {
     expect(summary.achievements).toHaveLength(4)
   })
 
-  it('labels the best-day comparison as a peer-day baseline when prior-week data is absent', () => {
+  it('keeps the comparison unavailable when prior-week data is absent', () => {
     const summary = buildWeeklySummary(dataProvider.getWeek('2026-05-20'))
 
-    expect(summary.improvementPercent).toBeGreaterThan(0)
-    expect(summary.comparisonBasis).toBe('peerDays')
+    expect(summary.improvementPercent).toBeNull()
+    expect(summary.comparisonBasis).toBeNull()
+    expect(summary.longestForeground?.duration).toBeGreaterThan(0)
+    expect(summary.nightForeground).not.toBeNull()
+    expect(summary.days.every((day) => day.computerBuckets?.length === 10)).toBe(true)
   })
 })

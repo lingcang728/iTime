@@ -18,14 +18,19 @@ const props = withDefaults(defineProps<{
   tone?: 'neutral' | 'accent' | 'warning' | 'danger'
   visual?: 'bars' | 'ring'
   trend?: readonly number[]
+  progress?: number | null
 }>(), { tone: 'neutral' })
 
-// P4: derive bar heights from real trend data, or fall back to decorative stripes
 const trendHeights = computed<number[]>(() => {
   if (!props.trend?.length) return []
   const max = Math.max(1, ...props.trend)
   return props.trend.map((v) => Math.max(8, Math.round(v / max * 96)))
 })
+const normalizedProgress = computed(() => {
+  if (props.progress === null || props.progress === undefined || !Number.isFinite(props.progress)) return null
+  return Math.max(0, Math.min(1, props.progress))
+})
+const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 * (1 - normalizedProgress.value))
 </script>
 
 <template>
@@ -50,17 +55,12 @@ const trendHeights = computed<number[]>(() => {
       </strong>
       <small>{{ detail }}</small>
     </div>
-    <span v-if="visual === 'bars'" class="metric-card__art metric-bars" aria-hidden="true">
-      <template v-if="trendHeights.length">
-        <i v-for="(height, idx) in trendHeights" :key="idx" :style="{ height: `${height}%` }"></i>
-      </template>
-      <template v-else>
-        <i v-for="idx in 6" :key="idx" class="metric-bars__stripe"></i>
-      </template>
+    <span v-if="visual === 'bars' && trendHeights.length" class="metric-card__art metric-bars" aria-hidden="true">
+      <i v-for="(height, idx) in trendHeights" :key="idx" :style="{ height: `${height}%` }"></i>
     </span>
-    <svg v-else-if="visual === 'ring'" class="metric-card__art metric-ring" viewBox="0 0 44 44" aria-hidden="true">
+    <svg v-else-if="visual === 'ring' && normalizedProgress !== null" class="metric-card__art metric-ring" viewBox="0 0 44 44" aria-hidden="true">
       <circle cx="22" cy="22" r="17" class="metric-ring__track" />
-      <circle cx="22" cy="22" r="17" class="metric-ring__value" />
+      <circle cx="22" cy="22" r="17" class="metric-ring__value" :style="{ strokeDashoffset: ringOffset }" />
     </svg>
   </article>
 </template>
@@ -190,13 +190,6 @@ const trendHeights = computed<number[]>(() => {
   animation: metric-rise 360ms var(--ease-out) both;
 }
 
-.metric-bars__stripe {
-  height: 40% !important;
-  background: color-mix(in srgb, var(--border-soft) 80%, var(--bg-soft)) !important;
-  animation: none !important;
-  opacity: 0.5;
-}
-
 .metric-bars i:nth-child(2) { animation-delay: 30ms; }
 .metric-bars i:nth-child(3) { animation-delay: 60ms; }
 .metric-bars i:nth-child(4) { animation-delay: 90ms; }
@@ -219,8 +212,9 @@ const trendHeights = computed<number[]>(() => {
 
 .metric-ring__value {
   stroke: var(--accent-strong);
-  stroke-dasharray: 82 107;
+  stroke-dasharray: 107;
   stroke-linecap: round;
+  transition: stroke-dashoffset 260ms var(--ease-out);
 }
 
 @keyframes metric-rise {

@@ -526,8 +526,8 @@ with sync_playwright() as playwright:
         )
         page.emulate_media(reduced_motion="no-preference")
         report["interactions"]["inputKeyboardOnly"] = (
-            page.get_by_text("总输入字数", exact=True).count() == 1
-            and page.get_by_text("平均输入字数", exact=True).count() == 1
+            page.get_by_text("字符键按下总次数", exact=True).count() == 1
+            and page.get_by_text("活跃分钟平均字符键按下", exact=True).count() == 1
             and page.get_by_text("输入节奏", exact=True).count() == 0
             and page.get_by_text("鼠标移动", exact=True).count() == 0
             and page.get_by_text("键盘热力图", exact=True).count() == 0
@@ -634,7 +634,7 @@ with sync_playwright() as playwright:
         page.wait_for_url("**#/settings")
         page.goto(f"{base_url}/#/account")
         page.wait_for_url("**#/home")
-        report["interactions"]["localProfileOnly"] = page.get_by_text("数据已同步", exact=True).count() == 1 and "#/home" in page.url
+        report["interactions"]["localProfileOnly"] = page.get_by_text("预览数据", exact=True).count() == 1 and "#/home" in page.url
 
         page.goto(url("home"))
         wait_ready(page)

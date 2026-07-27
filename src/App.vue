@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import {
   PhBell,
@@ -19,14 +19,17 @@ import { router, pageIds, type PageId } from './router'
 import { useAppStore } from './stores/appStore'
 import {
   configureDesktopReminders,
-  hideWindow, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
+  hideWindow, isTauriRuntime, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
   quitApplication, startWindowDragging, toggleMaximizeWindow,
 } from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import AppMark from './components/AppMark.vue'
 import CloseDialog from './components/CloseDialog.vue'
+import { useNow } from './composables/useNow'
+import { runtimeSyncStatus } from './stores/runtimeStatus'
 
 const store = useAppStore()
+const { nowMs } = useNow()
 const route = useRoute()
 const requestedTheme = new URLSearchParams(window.location.search).get('theme')
 const maximized = ref(false)
@@ -41,6 +44,21 @@ const navItems = [
 ] as const
 const cleanups: Array<() => void> = []
 let reminderSync = Promise.resolve()
+const syncStatus = computed(() => runtimeSyncStatus({
+  desktop: isTauriRuntime(),
+  now: nowMs.value,
+  lastUpdatedAt: store.state.lastDataRefreshAt,
+  statuses: [
+    store.state.activityDataStatus,
+    store.state.inputDataStatus,
+    store.state.providerDataStatus,
+  ],
+  messages: [
+    store.state.activityDataMessage,
+    store.state.inputDataMessage,
+    store.state.providerDataMessage,
+  ],
+}))
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -164,9 +182,9 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
       <div class="sidebar-spacer"></div>
-      <button class="profile-card sync-status" type="button" aria-label="打开本机数据设置" @click="router.push({ name: 'settings' })">
+      <button class="profile-card sync-status" :data-state="syncStatus.state" type="button" :aria-label="`${syncStatus.title}，${syncStatus.detail}；打开本机数据设置`" @click="router.push({ name: 'settings' })">
         <PhCloudCheck :size="24" weight="regular" aria-hidden="true" />
-        <div><strong>数据已同步</strong><small>刚刚</small></div>
+        <div><strong>{{ syncStatus.title }}</strong><small>{{ syncStatus.detail }}</small></div>
       </button>
     </aside>
     <section class="app-surface">
