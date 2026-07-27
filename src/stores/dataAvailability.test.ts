@@ -6,6 +6,7 @@ describe('data availability states', () => {
     expect(hasActivityData('preview')).toBe(true)
     expect(hasActivityData('ready')).toBe(true)
     expect(hasActivityData('degraded')).toBe(true)
+    expect(hasActivityData('disabled')).toBe(false)
     expect(hasActivityData('loading')).toBe(false)
     expect(hasActivityData('unavailable')).toBe(false)
   })

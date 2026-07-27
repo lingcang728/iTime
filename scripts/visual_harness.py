@@ -669,6 +669,9 @@ with sync_playwright() as playwright:
             page.get_by_text("开机自启动", exact=True).count() == 1
             and page.get_by_text("本机键盘计数", exact=True).count() == 1
             and page.get_by_text("Windows 字符键按下计数", exact=True).count() == 1
+            and page.get_by_text("Provider 本机会话授权", exact=True).count() == 1
+            and page.get_by_text("未启用的数据源不会枚举目录或读取文件", exact=False).count() == 1
+            and page.locator(".provider-list input[type=\"checkbox\"]").count() == 2
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 

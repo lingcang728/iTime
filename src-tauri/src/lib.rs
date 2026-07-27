@@ -140,6 +140,7 @@ fn quit_app(app: AppHandle) {
 pub fn run() {
     let launch_args = std::env::args().collect::<Vec<_>>();
     let recording = Arc::new(AtomicBool::new(settings::load_recording().unwrap_or(true)));
+    let provider_consent = settings::load_provider_consent().unwrap_or_default();
     let recording_generation = Arc::new(AtomicU64::new(0));
     tauri::Builder::default()
         .manage(RuntimeState {
@@ -151,7 +152,7 @@ pub fn run() {
         })
         .manage(IconService::new())
         .manage(KeyboardService::new())
-        .manage(ProviderActivityService::new())
+        .manage(ProviderActivityService::new(provider_consent))
         .manage(ReminderService::new())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
@@ -289,6 +290,8 @@ pub fn run() {
             quit_app,
             configure_reminders,
             activity::get_activity_snapshot,
+            provider_activity::get_provider_consent,
+            provider_activity::set_provider_consent,
             provider_activity::get_provider_activity_snapshot,
             icons::commands::resolve_app_icon,
             keyboard::get_keyboard_snapshot

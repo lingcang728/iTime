@@ -2,10 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { parseProviderActivitySnapshot, providerActivityDataset } from './providerActivityAdapter'
 
 const wire = {
-  source: 'Codex 与 Claude Code 本机会话时间事件',
+  source: '已授权的 Codex 与 Claude Code 本机会话时间事件',
+  status: 'ready',
   updatedAt: 1_752_800_000_000,
   scannedFiles: 2,
   skippedFiles: 0,
+  consent: {
+    version: 1,
+    noticeSeen: true,
+    codexEnabled: true,
+    claudeEnabled: true,
+  },
+  diagnostics: {
+    candidateFiles: 2,
+    selectedFiles: 2,
+    parsedFiles: 2,
+    cacheHits: 0,
+    badLines: 0,
+    badEvents: 0,
+    readFailures: 0,
+    permissionFailures: 0,
+  },
   intervals: [
     {
       version: 1,
@@ -52,6 +69,17 @@ describe('provider activity adapter', () => {
     expect(() => parseProviderActivitySnapshot({
       ...wire,
       capabilities: { ...wire.capabilities, contentCaptured: true },
+    })).toThrow()
+  })
+
+  it('requires the versioned consent and diagnostic envelope', () => {
+    expect(() => parseProviderActivitySnapshot({
+      ...wire,
+      consent: { ...wire.consent, version: 2 },
+    })).toThrow()
+    expect(() => parseProviderActivitySnapshot({
+      ...wire,
+      diagnostics: { ...wire.diagnostics, permissionFailures: -1 },
     })).toThrow()
   })
 })

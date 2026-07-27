@@ -2,7 +2,13 @@ import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { mockDates } from '../data/mockEvents'
 import type { DaySnapshot, TimeDataset } from '../domain/events'
 import { loadActivityData } from '../providers/activityAdapter'
-import { loadProviderActivityData } from '../providers/providerActivityAdapter'
+import {
+  defaultProviderConsent,
+  loadProviderActivityData,
+  loadProviderConsent,
+  saveProviderConsent,
+  type ProviderConsent,
+} from '../providers/providerActivityAdapter'
 import type { AiToolDetail } from '../providers/prototypeDataProvider'
 import { dataProvider, dayRange, EventDataProvider } from '../providers/prototypeDataProvider'
 import {
@@ -30,6 +36,12 @@ const desktopRuntime = isTauriRuntime()
 const themeRevision = ref(0)
 const requestedTheme = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('theme')
 const previewTheme: ResolvedTheme | undefined = requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined
+const previewProviderConsent: ProviderConsent = {
+  ...defaultProviderConsent,
+  noticeSeen: true,
+  codexEnabled: true,
+  claudeEnabled: true,
+}
 
 function localDate(value = new Date()): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -42,8 +54,10 @@ const state = reactive({
   inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
-  providerDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
-  providerDataMessage: desktopRuntime ? '正在读取 Codex 与 Claude Code 本机会话' : '浏览器预览数据',
+  providerDataStatus: (desktopRuntime ? 'disabled' : 'preview') as 'disabled' | 'loading' | 'preview' | 'ready' | 'degraded' | 'unavailable',
+  providerDataMessage: desktopRuntime ? '未授权读取 Provider 本机会话' : '浏览器预览数据',
+  providerConsent: desktopRuntime ? { ...defaultProviderConsent } : previewProviderConsent,
+  providerConsentStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   lastDataRefreshAt: desktopRuntime ? null as number | null : Date.now(),
   autostartEnabled: false,
   autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
@@ -323,6 +337,14 @@ async function refreshActivityData(): Promise<void> {
 
 async function refreshProviderData(): Promise<void> {
   if (!desktopRuntime) return
+  if (!state.providerConsent.codexEnabled && !state.providerConsent.claudeEnabled) {
+    liveProviderDataset.value = { version: 'itime-local-provider-v1', events: [] }
+    providerDates.value = []
+    updateAvailableDates()
+    state.providerDataStatus = 'disabled'
+    state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+    return
+  }
   const request = ++providerRequest
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
@@ -333,13 +355,39 @@ async function refreshProviderData(): Promise<void> {
     liveProviderDataset.value = result.dataset
     providerDates.value = [...new Set(result.dataset.events.map((event) => localDate(new Date(event.start))))].sort()
     updateAvailableDates()
-    const connected = result.snapshot.capabilities.codexTaskEvents || result.snapshot.capabilities.claudeTurnEvents
-    if (!connected) {
+    state.providerConsent = result.snapshot.consent
+    if (result.snapshot.status === 'disabled') {
+      state.providerDataStatus = 'disabled'
+      state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+    } else if (result.snapshot.status === 'unavailable') {
+      const enabled = [
+        result.snapshot.consent.codexEnabled && 'Codex',
+        result.snapshot.consent.claudeEnabled && 'Claude Code',
+      ].filter(Boolean).join('、')
       state.providerDataStatus = 'unavailable'
-      state.providerDataMessage = '未找到 Codex 或 Claude Code 的本机会话目录'
-    } else if (result.snapshot.skippedFiles > 0) {
+      if (result.snapshot.diagnostics.permissionFailures > 0) {
+        state.providerDataMessage = `已授权的 ${enabled} 会话目录没有读取权限`
+      } else if (result.snapshot.diagnostics.readFailures > 0) {
+        state.providerDataMessage = `已授权的 ${enabled} 会话目录读取失败`
+      } else {
+        state.providerDataMessage = `未找到已授权的 ${enabled} 本机会话目录`
+      }
+    } else if (result.snapshot.status === 'partial') {
+      const { diagnostics } = result.snapshot
       state.providerDataStatus = 'degraded'
-      state.providerDataMessage = `Provider 会话已连接；${result.snapshot.skippedFiles} 个记录文件无法读取`
+      if (diagnostics.permissionFailures > 0) {
+        state.providerDataMessage = `Provider 部分可用；${diagnostics.permissionFailures} 个目录或文件没有读取权限`
+      } else if (diagnostics.readFailures > 0) {
+        state.providerDataMessage = `Provider 部分可用；${diagnostics.readFailures} 个目录或文件读取失败`
+      } else if (diagnostics.badLines + diagnostics.badEvents > 0) {
+        state.providerDataMessage = `Provider 部分可用；已忽略 ${diagnostics.badLines} 个损坏行和 ${diagnostics.badEvents} 个异常事件`
+      } else {
+        const missing = [
+          result.snapshot.consent.codexEnabled && !result.snapshot.capabilities.codexTaskEvents && 'Codex',
+          result.snapshot.consent.claudeEnabled && !result.snapshot.capabilities.claudeTurnEvents && 'Claude Code',
+        ].filter(Boolean).join('、')
+        state.providerDataMessage = `${missing || '部分 Provider'} 的已授权会话目录不可用`
+      }
     } else {
       state.providerDataStatus = 'ready'
       state.providerDataMessage = result.snapshot.intervals.length
@@ -351,6 +399,43 @@ async function refreshProviderData(): Promise<void> {
     if (request !== providerRequest) return
     state.providerDataStatus = 'unavailable'
     state.providerDataMessage = errorMessage(error, 'Codex 与 Claude Code 本机会话暂时不可用')
+  }
+}
+
+async function syncProviderConsent(): Promise<void> {
+  if (!desktopRuntime) return
+  state.providerConsentStatus = 'loading'
+  try {
+    state.providerConsent = await loadProviderConsent()
+    state.providerConsentStatus = 'ready'
+    if (state.providerConsent.codexEnabled || state.providerConsent.claudeEnabled) {
+      state.providerDataStatus = 'loading'
+      state.providerDataMessage = '正在读取已授权的 Provider 本机会话'
+    } else {
+      state.providerDataStatus = 'disabled'
+      state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+    }
+  } catch (error) {
+    state.providerConsentStatus = 'error'
+    state.providerDataStatus = 'unavailable'
+    state.providerDataMessage = errorMessage(error, '无法读取 Provider 授权设置')
+  }
+}
+
+async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noticeSeen' | 'codexEnabled' | 'claudeEnabled'>>): Promise<void> {
+  if (!desktopRuntime) return
+  state.providerConsentStatus = 'loading'
+  try {
+    const consent = await saveProviderConsent({
+      ...state.providerConsent,
+      ...update,
+    })
+    state.providerConsent = consent
+    state.providerConsentStatus = 'ready'
+    await refreshProviderData()
+  } catch (error) {
+    state.providerConsentStatus = 'error'
+    showToast(errorMessage(error, '无法保存 Provider 授权设置'))
   }
 }
 
@@ -413,6 +498,8 @@ export function useAppStore() {
     refreshInputData,
     refreshActivityData,
     refreshProviderData,
+    syncProviderConsent,
+    updateProviderConsent,
     refreshAutostart,
     setAutostart,
     showToast,
@@ -477,8 +564,11 @@ if (desktopRuntime) {
     void refreshRuntimeData(includeProvider).finally(scheduleRefresh)
   }
 
-  refreshNow()
-  void refreshAutostart()
+  void (async () => {
+    await syncProviderConsent()
+    refreshNow(state.providerConsentStatus === 'ready')
+    await refreshAutostart()
+  })()
   watch(() => state.selectedDate, () => refreshNow())
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {

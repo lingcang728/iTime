@@ -3,18 +3,18 @@ import { computed, onMounted } from 'vue'
 import {
   PhArrowClockwise,
   PhChartBar,
-  PhClock,
   PhDesktop,
   PhHardDrives,
   PhKeyboard,
-  PhMonitor,
   PhMoon,
   PhPalette,
   PhPauseCircle,
   PhPower,
   PhPulse,
+  PhRobot,
   PhShieldCheck,
   PhSun,
+  PhTerminalWindow,
   PhTray,
 } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
@@ -34,6 +34,19 @@ const autostartStatusLabel = computed(() => ({
   ready: store.state.autostartMessage || (store.state.autostartEnabled ? '系统启动项已启用' : '系统启动项未启用'),
   error: store.state.autostartMessage || '无法读取系统启动项',
 }[store.state.autostartStatus]))
+
+const providerStatusLabel = computed(() => ({
+  disabled: '未授权',
+  loading: '正在读取',
+  preview: '预览数据',
+  ready: '本机已连接',
+  degraded: '部分可用',
+  unavailable: '暂时不可用',
+}[store.state.providerDataStatus]))
+
+const providerEnabled = computed(() => (
+  store.state.providerConsent.codexEnabled || store.state.providerConsent.claudeEnabled
+))
 
 const inputFacts = computed(() => {
   const capabilities = store.input.value.capabilities
@@ -61,6 +74,18 @@ function updateClosePreference(event: Event): void {
 
 async function updateAutostart(event: Event): Promise<void> {
   await store.setAutostart(checkedValue(event))
+}
+
+async function acknowledgeProviderNotice(): Promise<void> {
+  await store.updateProviderConsent({ noticeSeen: true })
+}
+
+async function updateCodexAccess(event: Event): Promise<void> {
+  await store.updateProviderConsent({ noticeSeen: true, codexEnabled: checkedValue(event) })
+}
+
+async function updateClaudeAccess(event: Event): Promise<void> {
+  await store.updateProviderConsent({ noticeSeen: true, claudeEnabled: checkedValue(event) })
 }
 
 onMounted(() => void store.refreshAutostart())
@@ -101,6 +126,38 @@ onMounted(() => void store.refreshAutostart())
           <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只累计字符键按下次数并按分钟保存数量；不保存具体键值、键盘文字、密码内容、语音输入或剪贴板正文。</p></div>
         </section>
 
+        <section class="settings-group provider-section" aria-labelledby="provider-title">
+          <header class="settings-group__header">
+            <div><h2 id="provider-title">Provider 本机会话授权</h2><p>Codex 与 Claude Code 分别授权；未启用的数据源不会枚举目录或读取文件。</p></div>
+          </header>
+          <div v-if="!store.state.providerConsent.noticeSeen" class="provider-consent" role="note" aria-labelledby="provider-consent-title">
+            <PhShieldCheck :size="24" weight="regular" aria-hidden="true" />
+            <div>
+              <strong id="provider-consent-title">先了解读取边界，再选择是否启用</strong>
+              <p>启用后，iTime 仅在对应本机会话目录中读取时间、事件类型、时长和文件更新时间，用于计算 Provider 执行区间。不会访问、保存或显示消息正文、提示词、回复内容和代码内容。关闭后立即停止扫描，并清除内存缓存。</p>
+              <button type="button" :disabled="store.state.providerConsentStatus === 'loading'" @click="acknowledgeProviderNotice">我已了解，选择数据源</button>
+            </div>
+          </div>
+          <template v-else>
+            <div class="settings-list provider-list">
+              <label class="control-row">
+                <span class="control-icon"><PhTerminalWindow :size="20" /></span>
+                <div><strong>Codex 本机会话</strong><span>只读 %USERPROFILE%\.codex\sessions 中的任务开始、完成与中止时间事件。</span></div>
+                <span class="toggle"><input :checked="store.state.providerConsent.codexEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateCodexAccess"><i></i></span>
+              </label>
+              <label class="control-row">
+                <span class="control-icon"><PhRobot :size="20" /></span>
+                <div><strong>Claude Code 本机会话</strong><span>只读 %USERPROFILE%\.claude\projects 中的用户回合、结束与时长元数据。</span></div>
+                <span class="toggle"><input :checked="store.state.providerConsent.claudeEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateClaudeAccess"><i></i></span>
+              </label>
+            </div>
+            <div :class="['source-status', 'provider-source-status', store.state.providerDataStatus]">
+              <span class="status-dot"></span><div><strong>{{ providerStatusLabel }}</strong><p>{{ store.state.providerDataMessage }}</p></div>
+              <button v-if="providerEnabled" type="button" :disabled="store.state.providerDataStatus === 'loading'" @click="store.refreshProviderData"><PhArrowClockwise :size="16" />刷新</button>
+            </div>
+          </template>
+        </section>
+
         <section class="settings-group appearance-section" aria-labelledby="appearance-title">
           <header class="settings-group__header">
             <div><h2 id="appearance-title">外观</h2><p>选择适合当前 Windows 桌面的显示方式。</p></div>
@@ -132,7 +189,7 @@ onMounted(() => void store.refreshAutostart())
 
         <section class="data-boundary">
           <PhPauseCircle :size="22" weight="regular" aria-hidden="true" />
-          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器，Provider 活动来自本机会话时间事件。</p></div>
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器。Provider 活动仅在用户逐项授权后读取对应本机会话时间元数据。</p></div>
         </section>
       </aside>
     </div>
