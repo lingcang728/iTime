@@ -39,11 +39,6 @@
   border-radius: var(--radius-sm, 6px);
 }
 
-.ai-page .ai-metrics .metric-card:last-child .metric-info [role="tooltip"] {
-  right: -8px;
-  left: auto;
-}
-
 @media (max-width: 900px) {
   .ai-page .ai-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

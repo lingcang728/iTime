@@ -124,7 +124,13 @@
 .metric-card {
   min-height: 138px;
   padding: 18px 20px 16px;
+  /* Keep decorative art clipped without trapping metric-info tooltips. */
+  overflow: visible;
+}
+
+.metric-card .metric-card__art {
   overflow: hidden;
+  border-radius: 4px;
 }
 
 .metric-card__header {

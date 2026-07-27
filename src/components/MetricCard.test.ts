@@ -21,4 +21,27 @@ describe('MetricCard', () => {
     })
     expect(wrapper.find('.metric-bars').exists()).toBe(false)
   })
+
+  it('opens the circular info definition with fixed viewport placement', async () => {
+    const wrapper = mount(MetricCard, {
+      props: {
+        label: '前台专注时长',
+        value: '4.2 小时',
+        detail: '较昨日 -7 小时',
+        info: '设备活跃区间与前台应用区间的交集；单位：milliseconds；窗口：所选本地自然日。',
+      },
+      attachTo: document.body,
+    })
+
+    const button = wrapper.get('.metric-info')
+    await button.trigger('focus')
+    const tooltip = wrapper.get('[role="tooltip"]')
+    expect(tooltip.classes()).toContain('is-open')
+    expect(wrapper.classes()).toContain('metric-card--tooltip-open')
+    expect(tooltip.attributes('style')).toMatch(/position:\s*fixed|top:|left:|width:/)
+    expect(tooltip.text()).toContain('设备活跃区间')
+    await button.trigger('blur')
+    expect(tooltip.classes()).not.toContain('is-open')
+    wrapper.unmount()
+  })
 })

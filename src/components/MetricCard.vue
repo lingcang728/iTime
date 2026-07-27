@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { PhInfo } from '@phosphor-icons/vue'
-import type { Component } from 'vue'
+import type { Component, CSSProperties } from 'vue'
 
 interface MetricValuePart {
   amount: string
@@ -31,17 +31,107 @@ const normalizedProgress = computed(() => {
   return Math.max(0, Math.min(1, props.progress))
 })
 const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 * (1 - normalizedProgress.value))
+
+const infoButtonRef = ref<HTMLButtonElement | null>(null)
+const tooltipRef = ref<HTMLElement | null>(null)
+const tooltipOpen = ref(false)
+const tooltipStyle = ref<CSSProperties>({
+  top: '0px',
+  left: '0px',
+  width: '240px',
+})
+
+const TOOLTIP_WIDTH = 240
+const VIEWPORT_GAP = 8
+const ANCHOR_GAP = 8
+
+function placeTooltip(): void {
+  const button = infoButtonRef.value
+  if (!button) return
+
+  const rect = button.getBoundingClientRect()
+  const width = Math.min(TOOLTIP_WIDTH, Math.max(160, window.innerWidth - VIEWPORT_GAP * 2))
+  let left = rect.left + rect.width / 2 - width / 2
+  left = Math.min(Math.max(VIEWPORT_GAP, left), window.innerWidth - width - VIEWPORT_GAP)
+
+  const measuredHeight = tooltipRef.value?.offsetHeight || 0
+  const estimatedHeight = measuredHeight > 0 ? measuredHeight : 112
+  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_GAP
+  const spaceAbove = rect.top - VIEWPORT_GAP
+  const placeAbove = spaceBelow < estimatedHeight + ANCHOR_GAP && spaceAbove > spaceBelow
+
+  let top = placeAbove
+    ? rect.top - ANCHOR_GAP - estimatedHeight
+    : rect.bottom + ANCHOR_GAP
+  top = Math.min(
+    Math.max(VIEWPORT_GAP, top),
+    Math.max(VIEWPORT_GAP, window.innerHeight - estimatedHeight - VIEWPORT_GAP),
+  )
+
+  tooltipStyle.value = {
+    top: `${Math.round(top)}px`,
+    left: `${Math.round(left)}px`,
+    width: `${Math.round(width)}px`,
+  }
+}
+
+function openTooltip(): void {
+  tooltipOpen.value = true
+  placeTooltip()
+  void nextTick(() => {
+    placeTooltip()
+  })
+  window.addEventListener('scroll', placeTooltip, true)
+  window.addEventListener('resize', placeTooltip)
+}
+
+function closeTooltip(): void {
+  tooltipOpen.value = false
+  window.removeEventListener('scroll', placeTooltip, true)
+  window.removeEventListener('resize', placeTooltip)
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', placeTooltip, true)
+  window.removeEventListener('resize', placeTooltip)
+})
 </script>
 
 <template>
-  <article class="metric-card" :class="{ 'metric-card--with-icon': icon }" :data-tone="tone">
+  <article
+    class="metric-card"
+    :class="{
+      'metric-card--with-icon': icon,
+      'metric-card--tooltip-open': tooltipOpen,
+    }"
+    :data-tone="tone"
+  >
     <span v-if="icon" class="metric-icon"><component :is="icon" :size="24" weight="regular" /></span>
     <div class="metric-card__body">
       <div class="metric-card__header">
         <span>{{ label }}</span>
-        <button v-if="info" class="metric-info" type="button" :aria-label="`${label}说明：${info}`">
+        <button
+          v-if="info"
+          ref="infoButtonRef"
+          class="metric-info"
+          type="button"
+          :class="{ 'is-open': tooltipOpen }"
+          :aria-label="`${label}说明：${info}`"
+          :aria-expanded="tooltipOpen"
+          @mouseenter="openTooltip"
+          @mouseleave="closeTooltip"
+          @focus="openTooltip"
+          @blur="closeTooltip"
+          @keydown.escape.prevent="closeTooltip"
+        >
           <PhInfo :size="13" weight="regular" />
-          <span role="tooltip">{{ info }}</span>
+          <span
+            ref="tooltipRef"
+            class="metric-info__tooltip"
+            role="tooltip"
+            :class="{ 'is-open': tooltipOpen }"
+            :style="tooltipStyle"
+          >{{ info }}</span>
         </button>
       </div>
       <strong class="metric-card__value">
@@ -79,6 +169,12 @@ const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: start;
   column-gap: 12px;
+}
+
+.metric-card--tooltip-open {
+  /* Allow the open definition bubble to paint above sibling cards. */
+  z-index: 6;
+  overflow: visible;
 }
 
 .metric-card__body {
@@ -130,6 +226,7 @@ const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 
   position: relative;
   display: grid;
   place-items: center;
+  flex: 0 0 18px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -138,12 +235,22 @@ const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 
   cursor: help;
 }
 
-.metric-info [role="tooltip"] {
-  width: 210px;
-  position: absolute;
-  z-index: 8;
-  top: 24px;
-  left: -8px;
+.metric-info:hover,
+.metric-info:focus-visible,
+.metric-info.is-open {
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+}
+
+/*
+ * Fixed positioning keeps the definition readable even when the metric card
+ * (or a parent metrics row) uses overflow clipping for rounded shells.
+ */
+.metric-info__tooltip {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  max-width: min(240px, calc(100vw - 16px));
   padding: 9px 10px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
@@ -154,14 +261,18 @@ const ringOffset = computed(() => normalizedProgress.value === null ? 107 : 107 
   font-weight: 500;
   line-height: 1.55;
   text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-3px);
   transition: opacity 140ms ease, transform 140ms var(--ease-out);
 }
 
-.metric-info:hover [role="tooltip"],
-.metric-info:focus [role="tooltip"] {
+.metric-info__tooltip.is-open,
+.metric-info:hover .metric-info__tooltip,
+.metric-info:focus .metric-info__tooltip,
+.metric-info:focus-visible .metric-info__tooltip {
   opacity: 1;
   transform: translateY(0);
 }
