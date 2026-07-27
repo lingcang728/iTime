@@ -80,6 +80,9 @@ const identityInfo = computed(() =>
     appName: props.appName,
   }),
 )
+const requestedNativeSize = computed(() =>
+  Math.min(256, Math.max(32, Math.round(props.size * 2))),
+)
 
 const embeddedSource = computed(
   () => localIcons[displayKey.value] ?? embeddedAppIcons[displayKey.value] ?? null,
@@ -108,7 +111,8 @@ let mounted = false
 async function refresh(): Promise<void> {
   imageBroken.value = false
   const identity = identityInfo.value.identity
-  const peeked = peekAppIcon(identity)
+  const requestedSize = requestedNativeSize.value
+  const peeked = peekAppIcon(identity, requestedSize)
   if (peeked) {
     status.value = peeked.status
     nativeUrl.value = peeked.iconUrl ?? null
@@ -126,11 +130,15 @@ async function refresh(): Promise<void> {
     packageFullName: props.packageFullName,
     packageFamilyName: props.packageFamilyName,
     siteHost: props.siteHost,
-    requestedSize: Math.max(32, Math.round(props.size * 2)),
+    requestedSize,
     processId: props.processId,
   })
 
-  if (!mounted || result.appIdentity !== identityInfo.value.identity) return
+  if (
+    !mounted
+    || result.appIdentity !== identityInfo.value.identity
+    || result.width !== requestedNativeSize.value
+  ) return
   status.value = result.status
   nativeUrl.value = result.iconUrl ?? null
   if (result.status === 'failed' || result.status === 'unknown') {
@@ -147,7 +155,10 @@ function onImageError(): void {
 onMounted(() => {
   mounted = true
   unsubscribe = subscribeAppIcons((result) => {
-    if (result.appIdentity !== identityInfo.value.identity) return
+    if (
+      result.appIdentity !== identityInfo.value.identity
+      || result.width !== requestedNativeSize.value
+    ) return
     status.value = result.status
     nativeUrl.value = result.iconUrl ?? null
     if (result.status === 'resolved') imageBroken.value = false

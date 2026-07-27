@@ -40,7 +40,7 @@ pub(super) fn build_extract_request(input: ExtractRequestInput) -> ExtractReques
         aumid,
         package_full_name,
         package_family_name,
-        size: requested_size.unwrap_or(DEFAULT_ICON_SIZE),
+        size: requested_size.unwrap_or(DEFAULT_ICON_SIZE).clamp(16, 256),
     }
 }
 
@@ -71,5 +71,31 @@ mod tests {
         assert_eq!(request.identity_kind, AppIdentityKind::Logical);
         assert_eq!(request.size, DEFAULT_ICON_SIZE);
         assert_eq!(request.process_id, None);
+    }
+
+    #[test]
+    fn clamps_requested_size_to_supported_bounds() {
+        let mut input = ExtractRequestInput {
+            app_identity: Some("VS Code".into()),
+            executable_path: None,
+            process_id: None,
+            aumid: None,
+            package_full_name: None,
+            package_family_name: None,
+            site_host: None,
+            requested_size: Some(1),
+        };
+        assert_eq!(build_extract_request(input).size, 16);
+        input = ExtractRequestInput {
+            app_identity: Some("VS Code".into()),
+            executable_path: None,
+            process_id: None,
+            aumid: None,
+            package_full_name: None,
+            package_family_name: None,
+            site_host: None,
+            requested_size: Some(1_024),
+        };
+        assert_eq!(build_extract_request(input).size, 256);
     }
 }

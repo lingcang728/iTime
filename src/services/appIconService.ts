@@ -37,6 +37,7 @@ interface NativeResponse {
 }
 
 const DEFAULT_SIZE = 64
+const ICON_RESOLVER_VERSION = 2
 const MAX_MEMORY_ENTRIES = 256
 const iconSources: ReadonlySet<string> = new Set([
   'cache', 'shell_item', 'sh_get_file_info', 'extract_icon', 'package_asset', 'shortcut', 'fallback', 'embedded',
@@ -47,9 +48,22 @@ const listeners = new Set<Listener>()
 let eventBound = false
 let bridgePromise: Promise<void> | null = null
 
+function clampSize(size: number | undefined): number {
+  return Math.min(256, Math.max(16, Math.round(size ?? DEFAULT_SIZE)))
+}
+
+function iconRequestKey(identity: string, size: number): string {
+  return `${identity}\u0000${clampSize(size)}\u0000${ICON_RESOLVER_VERSION}`
+}
+
+function identityKeyPrefix(identity: string): string {
+  return `${identity}\u0000`
+}
+
 function remember(result: IconResolveResult): void {
-  memory.delete(result.appIdentity)
-  memory.set(result.appIdentity, result)
+  const key = iconRequestKey(result.appIdentity, result.width)
+  memory.delete(key)
+  memory.set(key, result)
   while (memory.size > MAX_MEMORY_ENTRIES) {
     const oldest = memory.keys().next().value
     if (typeof oldest !== 'string') break
@@ -71,14 +85,15 @@ async function normalizeNative(response: NativeResponse): Promise<IconResolveRes
   const status = (['loading', 'resolved', 'failed', 'unknown'].includes(response.status)
     ? response.status
     : 'unknown') as IconStatus
+  const width = clampSize(response.width)
   return {
     appIdentity: response.appIdentity,
     status,
     cachePath: response.cachePath,
     iconUrl: status === 'resolved' ? await toUrl(response.cachePath) : null,
     iconSource: iconSources.has(response.iconSource) ? response.iconSource as IconSource : 'fallback',
-    width: response.width || DEFAULT_SIZE,
-    height: response.height || DEFAULT_SIZE,
+    width,
+    height: clampSize(response.height || width),
     errorCode: response.errorCode,
   }
 }
@@ -89,7 +104,7 @@ async function ensureEventBridge(): Promise<void> {
     bridgePromise = listenDesktop<NativeResponse>('app-icon-updated', (payload) => {
       void normalizeNative(payload).then((result) => {
         remember(result)
-        inflight.delete(result.appIdentity)
+        inflight.delete(iconRequestKey(result.appIdentity, result.width))
         for (const listener of listeners) listener(result)
       })
     }).then(() => {
@@ -110,23 +125,30 @@ export function subscribeAppIcons(listener: Listener): () => void {
   }
 }
 
-export function peekAppIcon(identity: string): IconResolveResult | undefined {
-  return memory.get(identity)
+export function peekAppIcon(identity: string, requestedSize = DEFAULT_SIZE): IconResolveResult | undefined {
+  return memory.get(iconRequestKey(identity, requestedSize))
 }
 
 export function forgetAppIcon(identity: string): void {
-  memory.delete(identity)
-  inflight.delete(identity)
+  const prefix = identityKeyPrefix(identity)
+  for (const key of memory.keys()) {
+    if (key.startsWith(prefix)) memory.delete(key)
+  }
+  for (const key of inflight.keys()) {
+    if (key.startsWith(prefix)) inflight.delete(key)
+  }
 }
 
 export async function resolveAppIcon(
   input: AppIdentityInput & { requestedSize?: number },
 ): Promise<IconResolveResult> {
   const { identity } = buildAppIdentity(input)
-  const cached = memory.get(identity)
+  const requestedSize = clampSize(input.requestedSize)
+  const key = iconRequestKey(identity, requestedSize)
+  const cached = memory.get(key)
   if (cached?.status === 'resolved' && cached.iconUrl) return cached
 
-  const pending = inflight.get(identity)
+  const pending = inflight.get(key)
   if (pending) return pending
 
   if (!isTauriRuntime()) {
@@ -135,8 +157,8 @@ export async function resolveAppIcon(
       status: 'unknown',
       iconUrl: null,
       iconSource: 'fallback',
-      width: input.requestedSize ?? DEFAULT_SIZE,
-      height: input.requestedSize ?? DEFAULT_SIZE,
+      width: requestedSize,
+      height: requestedSize,
     }
     remember(offline)
     return offline
@@ -155,7 +177,7 @@ export async function resolveAppIcon(
           packageFamilyName: input.packageFamilyName ?? null,
           siteHost: input.siteHost ?? null,
           processId: input.processId ?? null,
-          requestedSize: input.requestedSize ?? DEFAULT_SIZE,
+          requestedSize,
         },
       })
       const result = await normalizeNative(response)
@@ -168,19 +190,19 @@ export async function resolveAppIcon(
         status: 'failed',
         iconUrl: null,
         iconSource: 'fallback',
-        width: input.requestedSize ?? DEFAULT_SIZE,
-        height: input.requestedSize ?? DEFAULT_SIZE,
+        width: requestedSize,
+        height: requestedSize,
         errorCode: error instanceof Error ? error.message : String(error),
       }
       remember(failed)
       for (const listener of listeners) listener(failed)
       return failed
     } finally {
-      inflight.delete(identity)
+      inflight.delete(key)
     }
   })()
 
-  inflight.set(identity, task)
+  inflight.set(key, task)
   return task
 }
 

@@ -1,4 +1,5 @@
 use super::extract::{extract_and_cache, try_cache_hit, ExtractRequest, IconSource};
+use super::ICON_RESOLVER_VERSION;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -31,15 +32,40 @@ struct FailureRecord {
     code: String,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct IconRequestKey {
+    app_identity: String,
+    size: u32,
+    resolver_version: u32,
+}
+
+impl IconRequestKey {
+    fn new(app_identity: String, size: u32, resolver_version: u32) -> Self {
+        Self {
+            app_identity,
+            size: size.clamp(16, 256),
+            resolver_version,
+        }
+    }
+
+    fn from_request(request: &ExtractRequest) -> Self {
+        Self::new(
+            request.app_identity.clone(),
+            request.size,
+            ICON_RESOLVER_VERSION,
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct IconService {
     inner: Arc<Mutex<IconServiceInner>>,
 }
 
 struct IconServiceInner {
-    inflight: HashSet<String>,
+    inflight: HashSet<IconRequestKey>,
     queued: VecDeque<PendingJob>,
-    failures: HashMap<String, FailureRecord>,
+    failures: HashMap<IconRequestKey, FailureRecord>,
     active: usize,
     path_hints: HashMap<String, PathBuf>,
     hint_order: VecDeque<String>,
@@ -48,6 +74,7 @@ struct IconServiceInner {
 struct PendingJob {
     app: AppHandle,
     req: ExtractRequest,
+    key: IconRequestKey,
 }
 
 impl IconService {
@@ -68,7 +95,11 @@ impl IconService {
             .path_hints
             .get(&app_identity)
             .is_none_or(|current| current != &path);
-        let failed = guard.failures.remove(&app_identity).is_some();
+        let failures_before = guard.failures.len();
+        guard
+            .failures
+            .retain(|key, _| key.app_identity != app_identity);
+        let failed = guard.failures.len() != failures_before;
         guard
             .hint_order
             .retain(|identity| identity != &app_identity);
@@ -132,7 +163,8 @@ impl IconService {
         }
 
         let identity = req.app_identity.clone();
-        let size = req.size;
+        let size = req.size.clamp(16, 256);
+        let request_key = IconRequestKey::from_request(&req);
 
         {
             let mut guard = self
@@ -143,7 +175,7 @@ impl IconService {
                 .failures
                 .retain(|_, failure| failure.until > Instant::now());
 
-            if let Some(failure) = guard.failures.get(&identity) {
+            if let Some(failure) = guard.failures.get(&request_key) {
                 if failure.until > Instant::now() {
                     return IconUpdateEvent {
                         app_identity: identity,
@@ -155,10 +187,10 @@ impl IconService {
                         error_code: Some(failure.code.clone()),
                     };
                 }
-                guard.failures.remove(&identity);
+                guard.failures.remove(&request_key);
             }
 
-            if guard.inflight.contains(&identity) {
+            if guard.inflight.contains(&request_key) {
                 return IconUpdateEvent {
                     app_identity: identity,
                     status: "loading".into(),
@@ -182,8 +214,12 @@ impl IconService {
                 };
             }
 
-            guard.inflight.insert(identity.clone());
-            guard.queued.push_back(PendingJob { app, req });
+            guard.inflight.insert(request_key.clone());
+            guard.queued.push_back(PendingJob {
+                app,
+                req,
+                key: request_key,
+            });
             Self::pump_locked(&mut guard, Arc::clone(&self.inner));
         }
 
@@ -207,7 +243,7 @@ impl IconService {
             let service_for_task = Arc::clone(&service);
             tauri::async_runtime::spawn_blocking(move || {
                 let identity = job.req.app_identity.clone();
-                let size = job.req.size;
+                let size = job.req.size.clamp(16, 256);
                 let outcome = catch_unwind(AssertUnwindSafe(|| {
                     let first = extract_and_cache(&job.req);
                     if first.is_ok() || job.req.executable_path.is_some() {
@@ -263,12 +299,12 @@ impl IconService {
                     let mut g = service_for_task
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    g.inflight.remove(&identity);
+                    g.inflight.remove(&job.key);
                     g.active = g.active.saturating_sub(1);
                     if event.status == "failed" {
                         if let Some(code) = event.error_code.clone() {
                             g.failures.insert(
-                                identity.clone(),
+                                job.key.clone(),
                                 FailureRecord {
                                     until: Instant::now() + FAILURE_COOLDOWN,
                                     code,
@@ -281,7 +317,7 @@ impl IconService {
                             }
                         }
                     } else {
-                        g.failures.remove(&identity);
+                        g.failures.remove(&job.key);
                     }
                     Self::pump_locked(&mut g, Arc::clone(&service_for_task));
                 }
@@ -295,5 +331,32 @@ impl IconService {
 impl Default for IconService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_keys_keep_sizes_and_resolver_versions_independent() {
+        let small = IconRequestKey::new("app:code".into(), 32, 2);
+        let large = IconRequestKey::new("app:code".into(), 128, 2);
+        let next_resolver = IconRequestKey::new("app:code".into(), 32, 3);
+
+        assert_ne!(small, large);
+        assert_ne!(small, next_resolver);
+    }
+
+    #[test]
+    fn request_keys_clamp_sizes_before_deduplication() {
+        assert_eq!(
+            IconRequestKey::new("app:code".into(), 1, 2),
+            IconRequestKey::new("app:code".into(), 16, 2)
+        );
+        assert_eq!(
+            IconRequestKey::new("app:code".into(), 1_024, 2),
+            IconRequestKey::new("app:code".into(), 256, 2)
+        );
     }
 }
