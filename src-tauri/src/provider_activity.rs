@@ -479,47 +479,51 @@ fn parse_codex_file(path: &Path) -> io::Result<ParsedFile> {
     let mut diagnostics = ParseDiagnostics::default();
 
     while reader.read_until(b'\n', &mut line)? > 0 {
-        let has_lifecycle_event = contains_bytes(&line, b"task_started")
-            || contains_bytes(&line, b"task_complete")
-            || contains_bytes(&line, b"turn_aborted");
-        if has_lifecycle_event {
-            match serde_json::from_slice::<WireEvent>(&line) {
-                Ok(event) => {
-                    let Some((kind, timestamp)) = codex_event(&event) else {
-                        diagnostics.bad_events += 1;
-                        line.clear();
-                        continue;
-                    };
-                    match kind {
-                        "task_started" => {
-                            if open_start.replace(timestamp).is_some() {
-                                diagnostics.bad_events += 1;
-                            }
-                        }
-                        "task_complete" | "turn_aborted" => {
-                            if let Some(start) =
-                                open_start.take().filter(|start| timestamp > *start)
-                            {
-                                facts.completed.push(codex_interval(
-                                    path,
-                                    start,
-                                    timestamp,
-                                    "completed",
-                                    if kind == "turn_aborted" {
-                                        "Codex 本机会话 task_started/turn_aborted 时间事件"
-                                    } else {
-                                        "Codex 本机会话 task_started/task_complete 时间事件"
-                                    },
-                                ));
-                            } else {
-                                diagnostics.bad_events += 1;
-                            }
-                        }
-                        _ => {}
+        // Only consider root-level event_msg rows. Tool output often embeds the
+        // substrings task_started/task_complete/turn_aborted in source code or
+        // logs; those must not become bad_events or force full JSON parsing.
+        if !looks_like_codex_lifecycle_line(&line) {
+            line.clear();
+            continue;
+        }
+        match serde_json::from_slice::<WireEvent>(&line) {
+            Ok(event) => {
+                // Lines that only *contain* lifecycle tokens (e.g. patch_apply_end
+                // payloads quoting source) are unrelated noise — skip silently.
+                let Some((kind, timestamp)) = codex_event(&event) else {
+                    line.clear();
+                    continue;
+                };
+                match kind {
+                    "task_started" => {
+                        // Codex occasionally emits near-duplicate starts a few
+                        // milliseconds apart. Keep the latest start; do not treat
+                        // that as an anomalous event.
+                        open_start = Some(timestamp);
                     }
+                    "task_complete" | "turn_aborted" => {
+                        if let Some(start) = open_start.take().filter(|start| timestamp > *start) {
+                            facts.completed.push(codex_interval(
+                                path,
+                                start,
+                                timestamp,
+                                "completed",
+                                if kind == "turn_aborted" {
+                                    "Codex 本机会话 task_started/turn_aborted 时间事件"
+                                } else {
+                                    "Codex 本机会话 task_started/task_complete 时间事件"
+                                },
+                            ));
+                        }
+                        // Orphan complete/abort (resume, crash recovery, etc.) is
+                        // incomplete evidence, not a parse anomaly.
+                    }
+                    _ => {}
                 }
-                Err(_) => diagnostics.bad_lines += 1,
             }
+            // Only count as a bad line when the root object looked like a lifecycle
+            // event_msg but the JSON itself was unreadable.
+            Err(_) => diagnostics.bad_lines += 1,
         }
         line.clear();
     }
@@ -559,10 +563,9 @@ fn parse_claude_file(path: &Path) -> io::Result<ParsedFile> {
                         .and_then(|message| message.role.as_deref())
                         == Some("user")
                 {
+                    // User rows without a usable timestamp are incomplete, not anomalous.
                     if let Some(timestamp) = timestamp {
                         latest_human_start = Some(timestamp);
-                    } else {
-                        diagnostics.bad_events += 1;
                     }
                 } else if event.record_type.as_deref() == Some("assistant")
                     && event
@@ -573,12 +576,12 @@ fn parse_claude_file(path: &Path) -> io::Result<ParsedFile> {
                 {
                     if let Some(timestamp) = timestamp {
                         latest_end_turn = Some(timestamp);
-                    } else {
-                        diagnostics.bad_events += 1;
                     }
                 } else if event.record_type.as_deref() == Some("system")
                     && event.subtype.as_deref() == Some("turn_duration")
                 {
+                    // turn_duration is the primary interval signal; malformed
+                    // records here are real anomalies.
                     let Some(end) = timestamp else {
                         diagnostics.bad_events += 1;
                         line.clear();
@@ -604,11 +607,17 @@ fn parse_claude_file(path: &Path) -> io::Result<ParsedFile> {
                     facts
                         .completed
                         .push(claude_interval(path, start, end, "completed", 0.99));
-                } else {
-                    diagnostics.bad_events += 1;
+                }
+                // Other prefilter hits (content mentioning end_turn / type user,
+                // side-channel system rows, etc.) are unrelated noise — ignore.
+            }
+            // Prefilter is broad (content may mention end_turn). Only count a bad
+            // line when the row itself looks like a turn_duration system event.
+            Err(_) => {
+                if looks_like_claude_turn_duration_line(&line) {
+                    diagnostics.bad_lines += 1;
                 }
             }
-            Err(_) => diagnostics.bad_lines += 1,
         }
         line.clear();
     }
@@ -784,6 +793,35 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         && haystack
             .windows(needle.len())
             .any(|window| window == needle)
+}
+
+/// Codex rollout lines place the root `"type"` near the start of the JSON object.
+/// Restrict the prefilter to that prefix so tool-output bodies that quote
+/// `task_started` / `event_msg` from source code are not treated as lifecycle rows.
+fn looks_like_codex_lifecycle_line(line: &[u8]) -> bool {
+    let head = line_head(line, 192);
+    let has_event_msg = contains_bytes(head, br#""type":"event_msg""#)
+        || contains_bytes(head, br#""type": "event_msg""#);
+    if !has_event_msg {
+        return false;
+    }
+    contains_bytes(line, br#""type":"task_started""#)
+        || contains_bytes(line, br#""type": "task_started""#)
+        || contains_bytes(line, br#""type":"task_complete""#)
+        || contains_bytes(line, br#""type": "task_complete""#)
+        || contains_bytes(line, br#""type":"turn_aborted""#)
+        || contains_bytes(line, br#""type": "turn_aborted""#)
+}
+
+fn looks_like_claude_turn_duration_line(line: &[u8]) -> bool {
+    let head = line_head(line, 256);
+    (contains_bytes(head, br#""type":"system""#) || contains_bytes(head, br#""type": "system""#))
+        && (contains_bytes(line, br#""subtype":"turn_duration""#)
+            || contains_bytes(line, br#""subtype": "turn_duration""#))
+}
+
+fn line_head(line: &[u8], max_len: usize) -> &[u8] {
+    &line[..line.len().min(max_len)]
 }
 
 fn stable_id(provider: &str, path: &Path, timestamp: u64) -> String {
@@ -1053,6 +1091,81 @@ mod tests {
         assert_eq!(parsed.diagnostics.bad_lines, 1);
         assert_eq!(parsed.diagnostics.bad_events, 1);
         assert_eq!(parsed.facts.completed.len(), 1);
+    }
+
+    #[test]
+    fn codex_tool_output_mentioning_lifecycle_tokens_is_not_anomalous() {
+        let path = fixture_path("codex-noise.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"timestamp":"2026-07-18T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started"}}"#,
+                "\n",
+                // Tool output / source snippets commonly embed these tokens when
+                // working on iTime itself — they must not inflate bad_events.
+                r#"{"timestamp":"2026-07-18T01:01:00.000Z","type":"response_item","payload":{"type":"function_call_output","output":"contains_bytes(&line, b\"task_started\") task_complete turn_aborted \"type\":\"event_msg\""}}"#,
+                "\n",
+                r#"{"timestamp":"2026-07-18T01:02:00.000Z","type":"event_msg","payload":{"type":"patch_apply_end","changes":"is_task_complete"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-07-18T01:05:00.000Z","type":"event_msg","payload":{"type":"task_complete"}}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_codex_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            5 * 60_000
+        );
+        assert_eq!(parsed.diagnostics.bad_lines, 0);
+        assert_eq!(parsed.diagnostics.bad_events, 0);
+    }
+
+    #[test]
+    fn codex_duplicate_task_started_keeps_latest_start_without_bad_events() {
+        let path = fixture_path("codex-dup-start.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"timestamp":"2026-07-18T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-07-18T01:00:00.050Z","type":"event_msg","payload":{"type":"task_started"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-07-18T01:05:00.000Z","type":"event_msg","payload":{"type":"task_complete"}}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_codex_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            5 * 60_000 - 50
+        );
+        assert_eq!(parsed.diagnostics.bad_events, 0);
+    }
+
+    #[test]
+    fn claude_unrelated_prefilter_hits_are_not_anomalous() {
+        let path = fixture_path("claude-noise.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"timestamp":"2026-07-18T02:00:00.000Z","type":"assistant","message":{"role":"assistant","content":"mentions end_turn in prose"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-07-18T02:10:00.000Z","type":"system","subtype":"turn_duration","durationMs":120000}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_claude_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(parsed.diagnostics.bad_events, 0);
+        assert_eq!(parsed.diagnostics.bad_lines, 0);
     }
 
     #[test]
