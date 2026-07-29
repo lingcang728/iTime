@@ -25,6 +25,6 @@
 - [x] `npm run package:release`。
 - [x] `release/iTime.exe` 与 `release/iTime_0.2.0_x64-setup.exe` 同源同轮构建。
 - [x] 本机安装副本与桌面快捷方式同步。
-- [ ] 源码提交并推送到 `origin/main`。
+- [x] 源码提交并推送到 `origin/main`。
 - [ ] `v0.2.0` GitHub Release 包含两个 EXE 和 `latest.json`。
 - [ ] 重新下载远端资产并校验哈希、版本、URL 与 updater 签名。
