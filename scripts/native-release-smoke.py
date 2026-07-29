@@ -159,10 +159,9 @@ def main() -> int:
 
             consent = invoke(page, "get_provider_consent")
             expected_consent = {
-                "version": 1,
+                "version": 2,
                 "noticeSeen": False,
-                "codexEnabled": False,
-                "claudeEnabled": False,
+                "aiAgentToolsEnabled": False,
             }
             if consent != expected_consent:
                 raise AssertionError(f"isolated Provider consent was not default-off: {consent}")
@@ -269,11 +268,13 @@ def main() -> int:
                 check_button(page, name)
             if page.locator(".provider-consent").count() != 1:
                 raise AssertionError("Provider permission notice was not visible")
-            page.get_by_role(
-                "button",
-                name="我已了解，选择数据源",
-                exact=True,
-            ).click()
+            tool_switch = page.locator(
+                ".provider-list input[type='checkbox']"
+            )
+            if tool_switch.count() != 1 or tool_switch.is_checked():
+                raise AssertionError(
+                    "AI Agent tools permission was not a single default-off switch"
+                )
             page.locator(".provider-source-status").wait_for(
                 state="visible",
                 timeout=5_000,
@@ -284,6 +285,7 @@ def main() -> int:
             report["checks"]["nativeSettingsSurface"] = {
                 "localDataActionsVisible": True,
                 "providerPermissionNoticeVisible": True,
+                "singleAiAgentToolsSwitchDefaultOff": True,
                 "providerStatusVisible": True,
                 "screenshot": screenshot_path.name,
             }
