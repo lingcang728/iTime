@@ -156,7 +156,7 @@ onMounted(async () => {
     () => listenDesktop<boolean>('recording-status', (recording) => {
       store.state.recording = recording
       store.state.recordingStatus = 'ready'
-      store.state.recordingMessage = recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
+      store.state.recordingMessage = recording ? '记录中' : '已暂停'
     }),
     () => listenDesktop<string>('recording-error', (message) => {
       store.state.recordingStatus = 'error'

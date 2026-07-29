@@ -55,7 +55,7 @@ describe('InputHistoryPanel', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('这一天没有输入汇总')
+    expect(wrapper.text()).toContain('暂无汇总')
     expect(wrapper.find('.input-trend-chart').exists()).toBe(false)
   })
 })

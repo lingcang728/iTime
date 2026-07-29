@@ -142,7 +142,7 @@ function durationParts(value: number | null): DurationPart[] {
 
 <template>
   <section class="page timeline-page">
-    <PageHeader title="时间线" subtitle="回顾你的设备活动、应用使用、AI 前台与媒体播放的时间分布与切换轨迹。" />
+    <PageHeader title="时间线" subtitle="设备 · 应用 · AI · 媒体" />
 
     <div class="timeline-overview">
       <MetricCard :label="metricDefinitions.foregroundActivity.name" :value-parts="durationParts(store.day.value.foregroundActivity.value)" :detail="foregroundComparison" :icon="PhDesktop" visual="bars" :trend="foregroundTrend" :info="metricInfo('foregroundActivity')" />
@@ -167,8 +167,8 @@ function durationParts(value: number | null): DurationPart[] {
           <Transition name="popover">
             <aside v-if="notesOpen" id="timeline-notes" class="timeline-popover" role="dialog" aria-label="统计口径与轨道说明">
               <button type="button" aria-label="关闭说明" @click="notesOpen = false"><PhX :size="14" /></button>
-              <div><span>统计口径</span><strong>总覆盖按自然时间并集计算</strong><p>前台活动与 AI Agent 执行重叠时只计一次；当前总覆盖为 {{ formatDuration(store.day.value.totalDuration.value, true) }}。</p></div>
-              <div><span>轨道说明</span><strong>上下对齐表示同时发生</strong><p>设备、应用、AI 与媒体各自保留来源，并行时段不会重复计入总时长。</p></div>
+              <div><span>口径</span><strong>重叠只计一次</strong><p>总覆盖 {{ formatDuration(store.day.value.totalDuration.value, true) }}</p></div>
+              <div><span>轨道</span><strong>上下对齐 = 同时发生</strong><p>各轨独立，不重复计时。</p></div>
             </aside>
           </Transition>
         </div>
@@ -188,7 +188,7 @@ function durationParts(value: number | null): DurationPart[] {
         </div>
         <div class="timeline-explanation">
           <PhInfo :size="20" />
-          <div><strong>说明</strong><p>时间线按 10 秒采样，并把连续同类记录合并成区间；主刻度为 1 小时，细网格为 15 分钟。<br>前台应用与 AI 前台仅在窗口处于前台时计为活跃时长。</p></div>
+          <div><strong>说明</strong><p>10 秒采样，同类合并；主刻度 1 小时，细格 15 分钟。仅前台计活跃。</p></div>
           <span><PhCheckCircle :size="15" />{{ sourceLabel }}</span>
         </div>
       </template>

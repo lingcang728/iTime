@@ -134,34 +134,34 @@ function toolDuration(tool: AiToolSummary): number {
 
 function toolEvidence(tool: AiToolSummary): string {
   return tool.taskCount
-    ? `${tool.taskCount} 个 AI Agent 执行 · ${statusLabels[tool.status]}`
-    : `仅前台观察 · ${Math.round(tool.confidence * 100)}% 置信度`
+    ? `${tool.taskCount} 次执行 · ${statusLabels[tool.status]}`
+    : `仅前台 · ${Math.round(tool.confidence * 100)}%`
 }
 
 const insight = computed(() => {
   const interaction = formatDuration(store.day.value.aiInteraction.value, true)
   if (!aiWork.value.length) {
     return {
-      title: `记录到 ${interaction} 的 AI 前台活跃`,
+      title: `AI 前台 ${interaction}`,
       detail: providerDataAvailable.value
-        ? 'AI Agent 编程工具已连接，但今天尚未检测到执行事件；此处仅呈现可验证的前台活动。'
-        : '当前仅呈现可验证的前台活动；AI Agent 编程工具不可用时不会推算后台执行或并发。',
+        ? '已连接，今日无执行事件。'
+        : '仅显示前台活跃。',
     }
   }
   const effective = formatDuration(store.day.value.aiEffective.value, true)
   const coverage = formatDuration(store.day.value.aiCoverage.value, true)
   return {
-    title: `AI Agent 累计执行 ${effective}，覆盖 ${coverage}`,
+    title: `执行 ${effective} · 覆盖 ${coverage}`,
     detail: concurrencyWindow.value
-      ? `峰值并发 ${concurrencyWindow.value.concurrency} 个；执行证据按自然时间去重后计算。`
-      : '执行证据已按自然时间去重。',
+      ? `峰值并发 ${concurrencyWindow.value.concurrency}`
+      : '已按时间去重。',
   }
 })
 </script>
 
 <template>
   <section class="page ai-page">
-    <PageHeader title="AI 代理" subtitle="查看可验证的 AI 前台活动与获授权 AI Agent 编程工具时间事件。" />
+    <PageHeader title="AI 代理" subtitle="前台活跃与 Agent 执行" />
 
     <div class="ai-metrics">
       <MetricCard :label="metricDefinitions.aiInteraction.name" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="activityDataAvailable ? interactionComparison : store.state.activityDataMessage" :icon="PhUser" visual="bars" :trend="interactionTrend" :info="metricInfo('aiInteraction')" />
@@ -196,33 +196,33 @@ const insight = computed(() => {
             <div><strong>{{ row.title }}</strong><small>{{ row.toolName }} · {{ row.detail }}</small></div>
             <span class="ai-activity-meta"><b>{{ formatDuration(row.end - row.start, true) }}</b><small>置信度 {{ Math.round(row.confidence * 100) }}%</small></span>
           </article>
-          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '执行区间来自已授权 AI Agent 编程工具的本机会话时间与事件类型元数据。' : '今天没有 AI Agent 执行事件，当前展示可验证的 AI 前台活跃。' }}</p>
+          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '来源：本机会话元数据' : '今日无执行事件，仅前台活跃' }}</p>
         </div>
-        <div v-else class="ai-tool-list__empty">今天尚未检测到 AI 工具活动。</div>
+        <div v-else class="ai-tool-list__empty">今日暂无 AI 活动</div>
       </section>
 
       <section class="ai-panel ai-tools-panel" aria-labelledby="ai-tools-title">
         <div class="ai-section-heading">
-          <h2 id="ai-tools-title">使用的工具</h2>
-          <span class="section-meta">按使用时长排序</span>
+          <h2 id="ai-tools-title">工具</h2>
+          <span class="section-meta">按时长</span>
         </div>
         <div v-if="store.day.value.aiTools.length" class="ai-tool-list" aria-label="AI 工具采样明细">
           <article v-for="tool in store.day.value.aiTools" :key="tool.toolId" class="ai-tool-item">
             <button type="button" :aria-label="`查看 ${tool.toolName} 采样详情`" @click="store.openTool(tool.toolId)">
               <ApplicationIcon :icon-key="tool.iconKey" :app-name="tool.toolName" :size="30" />
-              <span class="ai-tool-copy"><strong>{{ tool.toolName }}</strong><small>{{ tool.taskCount ? `${tool.taskCount} 个本机会话执行区间` : '仅观察到前台活动' }}</small></span>
+              <span class="ai-tool-copy"><strong>{{ tool.toolName }}</strong><small>{{ tool.taskCount ? `${tool.taskCount} 次执行` : '仅前台' }}</small></span>
               <span class="ai-tool-meta"><b>{{ formatDuration(toolDuration(tool), true) }}</b><small>{{ toolEvidence(tool) }}</small></span>
               <PhArrowUpRight :size="15" aria-hidden="true" />
             </button>
           </article>
         </div>
-        <div v-else class="ai-tool-list__empty">当天尚未采集到 AI 工具活动。</div>
+        <div v-else class="ai-tool-list__empty">今日暂无工具记录</div>
       </section>
     </div>
 
     <article v-if="activityDataAvailable" class="ai-insight">
       <span class="ai-insight__icon"><PhSparkle :size="21" weight="fill" /></span>
-      <div class="ai-insight__copy"><span>今日洞察</span><h2>{{ insight.title }}</h2><p>{{ insight.detail }}<template v-if="topTool"> {{ topTool.toolName }} 是今天记录时长最多的工具。</template></p></div>
+      <div class="ai-insight__copy"><span>今日</span><h2>{{ insight.title }}</h2><p>{{ insight.detail }}<template v-if="topTool"> 最多：{{ topTool.toolName }}</template></p></div>
       <dl>
         <div><dt><PhClock :size="18" />最活跃时段</dt><dd>{{ efficiencyRange }}</dd></div>
         <div><dt><PhChartLineUp :size="18" />AI 执行占比</dt><dd>{{ formatRatio(aiShare) }}</dd></div>

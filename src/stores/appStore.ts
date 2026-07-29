@@ -79,19 +79,19 @@ const state = reactive({
   selectedDate: desktopRuntime ? localDate() : mockDates[mockDates.length - 1],
   availableDates: desktopRuntime ? [localDate()] : [...mockDates],
   inputDataStatus: (desktopRuntime ? 'loading' : 'preview') as InputDataStatus,
-  inputDataMessage: desktopRuntime ? '正在读取 iTime 本机输入记录' : '浏览器预览数据',
+  inputDataMessage: desktopRuntime ? '读取中' : '预览数据',
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as ActivityDataStatus,
-  activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
+  activityDataMessage: desktopRuntime ? '读取中' : '预览数据',
   providerDataStatus: (desktopRuntime ? 'disabled' : 'preview') as ActivityDataStatus,
-  providerDataMessage: desktopRuntime ? '未授权读取 AI Agent 编程工具' : '浏览器预览数据',
+  providerDataMessage: desktopRuntime ? '未授权' : '预览数据',
   providerConsent: desktopRuntime ? { ...defaultProviderConsent } : previewProviderConsent,
   providerConsentStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   lastDataRefreshAt: desktopRuntime ? null as number | null : Date.now(),
   autostartEnabled: false,
   autostartStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
-  autostartMessage: desktopRuntime ? '正在读取 Windows 启动设置' : '仅桌面版可设置开机自启动',
+  autostartMessage: desktopRuntime ? '读取中' : '仅桌面版',
   localDataStatus: (desktopRuntime ? 'loading' : 'preview') as 'loading' | 'preview' | 'empty' | 'degraded' | 'error' | 'ready',
-  localDataMessage: desktopRuntime ? '正在检查本地数据目录' : previewLocalData.message,
+  localDataMessage: desktopRuntime ? '检查中' : previewLocalData.message,
   localData: { ...previewLocalData },
   localDataBusy: null as null | 'open' | 'json' | 'csv' | 'retention' | 'clear',
   localDataExportMessage: '',
@@ -103,7 +103,7 @@ const state = reactive({
   ...persisted,
   recording: true,
   recordingStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
-  recordingMessage: desktopRuntime ? '正在向采集器确认状态' : '浏览器预览不写入本机记录',
+  recordingMessage: desktopRuntime ? '确认中' : '预览不写入',
   currentReminder: null as ReminderOccurrence | null,
 })
 
@@ -261,15 +261,15 @@ async function setRecording(recording: boolean): Promise<void> {
   if (state.recordingStatus === 'loading') return
   const previous = state.recording
   state.recordingStatus = 'loading'
-  state.recordingMessage = recording ? '正在继续记录' : '正在暂停并刷新当前片段'
+  state.recordingMessage = recording ? '启动中' : '暂停中'
   try {
     state.recording = await setDesktopRecording(recording)
     state.recordingStatus = 'ready'
-    state.recordingMessage = state.recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
+    state.recordingMessage = state.recording ? '记录中' : '已暂停'
   } catch (error) {
     state.recording = previous
     state.recordingStatus = 'error'
-    state.recordingMessage = errorMessage(error, '无法修改活动记录状态')
+    state.recordingMessage = errorMessage(error, '无法修改')
     showToast(state.recordingMessage)
   }
 }
@@ -279,10 +279,10 @@ async function syncRecording(): Promise<void> {
   try {
     state.recording = await getDesktopRecording()
     state.recordingStatus = 'ready'
-    state.recordingMessage = state.recording ? '活动与字符键计数正在记录' : '活动与字符键计数已暂停'
+    state.recordingMessage = state.recording ? '记录中' : '已暂停'
   } catch (error) {
     state.recordingStatus = 'error'
-    state.recordingMessage = errorMessage(error, '无法读取活动记录状态')
+    state.recordingMessage = errorMessage(error, '状态读取失败')
     showToast(state.recordingMessage)
   }
 }
@@ -318,7 +318,7 @@ async function refreshInputData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++inputRequest
   state.inputDataStatus = 'loading'
-  state.inputDataMessage = '正在读取 iTime 本机输入记录'
+  state.inputDataMessage = '读取中'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 32)
@@ -333,17 +333,17 @@ async function refreshInputData(): Promise<void> {
     const { health } = result.snapshot
     if (!health.collectorRunning) {
       state.inputDataStatus = 'error'
-      state.inputDataMessage = 'Windows 键盘计数器未运行'
+      state.inputDataMessage = '计数器未运行'
     } else if (!health.writerRunning || health.queueDisconnected) {
       state.inputDataStatus = 'error'
-      state.inputDataMessage = health.lastError || '键盘字符键计数写入线程未运行'
+      state.inputDataMessage = health.lastError || '写入线程未运行'
     } else if (health.droppedEvents > 0) {
       state.inputDataStatus = 'degraded'
-      state.inputDataMessage = `键盘计数部分可用；队列拥塞已丢弃 ${health.droppedEvents} 次字符键事件`
+      state.inputDataMessage = `丢弃 ${health.droppedEvents} 次`
     } else if (health.writeFailures > 0 || health.readFailures > 0 || result.snapshot.skippedRecords > 0) {
       state.inputDataStatus = 'degraded'
       state.inputDataMessage = health.lastError
-        || `键盘计数部分可用；已跳过 ${result.snapshot.skippedRecords} 条损坏记录`
+        || `跳过 ${result.snapshot.skippedRecords} 条损坏记录`
     } else if (health.lastError) {
       state.inputDataStatus = 'degraded'
       state.inputDataMessage = health.lastError
@@ -352,14 +352,14 @@ async function refreshInputData(): Promise<void> {
       state.inputDataMessage = 'iTime 键盘字符键计数已连接'
     } else {
       state.inputDataStatus = 'empty'
-      state.inputDataMessage = '键盘计数已启动；从本次版本启用后开始记录'
+      state.inputDataMessage = '已启动，等待记录'
     }
     state.lastDataRefreshAt = Date.now()
     state.migrationState = 'ready'
   } catch (error) {
     if (request !== inputRequest) return
     state.inputDataStatus = 'error'
-    state.inputDataMessage = errorMessage(error, '本机输入数据暂时不可用')
+    state.inputDataMessage = errorMessage(error, '输入数据不可用')
   }
 }
 
@@ -367,7 +367,7 @@ async function refreshActivityData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++activityRequest
   state.activityDataStatus = 'loading'
-  state.activityDataMessage = '正在读取 iTime 本机活动记录'
+  state.activityDataMessage = '读取中'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
@@ -382,25 +382,25 @@ async function refreshActivityData(): Promise<void> {
     updateAvailableDates()
     if (!result.snapshot.health.collectorRunning) {
       state.activityDataStatus = 'error'
-      state.activityDataMessage = '本机活动采集器未运行'
+      state.activityDataMessage = '采集器未运行'
     } else if (result.snapshot.health.lastError) {
       state.activityDataStatus = 'degraded'
-      state.activityDataMessage = `采集写入异常：${result.snapshot.health.lastError}`
+      state.activityDataMessage = `写入异常：${result.snapshot.health.lastError}`
     } else if (result.snapshot.skippedRecords > 0) {
       state.activityDataStatus = 'degraded'
-      state.activityDataMessage = `已跳过 ${result.snapshot.skippedRecords} 条损坏或不兼容的活动记录`
+      state.activityDataMessage = `跳过 ${result.snapshot.skippedRecords} 条损坏记录`
     } else if (result.snapshot.intervals.length) {
       state.activityDataStatus = 'ready'
-      state.activityDataMessage = '本机活动已连接；仅统计启用后的记录'
+      state.activityDataMessage = '已连接'
     } else {
       state.activityDataStatus = 'empty'
-      state.activityDataMessage = '已开始记录；接入前的应用历史不会补造'
+      state.activityDataMessage = '已开始记录'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== activityRequest) return
     state.activityDataStatus = 'error'
-    state.activityDataMessage = errorMessage(error, 'iTime 本机活动记录暂时不可用')
+    state.activityDataMessage = errorMessage(error, '活动记录不可用')
   }
 }
 
@@ -411,12 +411,12 @@ async function refreshProviderData(): Promise<void> {
     providerDates.value = []
     updateAvailableDates()
     state.providerDataStatus = 'disabled'
-    state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
+    state.providerDataMessage = '未授权；不扫描、不上报'
     return
   }
   const request = ++providerRequest
   state.providerDataStatus = 'loading'
-  state.providerDataMessage = '正在读取已授权的 AI Agent 编程工具'
+  state.providerDataMessage = '读取中'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
@@ -429,7 +429,7 @@ async function refreshProviderData(): Promise<void> {
     state.providerConsent = result.snapshot.consent
     if (result.snapshot.status === 'disabled') {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
+      state.providerDataMessage = '未授权；不扫描、不上报'
     } else if (result.snapshot.status === 'unavailable') {
       const detected = result.snapshot.capabilities.tools
         .filter((tool) => tool.installed)
@@ -437,44 +437,44 @@ async function refreshProviderData(): Promise<void> {
         .join('、')
       state.providerDataStatus = 'error'
       if (result.snapshot.diagnostics.permissionFailures > 0) {
-        state.providerDataMessage = 'AI Agent 编程工具目录没有读取权限'
+        state.providerDataMessage = '无读取权限'
       } else if (result.snapshot.diagnostics.readFailures > 0) {
-        state.providerDataMessage = 'AI Agent 编程工具目录读取失败'
+        state.providerDataMessage = '目录读取失败'
       } else if (detected) {
-        state.providerDataMessage = `已检测 ${detected}，当前版本暂无法精确统计`
+        state.providerDataMessage = `已检测 ${detected}，暂无法精确统计`
       } else {
-        state.providerDataMessage = '未检测到受支持的 AI Agent 编程工具'
+        state.providerDataMessage = '未检测到支持的工具'
       }
     } else if (result.snapshot.status === 'partial') {
       const { diagnostics } = result.snapshot
       state.providerDataStatus = 'degraded'
       if (diagnostics.permissionFailures > 0) {
-        state.providerDataMessage = `AI Agent 编程工具部分可用；${diagnostics.permissionFailures} 个目录或文件没有读取权限`
+        state.providerDataMessage = `部分可用；${diagnostics.permissionFailures} 处无权限`
       } else if (diagnostics.readFailures > 0) {
-        state.providerDataMessage = `AI Agent 编程工具部分可用；${diagnostics.readFailures} 个目录或文件读取失败`
+        state.providerDataMessage = `部分可用；${diagnostics.readFailures} 处读取失败`
       } else if (diagnostics.badLines + diagnostics.badEvents > 0) {
-        state.providerDataMessage = `AI Agent 编程工具部分可用；已忽略 ${diagnostics.badLines} 个损坏行和 ${diagnostics.badEvents} 个异常事件`
+        state.providerDataMessage = `部分可用；忽略 ${diagnostics.badLines + diagnostics.badEvents} 条异常`
       } else {
         const unsupported = result.snapshot.capabilities.tools
           .filter((tool) => tool.installed && !tool.exactDuration)
           .map((tool) => tool.displayName)
           .join('、')
         state.providerDataMessage = unsupported
-          ? `已检测 ${unsupported}，当前版本暂无法精确统计`
-          : '部分 AI Agent 编程工具会话结构暂不可用'
+          ? `已检测 ${unsupported}，暂无法精确统计`
+          : '部分会话暂不可用'
       }
     } else if (result.snapshot.intervals.length) {
       state.providerDataStatus = 'ready'
-      state.providerDataMessage = `已读取 ${result.snapshot.intervals.length} 个 AI Agent 可靠执行区间`
+      state.providerDataMessage = `${result.snapshot.intervals.length} 个执行区间`
     } else {
       state.providerDataStatus = 'empty'
-      state.providerDataMessage = 'AI Agent 编程工具已连接；所选日期未检测到可靠执行区间'
+      state.providerDataMessage = '已连接；当日无执行区间'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== providerRequest) return
     state.providerDataStatus = 'error'
-    state.providerDataMessage = errorMessage(error, 'AI Agent 编程工具本机会话暂时不可用')
+    state.providerDataMessage = errorMessage(error, '会话不可用')
   }
 }
 
@@ -486,15 +486,15 @@ async function syncProviderConsent(): Promise<void> {
     state.providerConsentStatus = 'ready'
     if (state.providerConsent.aiAgentToolsEnabled) {
       state.providerDataStatus = 'loading'
-      state.providerDataMessage = '正在读取已授权的 AI Agent 编程工具'
+      state.providerDataMessage = '读取中'
     } else {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
+      state.providerDataMessage = '未授权；不扫描、不上报'
     }
   } catch (error) {
     state.providerConsentStatus = 'error'
     state.providerDataStatus = 'error'
-    state.providerDataMessage = errorMessage(error, '无法读取 AI Agent 编程工具授权设置')
+    state.providerDataMessage = errorMessage(error, '授权读取失败')
   }
 }
 
@@ -511,7 +511,7 @@ async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noti
     await refreshProviderData()
   } catch (error) {
     state.providerConsentStatus = 'error'
-    showToast(errorMessage(error, '无法保存 AI Agent 编程工具授权设置'))
+    showToast(errorMessage(error, '授权保存失败'))
   }
 }
 
@@ -521,10 +521,10 @@ async function refreshAutostart(): Promise<void> {
   try {
     state.autostartEnabled = await getAutostartEnabled()
     state.autostartStatus = 'ready'
-    state.autostartMessage = state.autostartEnabled ? '已由 Windows 注册开机启动' : '当前不会随 Windows 启动'
+    state.autostartMessage = state.autostartEnabled ? '已注册开机启动' : '未随系统启动'
   } catch (error) {
     state.autostartStatus = 'error'
-    state.autostartMessage = errorMessage(error, '无法读取 Windows 启动设置')
+    state.autostartMessage = errorMessage(error, '读取失败')
   }
 }
 
@@ -536,11 +536,11 @@ async function setAutostart(enabled: boolean): Promise<void> {
     state.autostartEnabled = confirmed
     state.autostartStatus = confirmed === enabled ? 'ready' : 'error'
     state.autostartMessage = confirmed === enabled
-      ? (confirmed ? '已开启；下次登录 Windows 时自动启动' : '已关闭开机自启动')
-      : 'Windows 返回的启动状态与请求不一致'
+      ? (confirmed ? '已开启' : '已关闭')
+      : '状态不一致'
   } catch (error) {
     state.autostartStatus = 'error'
-    state.autostartMessage = errorMessage(error, '无法修改 Windows 启动设置')
+    state.autostartMessage = errorMessage(error, '修改失败')
   }
 }
 
@@ -562,7 +562,7 @@ async function refreshLocalData(): Promise<void> {
   if (!desktopRuntime) return
   const request = ++localDataRequest
   state.localDataStatus = 'loading'
-  state.localDataMessage = '正在检查本地数据目录'
+  state.localDataMessage = '检查中'
   try {
     const status = await loadLocalDataStatus()
     if (request !== localDataRequest) return
@@ -570,7 +570,7 @@ async function refreshLocalData(): Promise<void> {
   } catch (error) {
     if (request !== localDataRequest) return
     state.localDataStatus = 'error'
-    state.localDataMessage = errorMessage(error, '无法读取本地数据状态')
+    state.localDataMessage = errorMessage(error, '读取失败')
   }
 }
 
@@ -580,7 +580,7 @@ async function openLocalData(): Promise<void> {
   try {
     await openLocalDataDirectory()
   } catch (error) {
-    showToast(errorMessage(error, '无法打开本地数据目录'))
+    showToast(errorMessage(error, '无法打开目录'))
   } finally {
     state.localDataBusy = null
   }
@@ -590,14 +590,14 @@ async function updateDataRetention(retentionDays: DataRetentionDays): Promise<vo
   if (!desktopRuntime || state.localDataBusy) return
   state.localDataBusy = 'retention'
   state.localDataStatus = 'loading'
-  state.localDataMessage = '正在保存保留期并安全清理旧分片'
+  state.localDataMessage = '保存中'
   try {
     applyLocalDataStatus(await saveDataRetention(retentionDays))
     await Promise.all([refreshInputData(), refreshActivityData()])
-    showToast(retentionDays === null ? '本地数据将永久保留' : `本地数据将保留 ${retentionDays} 天`)
+    showToast(retentionDays === null ? '永久保留' : `保留 ${retentionDays} 天`)
   } catch (error) {
     state.localDataStatus = 'error'
-    state.localDataMessage = errorMessage(error, '无法更新数据保留期')
+    state.localDataMessage = errorMessage(error, '保留期更新失败')
     showToast(state.localDataMessage)
   } finally {
     state.localDataBusy = null
@@ -607,14 +607,14 @@ async function updateDataRetention(retentionDays: DataRetentionDays): Promise<vo
 async function exportLocalRecords(format: DataExportFormat): Promise<void> {
   if (!desktopRuntime || state.localDataBusy) return
   state.localDataBusy = format
-  state.localDataExportMessage = `正在生成 ${format.toUpperCase()} 导出`
+  state.localDataExportMessage = `导出 ${format.toUpperCase()}…`
   try {
     const result = await exportLocalData(format)
-    state.localDataExportMessage = `已导出 ${result.activityRecords + result.keyboardRecords} 条记录：${result.path}`
+    state.localDataExportMessage = `已导出 ${result.activityRecords + result.keyboardRecords} 条：${result.path}`
     await refreshLocalData()
-    showToast(`${format.toUpperCase()} 导出已写入 Data\\Exports`)
+    showToast(`${format.toUpperCase()} 已导出`)
   } catch (error) {
-    state.localDataExportMessage = errorMessage(error, `无法导出 ${format.toUpperCase()}`)
+    state.localDataExportMessage = errorMessage(error, `导出 ${format.toUpperCase()} 失败`)
     showToast(state.localDataExportMessage)
   } finally {
     state.localDataBusy = null
@@ -625,7 +625,7 @@ async function clearLocalRecords(): Promise<boolean> {
   if (!desktopRuntime || state.localDataBusy) return false
   state.localDataBusy = 'clear'
   state.localDataStatus = 'loading'
-  state.localDataMessage = '正在暂停采集并删除本地记录'
+  state.localDataMessage = '删除中'
   try {
     const status = await clearAllLocalData()
     liveActivityDataset.value = { version: 'itime-local-activity-v1', events: [] }
@@ -636,11 +636,11 @@ async function clearLocalRecords(): Promise<boolean> {
     updateAvailableDates()
     applyLocalDataStatus(status)
     await Promise.all([refreshInputData(), refreshActivityData()])
-    showToast('本地活动与字符键计数已删除')
+    showToast('本地记录已删除')
     return true
   } catch (error) {
     state.localDataStatus = 'error'
-    state.localDataMessage = errorMessage(error, '无法删除全部本地数据')
+    state.localDataMessage = errorMessage(error, '删除失败')
     showToast(state.localDataMessage)
     return false
   } finally {

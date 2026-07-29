@@ -33,11 +33,11 @@ const intervalRows = computed<IntervalRow[]>(() => {
 })
 
 const definitions = [
-  ['AI Agent 执行', '仅统计能验证任务开始与结束的 AI Agent 区间；当前来源只观察前台活动时保持不可用。'],
-  ['前台活跃', '设备处于活跃状态且前台进程匹配 AI 工具；不代表持续输入，也不读取提示词、对话或文件内容。'],
-  ['静默等待', '工具处于等待、暂停等状态的区间，不计入有效执行。'],
-  ['并行重叠', '工具有效执行与人的前台活动在时间上相交；只说明同时发生，不表示因果关系。'],
-  ['检测置信度', '表示采样证据对活动归属的支持程度，不是工具的“知性度”、产出质量或能力评分。'],
+  ['AI Agent 执行', '可验证起止的执行区间'],
+  ['前台活跃', '工具在前台；不读内容'],
+  ['静默等待', '等待/暂停，不计入执行'],
+  ['并行重叠', '与前台活动同时发生'],
+  ['检测置信度', '证据可信度，非能力评分'],
 ] as const
 
 function onKeydown(event: KeyboardEvent): void {
@@ -82,21 +82,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <template v-if="tool">
           <header class="ai-drawer__header">
             <ApplicationIcon :icon-key="tool.iconKey" :app-name="tool.toolName" :size="38" />
-            <div><span>本机采样详情</span><h2 id="ai-detail-title">{{ tool.toolName }}</h2></div>
+            <div><span>详情</span><h2 id="ai-detail-title">{{ tool.toolName }}</h2></div>
             <em :class="`is-${tool.status}`">{{ statusLabels[tool.status] }}</em>
           </header>
 
-          <p class="ai-drawer__privacy">数据来自本机活动事件的时间匹配。iTime 不读取提示词、对话、按键内容或文件正文。</p>
+          <p class="ai-drawer__privacy">本机时间匹配；不读提示词、对话与正文。</p>
 
           <dl class="ai-drawer__metrics">
-            <div><dt>AI Agent 执行</dt><dd>{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '—' }}</dd><small>{{ executionAvailable ? `${tool.taskCount} 组执行记录` : '当前来源未提供' }}</small></div>
-            <div><dt>前台活跃</dt><dd>{{ formatDuration(tool.foregroundDuration, true) }}</dd><small>设备活跃且工具在前台</small></div>
-            <div><dt>静默等待</dt><dd>{{ executionAvailable ? formatDuration(tool.silentWaitDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '不计入 AI Agent 执行' : '当前来源未提供' }}</small></div>
-            <div><dt>并行重叠</dt><dd>{{ executionAvailable ? formatDuration(tool.parallelOverlapDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '与人的活动同时发生' : '当前来源未提供' }}</small></div>
+            <div><dt>AI Agent 执行</dt><dd>{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '—' }}</dd><small>{{ executionAvailable ? `${tool.taskCount} 组` : '—' }}</small></div>
+            <div><dt>前台活跃</dt><dd>{{ formatDuration(tool.foregroundDuration, true) }}</dd><small>工具在前台</small></div>
+            <div><dt>静默等待</dt><dd>{{ executionAvailable ? formatDuration(tool.silentWaitDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '不计入执行' : '—' }}</small></div>
+            <div><dt>并行重叠</dt><dd>{{ executionAvailable ? formatDuration(tool.parallelOverlapDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '同时发生' : '—' }}</small></div>
           </dl>
 
           <section class="ai-drawer__section">
-            <div class="ai-drawer__section-title"><div><span>运行区间</span><h3>当天采样记录</h3></div><strong>{{ intervalRows.length }} 条</strong></div>
+            <div class="ai-drawer__section-title"><div><span>区间</span><h3>今日记录</h3></div><strong>{{ intervalRows.length }} 条</strong></div>
             <div v-if="intervalRows.length" class="ai-drawer__intervals">
               <div v-for="item in intervalRows" :key="item.id" class="ai-drawer__interval">
                 <i :class="`is-${item.tone}`"></i><span>{{ formatClock(item.start) }}–{{ formatClock(item.end) }}</span><strong>{{ item.label }}</strong>
@@ -106,7 +106,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </section>
 
           <section class="ai-drawer__section">
-            <div class="ai-drawer__section-title"><div><span>指标口径</span><h3>这些数字分别代表什么</h3></div></div>
+            <div class="ai-drawer__section-title"><div><span>口径</span><h3>指标说明</h3></div></div>
             <dl class="ai-drawer__definitions">
               <div v-for="definition in definitions" :key="definition[0]"><dt>{{ definition[0] }}</dt><dd>{{ definition[1] }}</dd></div>
             </dl>

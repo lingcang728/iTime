@@ -80,12 +80,12 @@ function saveQuietHours(): void {
 
 <template>
   <section class="page goals-page">
-    <PageHeader title="提醒与目标" subtitle="按你的节奏设定边界；所有目标都可随时调整" />
+    <PageHeader title="提醒与目标" subtitle="每日目标与休息提醒" />
     <section v-if="activityDataAvailable" class="goal-overview" aria-labelledby="goal-overview-title">
       <div class="goal-overview__copy">
-        <span>今日目标</span>
-        <h2 id="goal-overview-title">{{ reachedCount ? `${reachedCount} 个目标已经达成` : '按自己的节奏继续' }}</h2>
-        <p>进度来自本机活动记录，只用于提醒，不评价工作效率。</p>
+        <span>今日</span>
+        <h2 id="goal-overview-title">{{ reachedCount ? `已达成 ${reachedCount} 项` : '继续推进' }}</h2>
+        <p>仅作提醒，不评价效率</p>
       </div>
       <div class="goal-overview__progress" aria-label="综合进度">
         <PhTarget :size="24" weight="regular" aria-hidden="true" />
@@ -104,7 +104,7 @@ function saveQuietHours(): void {
         </header>
         <strong>{{ formatDuration(goal.current, true) }} <i>/ {{ formatDuration(goal.target, true) }}</i></strong>
         <div class="goal-progress" aria-hidden="true"><i :style="{ width: `${goal.progress}%` }"></i></div>
-        <p>{{ goal.current >= goal.target ? '今天已达到设定目标' : `还差 ${formatDuration(goal.target - goal.current, true)}` }}</p>
+        <p>{{ goal.current >= goal.target ? '已达成' : `还差 ${formatDuration(goal.target - goal.current, true)}` }}</p>
       </article>
     </section>
     <div v-else class="section-state goals-source-state" :data-state="store.state.activityDataStatus">
@@ -115,7 +115,7 @@ function saveQuietHours(): void {
       <section class="goal-editor" aria-labelledby="goal-editor-title">
         <header>
           <span class="section-line-icon"><PhFloppyDisk :size="20" weight="regular" aria-hidden="true" /></span>
-          <div><span>目标编辑</span><h2 id="goal-editor-title">设置每天想投入的分钟数</h2><p>保存后会同步到首页目标进度和提醒。</p></div>
+          <div><span>编辑</span><h2 id="goal-editor-title">每日目标（分钟）</h2></div>
         </header>
         <div class="target-form">
           <label v-for="definition in goalDefinitions" :key="definition.id">
@@ -124,13 +124,13 @@ function saveQuietHours(): void {
             <small>{{ definition.hint }}</small>
           </label>
         </div>
-        <div class="form-footer"><p :class="{ error: targetError }" role="status" aria-live="polite">{{ targetMessage || '请输入整数分钟；超出合理范围时不会保存。' }}</p><button class="save-button" type="button" @click="saveTargets"><PhCheck :size="17" />保存目标</button></div>
+        <div class="form-footer"><p :class="{ error: targetError }" role="status" aria-live="polite">{{ targetMessage || '请输入整数分钟' }}</p><button class="save-button" type="button" @click="saveTargets"><PhCheck :size="17" />保存</button></div>
       </section>
 
       <aside class="reminder-panel" aria-label="提醒设置">
         <section class="reminder-row">
           <span class="section-line-icon"><PhBell :size="20" weight="regular" aria-hidden="true" /></span>
-          <div><span>连续使用提醒</span><h2>每 {{ store.state.goals.continuous }} 分钟提醒休息</h2><p>达到阈值后显示一次温和提醒。</p></div>
+          <div><span>连续使用</span><h2>每 {{ store.state.goals.continuous }} 分钟提醒</h2></div>
           <label class="toggle"><input v-model="store.state.reminders" type="checkbox" aria-label="启用连续使用休息提醒"><i></i></label>
         </section>
         <section class="quiet-section">
@@ -139,7 +139,7 @@ function saveQuietHours(): void {
             <div><span>安静时段</span><h2>记录继续，通知暂停</h2></div>
           </header>
           <div class="time-range"><label><span>开始</span><input v-model="quietDraft.start" type="time"></label><b>至</b><label><span>结束</span><input v-model="quietDraft.end" type="time"></label></div>
-          <div class="quiet-footer"><p :class="{ error: quietError }" role="status" aria-live="polite">{{ quietMessage || '支持跨午夜时段，例如 22:30 至 08:00。' }}</p><button type="button" @click="saveQuietHours">保存时段</button></div>
+          <div class="quiet-footer"><p :class="{ error: quietError }" role="status" aria-live="polite">{{ quietMessage || '可跨午夜，如 22:30–08:00' }}</p><button type="button" @click="saveQuietHours">保存</button></div>
         </section>
       </aside>
     </div>

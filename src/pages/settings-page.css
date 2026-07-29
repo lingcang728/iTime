@@ -215,7 +215,7 @@
 .source-status p { margin: 3px 0 0; color: var(--text-muted); font-size: var(--text-xs); }
 
 .source-facts { margin: 12px 0 0; padding: 6px 0 0; }
-.source-facts::before { display: block; margin-bottom: 6px; color: var(--text-primary); content: '能力概览'; font-size: var(--text-body); font-weight: 680; }
+.source-facts::before { display: block; margin-bottom: 6px; color: var(--text-primary); content: '概览'; font-size: var(--text-body); font-weight: 680; }
 .source-facts div { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 44px; padding: 0 3px; font-size: var(--text-sm); }
 .source-facts div > svg { color: var(--text-secondary); }
 .source-facts dt { color: var(--text-secondary); }

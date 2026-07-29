@@ -37,20 +37,20 @@ describe('settings privacy surface', () => {
     await nextTick()
     const switches = wrapper.findAll('.provider-list input[type="checkbox"]')
     expect(switches).toHaveLength(1)
-    expect(wrapper.text()).toContain('匿名硬件、性能与每日工具汇总')
+    expect(wrapper.text()).toContain('匿名上报硬件与工具汇总')
     expect(switches[0].attributes('checked')).toBeUndefined()
     wrapper.unmount()
   })
 
   it('disables the recording switch while the backend transition is pending', async () => {
     store.state.recordingStatus = 'loading'
-    store.state.recordingMessage = '正在暂停并刷新当前片段'
+    store.state.recordingMessage = '暂停中'
     const wrapper = mount(SettingsPage, {
       global: { stubs: { PageHeader: true } },
     })
     const activityRow = wrapper.findAll('.control-row')
       .find((row) => row.text().includes('活动记录'))
-    expect(activityRow?.text()).toContain('正在暂停并刷新当前片段')
+    expect(activityRow?.text()).toContain('暂停中')
     expect(activityRow?.get('input').attributes('disabled')).toBeDefined()
 
     store.state.recordingStatus = 'ready'

@@ -565,8 +565,8 @@ with sync_playwright() as playwright:
         )
         page.emulate_media(reduced_motion="no-preference")
         report["interactions"]["inputKeyboardOnly"] = (
-            page.get_by_text("字符键按下总次数", exact=True).count() == 1
-            and page.get_by_text("活跃分钟平均字符键按下", exact=True).count() == 1
+            page.get_by_text("字符键次数", exact=True).count() == 1
+            and page.get_by_text("活跃分钟均值", exact=True).count() == 1
             and page.get_by_text("输入节奏", exact=True).count() == 0
             and page.get_by_text("鼠标移动", exact=True).count() == 0
             and page.get_by_text("键盘热力图", exact=True).count() == 0
@@ -702,20 +702,20 @@ with sync_playwright() as playwright:
         wait_ready(page)
         learning_goal = page.locator('.target-form input').first
         learning_goal.fill("135")
-        page.get_by_role("button", name="保存目标").click()
+        page.get_by_role("button", name="保存").click()
         report["interactions"]["editableGoals"] = page.get_by_text("目标已保存", exact=False).count() > 0
 
         page.goto(url("settings"))
         wait_ready(page)
         report["interactions"]["realSettingsSources"] = (
             page.get_by_text("开机自启动", exact=True).count() == 1
-            and page.get_by_text("本机键盘计数", exact=True).count() == 1
-            and page.get_by_text("Windows 字符键按下计数", exact=True).count() == 1
-            and page.locator("#provider-title").get_by_text("AI Agent 编程工具", exact=True).count() == 1
-            and page.get_by_text("关闭后停止目录检测、匿名设备上报并清空待上传队列", exact=False).count() == 1
+            and page.get_by_text("键盘计数", exact=True).count() == 1
+            and page.get_by_text("字符键计数", exact=True).count() == 1
+            and page.locator("#provider-title").get_by_text("AI Agent 工具", exact=True).count() == 1
+            and page.get_by_text("关闭后停止检测与匿名上报", exact=False).count() == 1
             and page.locator(".provider-list input[type=\"checkbox\"]").count() == 1
             and page.locator("#update-title").get_by_text("软件更新", exact=True).count() == 1
-            and page.get_by_text("GitHub Release 检查签名安装包", exact=False).count() == 1
+            and page.get_by_text("每日最多静默检查一次", exact=False).count() == 1
             and page.get_by_text("输入统计与隐私", exact=True).count() == 0
             and page.get_by_text("启用前请了解读取与上报边界", exact=True).count() == 0
             and page.get_by_text("接入前历史不会被补造", exact=True).count() == 0

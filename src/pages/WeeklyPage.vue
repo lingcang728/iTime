@@ -110,7 +110,7 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
 
     <template v-else>
       <section class="weekly-section weekly-daily-card" aria-labelledby="daily-title">
-        <h2 id="daily-title">每日电脑活动</h2>
+        <h2 id="daily-title">每日活动</h2>
         <div class="weekly-days">
           <article v-for="day in summary.days" :key="day.date" :class="{ best: day.date === summary.bestDay?.date }">
             <span><PhStar v-if="day.date === summary.bestDay?.date" :size="12" weight="fill" />{{ day.label }}<small>{{ day.note }}</small></span>
@@ -127,7 +127,7 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
 
       <div class="weekly-analysis-grid">
         <section class="weekly-section focus-panel">
-          <header class="weekly-section-heading"><h2>前台专注热力图 <PhInfo :size="14" /></h2></header>
+          <header class="weekly-section-heading"><h2>专注热力图 <PhInfo :size="14" /></h2></header>
           <div class="weekly-heatmap" role="grid" aria-label="本周分时专注热力图">
             <span></span><span v-for="day in summary.days" :key="day.date" class="heat-day">{{ day.label }}<small>{{ day.note }}</small></span>
             <template v-for="(row, rowIndex) in hourlyHeat" :key="row.label">
@@ -149,37 +149,37 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
         </section>
 
         <section class="weekly-section insight-panel">
-          <header class="weekly-section-heading"><h2>本周洞察</h2></header>
+          <header class="weekly-section-heading"><h2>本周</h2></header>
           <div class="weekly-insights">
-            <article><PhClock :size="25" /><span><small>前台专注时长最多</small><strong>{{ summary.bestDay?.label ?? '暂无记录' }} {{ hourLabel(summary.bestDay?.foreground) }}</strong></span></article>
-            <article><PhTarget :size="25" /><span><small>最长连续前台区间</small><strong>{{ summary.longestForeground ? `${summary.longestForeground.label} ${formatClock(summary.longestForeground.start)}–${formatClock(summary.longestForeground.end)}` : '暂无记录' }}</strong></span></article>
-            <article><PhChartLineUp :size="25" /><span><small>周度对比</small><strong>{{ comparisonLabel(summary.improvementPercent, summary.comparisonBasis) }}</strong></span></article>
-            <article><PhMoon :size="25" /><span><small>夜间前台活跃（00–06 / 22–24）</small><strong>{{ summary.nightForeground === null ? '暂无数据' : formatDuration(summary.nightForeground, true) }}</strong></span></article>
+            <article><PhClock :size="25" /><span><small>专注最多</small><strong>{{ summary.bestDay?.label ?? '—' }} {{ hourLabel(summary.bestDay?.foreground) }}</strong></span></article>
+            <article><PhTarget :size="25" /><span><small>最长连续</small><strong>{{ summary.longestForeground ? `${summary.longestForeground.label} ${formatClock(summary.longestForeground.start)}–${formatClock(summary.longestForeground.end)}` : '—' }}</strong></span></article>
+            <article><PhChartLineUp :size="25" /><span><small>周对比</small><strong>{{ comparisonLabel(summary.improvementPercent, summary.comparisonBasis) }}</strong></span></article>
+            <article><PhMoon :size="25" /><span><small>夜间（00–06 / 22–24）</small><strong>{{ summary.nightForeground === null ? '—' : formatDuration(summary.nightForeground, true) }}</strong></span></article>
           </div>
         </section>
 
         <section class="weekly-section top-apps-panel">
-          <header class="weekly-section-heading"><h2>Top 应用</h2><span>前 8 项</span></header>
+          <header class="weekly-section-heading"><h2>Top 应用</h2><span>Top 8</span></header>
           <WeeklyTopApps :apps="summary.topApps.slice(0, 8)" />
         </section>
       </div>
 
       <div class="weekly-secondary-grid">
         <section class="weekly-section attention-panel">
-          <header class="weekly-section-heading"><h2>前台专注与 AI 前台活跃 <PhInfo :size="14" /></h2></header>
+          <header class="weekly-section-heading"><h2>专注与 AI <PhInfo :size="14" /></h2></header>
           <WeeklyTrendChart :points="trendPoints" />
         </section>
 
         <section class="weekly-section achievements-panel">
-          <header class="weekly-section-heading"><h2><PhTrophy :size="17" />本周成就</h2><span>前 3 项</span></header>
+          <header class="weekly-section-heading"><h2><PhTrophy :size="17" />成就</h2><span>Top 3</span></header>
           <WeeklyAchievements :achievements="summary.achievements.slice(0, 3)" />
         </section>
       </div>
 
       <section class="weekly-input-summary">
-        <div class="input-heading"><strong>键盘输入统计</strong><PhInfo :size="14" /></div>
-        <div class="input-stat"><PhKeyboard :size="27" /><span><small>字符键按下总次数</small><strong>{{ summary.totalInput !== null ? formatNumber(summary.totalInput) : '—' }} <i>次</i></strong></span></div>
-        <div class="input-stat"><PhChartLineUp :size="27" /><span><small>有记录日平均字符键按下</small><strong>{{ averageInput !== null ? formatNumber(averageInput) : '—' }} <i>次 / 日</i></strong></span></div>
+        <div class="input-heading"><strong>键盘</strong><PhInfo :size="14" /></div>
+        <div class="input-stat"><PhKeyboard :size="27" /><span><small>字符键合计</small><strong>{{ summary.totalInput !== null ? formatNumber(summary.totalInput) : '—' }} <i>次</i></strong></span></div>
+        <div class="input-stat"><PhChartLineUp :size="27" /><span><small>有记录日均</small><strong>{{ averageInput !== null ? formatNumber(averageInput) : '—' }} <i>次 / 日</i></strong></span></div>
       </section>
     </template>
   </section>

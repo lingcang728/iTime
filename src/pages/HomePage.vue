@@ -105,7 +105,7 @@ function dismissReminder(): void {
 
 <template>
   <section class="page home-page">
-    <PageHeader title="首页" subtitle="概览你的专注与时间分布，AI 帮你更好地安排每一天。" />
+    <PageHeader title="首页" subtitle="今日概览" />
 
     <div class="metrics-grid metrics-grid--home">
       <MetricCard :label="metricDefinitions.computerActivity.name" :value-parts="durationParts(computerDuration)" :detail="computerComparison" :icon="PhClock" visual="bars" :trend="computerTrend" :info="metricInfo('computerActivity')" />
@@ -117,10 +117,10 @@ function dismissReminder(): void {
     <div class="home-data-grid">
       <article class="ranking-card">
         <div class="section-heading">
-          <h2>应用使用排行</h2>
-          <span class="section-meta">前 7 项</span>
+          <h2>应用排行</h2>
+          <span class="section-meta">Top 7</span>
         </div>
-        <div class="ranking-columns" aria-hidden="true"><span>应用</span><span>使用时长</span><span>占比</span></div>
+        <div class="ranking-columns" aria-hidden="true"><span>应用</span><span>时长</span><span>占比</span></div>
         <div v-if="rankingRows.length" class="ranking-list">
           <div v-for="(app, index) in rankingRows" :key="app.appId" class="ranking-row">
             <span class="rank">{{ index + 1 }}</span>
@@ -138,7 +138,7 @@ function dismissReminder(): void {
 
       <article class="today-timeline">
         <div class="section-heading">
-          <h2>时间线 · 今日活动</h2>
+          <h2>今日活动</h2>
           <span class="section-meta">最近 8 段</span>
         </div>
         <div v-if="timelineRows.length" class="home-activity-list" aria-label="今日应用活动时间线">
@@ -159,14 +159,14 @@ function dismissReminder(): void {
     <article class="home-summary-bar home-insight-card">
       <span class="insight-mark"><PhSparkle :size="22" weight="fill" /></span>
       <div class="insight-copy">
-        <strong>今日洞察</strong>
-        <p v-if="foregroundDuration !== null && focusPercent !== null">今天记录到 {{ formatDuration(foregroundDuration, true) }} 的前台专注，约占设备活动的 {{ focusPercent }}%。</p>
-        <p v-else>当前缺少完整的设备活动或前台应用数据，暂不生成占比结论。</p>
-        <small>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)} 是今天最长的连续前台区间。` : '记录更多活动后，这里会显示可验证的前台节奏。' }}</small>
+        <strong>今日</strong>
+        <p v-if="foregroundDuration !== null && focusPercent !== null">前台 {{ formatDuration(foregroundDuration, true) }} · 占比 {{ focusPercent }}%</p>
+        <p v-else>数据不足，暂无结论</p>
+        <small>{{ longestInterval ? `最长连续：${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '继续记录后显示节奏' }}</small>
       </div>
-      <div class="insight-stat"><small>最长前台区间</small><strong>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '—' }}</strong></div>
-      <div class="insight-stat"><small>专注时长最长应用</small><strong>{{ topApp?.appName ?? '—' }}<template v-if="topApp">（{{ formatDuration(topApp.duration, true) }}）</template></strong></div>
-      <div class="insight-stat"><small>最长区间时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
+      <div class="insight-stat"><small>最长区间</small><strong>{{ longestInterval ? `${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '—' }}</strong></div>
+      <div class="insight-stat"><small>最长应用</small><strong>{{ topApp?.appName ?? '—' }}<template v-if="topApp">（{{ formatDuration(topApp.duration, true) }}）</template></strong></div>
+      <div class="insight-stat"><small>区间时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
       <div v-if="reminderVisible" class="wellbeing-card">
         <PhEye :size="18" />
         <span>已连续使用 {{ store.state.currentReminder?.continuousMinutes }} 分钟</span>

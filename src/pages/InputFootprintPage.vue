@@ -17,12 +17,12 @@ const averageCharacters = computed(() => {
   return activeMinutes ? snapshot.value.cumulative.keyStrokes / activeMinutes : 0
 })
 const pageSubtitles: Record<InputDataStatus, string> = {
-  ready: '直接统计 Windows 字符键敲击；不保存键值或输入内容',
-  preview: '展示浏览器预览数据；桌面版直接统计字符键敲击',
-  loading: '正在连接 iTime 键盘计数器',
-  empty: '键盘计数器已连接；等待第一条字符键记录',
-  degraded: '键盘计数器部分可用；请查看状态详情',
-  error: '键盘计数器读取失败',
+  ready: '仅计字符键，不保存内容',
+  preview: '预览数据',
+  loading: '连接中',
+  empty: '已连接，等待首条记录',
+  degraded: '部分可用',
+  error: '读取失败',
 }
 const pageSubtitle = computed(() => pageSubtitles[store.state.inputDataStatus])
 const sourceStateTitle = computed(() => {
@@ -42,11 +42,11 @@ function metricDetail(detail: string): string {
 
 <template>
   <section class="page input-page">
-    <PageHeader title="键盘输入统计" :subtitle="pageSubtitle" />
+    <PageHeader title="键盘统计" :subtitle="pageSubtitle" />
 
     <div class="input-stat-strip">
-      <MetricCard label="字符键按下总次数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('所选日期的字符键按下事件计数')" :icon="PhKeyboard" tone="accent" :info="metricInfo('inputKeyStrokes')" />
-      <MetricCard label="活跃分钟平均字符键按下" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('每个有字符键记录的分钟；不等同于最终上屏文字')" :icon="PhChartLineUp" tone="neutral" :info="metricInfo('inputKeyStrokes')" />
+      <MetricCard label="字符键次数" :value="metricValue(formatNumber(snapshot.cumulative.keyStrokes))" :detail="metricDetail('当日合计')" :icon="PhKeyboard" tone="accent" :info="metricInfo('inputKeyStrokes')" />
+      <MetricCard label="活跃分钟均值" :value="metricValue(formatNumber(averageCharacters))" :detail="metricDetail('有按键的分钟平均')" :icon="PhChartLineUp" tone="neutral" :info="metricInfo('inputKeyStrokes')" />
     </div>
 
     <div v-if="!inputDataAvailable" class="section-state input-source-state" :data-state="store.state.inputDataStatus">

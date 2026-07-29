@@ -54,9 +54,9 @@ function dateKey(date: Date): string {
     <section v-if="hasSeries" class="trend-section">
       <header class="trend-heading">
         <div>
-          <span class="trend-eyebrow">键盘活动</span>
+          <span class="trend-eyebrow">键盘</span>
           <h2>历史趋势</h2>
-          <p>按自然日汇总字符键按下；没有采集记录的日期显示为 0</p>
+          <p>按日汇总；无记录为 0</p>
         </div>
         <div class="chart-mode" :data-active="chartMode" role="group" aria-label="图表样式">
           <button type="button" :aria-pressed="chartMode === 'line'" @click="chartMode = 'line'">
@@ -73,29 +73,29 @@ function dateKey(date: Date): string {
           <button type="button" :aria-pressed="rangeDays === 7" @click="rangeDays = 7">7 天</button>
           <button type="button" :aria-pressed="rangeDays === 30" @click="rangeDays = 30">30 天</button>
         </div>
-        <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" />只保留聚合计数</span>
+        <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" />仅聚合计数</span>
       </div>
 
       <InputTrendChart :points="points" :mode="chartMode" :ariaLabel="`最近 ${rangeDays} 天键盘输入趋势`" />
 
       <footer class="trend-summary">
         <div class="trend-total">
-          <span>{{ rangeDays }} 天总计</span>
+          <span>{{ rangeDays }} 天合计</span>
           <strong>{{ formatNumber(total) }}</strong>
-          <small>次字符键按下</small>
+          <small>次</small>
         </div>
         <dl>
           <div><dt>日均</dt><dd>{{ formatNumber(average) }}</dd></div>
           <div><dt>最高</dt><dd>{{ peakPoint?.accessibleLabel }} · {{ formatNumber(peakPoint?.value ?? 0) }}</dd></div>
           <div><dt>有记录</dt><dd>{{ recordedDays }} 天</dd></div>
-          <div><dt>采集粒度</dt><dd>{{ granularityLabel }}</dd></div>
+          <div><dt>粒度</dt><dd>{{ granularityLabel }}</dd></div>
         </dl>
       </footer>
     </section>
 
     <section v-else class="history-empty">
       <PhChartLineUp :size="24" weight="regular" />
-      <div><strong>这一天没有输入汇总</strong><p>切换到有记录的日期后，这里会显示数据源实际提供的粒度。</p></div>
+      <div><strong>暂无汇总</strong><p>切换到有记录的日期查看</p></div>
     </section>
   </section>
 </template>

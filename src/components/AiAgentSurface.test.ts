@@ -35,8 +35,8 @@ describe('AI agent surface', () => {
       global: { stubs: { ApplicationIcon: true, Transition: false } },
     })
     expect(wrapper.text()).toContain('前台活跃')
-    expect(wrapper.text()).toContain('不读取提示词、对话、按键内容或文件正文')
-    expect(wrapper.text()).toContain('不是工具的“知性度”')
+    expect(wrapper.text()).toContain('不读提示词、对话与正文')
+    expect(wrapper.text()).toContain('非能力评分')
     expect(wrapper.text()).toContain('检测置信度')
     wrapper.unmount()
   })
@@ -52,8 +52,8 @@ describe('AI agent surface', () => {
         },
       },
     })
-    expect(wrapper.text()).toContain('今日洞察')
-    expect(wrapper.text()).toContain('执行区间来自已授权 AI Agent 编程工具的本机会话时间与事件类型元数据')
+    expect(wrapper.text()).toContain('今日')
+    expect(wrapper.text()).toContain('来源：本机会话元数据')
     expect(wrapper.text()).toContain('最活跃时段')
     expect(wrapper.text()).toContain('最佳并发时段')
     expect(wrapper.findComponent({ name: 'ProviderActivityIcon' }).exists()).toBe(true)

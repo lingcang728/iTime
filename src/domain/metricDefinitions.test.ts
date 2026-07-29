@@ -9,7 +9,7 @@ describe('metric definitions', () => {
       expect(definition.window).not.toBe('')
       expect(definition.missing).not.toBe('')
     }
-    expect(metricInfo('foregroundSwitches')).toContain('相邻同应用片段不重复计数')
+    expect(metricInfo('foregroundSwitches')).toContain('相邻前台应用变化次数')
   })
 
   it('never converts a missing comparison baseline into zero', () => {
