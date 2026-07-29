@@ -1,0 +1,7 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="30" fill="#0A0A0A"/>
+  <!-- xAI / Grok-style star mark -->
+  <path d="M64 18L72.4 48.2L104 48.2L78.8 66.9L87.2 97.1L64 78.4L40.8 97.1L49.2 66.9L24 48.2L55.6 48.2L64 18Z" fill="#F5F5F5"/>
+  <circle cx="64" cy="64" r="11" fill="#0A0A0A"/>
+  <circle cx="64" cy="64" r="5.5" fill="#F5F5F5"/>
+</svg>

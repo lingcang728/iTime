@@ -85,6 +85,7 @@ fn candidate_paths_for(key: &str) -> Vec<PathBuf> {
                 [
                     join(&local, r"AnthropicClaude\claude.exe"),
                     join(&local, r"Programs\claude\Claude.exe"),
+                    join(&local, r"Programs\PowerShell7-AI-Launchers\claude.exe"),
                     join(&roaming, r"Claude\Claude.exe"),
                 ],
             );
@@ -95,8 +96,27 @@ fn candidate_paths_for(key: &str) -> Vec<PathBuf> {
                 &mut paths,
                 [
                     join(&local, r"Programs\Codex\Codex.exe"),
+                    join(&local, r"Programs\PowerShell7-AI-Launchers\codex.exe"),
                     join(&local, r"Microsoft\WindowsApps\Codex.exe"),
                 ],
+            );
+        }
+        "grok" | "grok-build" => {
+            push(
+                &mut paths,
+                [
+                    join(&local, r"Programs\PowerShell7-AI-Launchers\grok.exe"),
+                    join(&user, r".grok\bin\grok.exe"),
+                ],
+            );
+        }
+        "opencode" => {
+            push(
+                &mut paths,
+                [join(
+                    &local,
+                    r"Programs\PowerShell7-AI-Launchers\opencode.exe",
+                )],
             );
         }
         "typeless" => {

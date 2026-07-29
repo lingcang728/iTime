@@ -561,7 +561,7 @@ impl ProviderActivityService {
 
 fn disabled_snapshot(consent: ProviderConsent) -> ProviderActivitySnapshot {
     ProviderActivitySnapshot {
-        source: "AI Agent 编程工具读取与匿名上报未授权",
+        source: "AI Agent 编程工具读取未授权",
         status: "disabled",
         updated_at: u128::from(unix_millis()),
         scanned_files: 0,

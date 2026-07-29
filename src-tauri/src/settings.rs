@@ -35,7 +35,7 @@ impl ProviderConsent {
             return Err("AI Agent 编程工具授权版本不受支持".into());
         }
         if self.ai_agent_tools_enabled && !self.notice_seen {
-            return Err("启用 AI Agent 编程工具前必须先确认本地读取与匿名上报说明".into());
+            return Err("启用 AI Agent 编程工具前必须先确认本地读取说明".into());
         }
         Ok(())
     }

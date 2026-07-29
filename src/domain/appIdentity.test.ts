@@ -45,7 +45,10 @@ describe('appIdentity', () => {
   it('maps display names to stable icon identities', () => {
     expect(canonicalAppKey('文件资源管理器')).toBe('explorer')
     expect(canonicalAppKey('Claude Code')).toBe('claude')
+    expect(canonicalAppKey('claude-code')).toBe('claude')
     expect(canonicalAppKey('Codex')).toBe('codex')
+    expect(canonicalAppKey('Grok Build')).toBe('grok')
+    expect(canonicalAppKey('grok-build')).toBe('grok')
     expect(canonicalAppKey('WindowsTerminal')).toBe('windows-terminal')
     expect(canonicalAppKey('clash-verge')).toBe('clash-verge')
     expect(canonicalAppKey('Weixin')).toBe('wechat')

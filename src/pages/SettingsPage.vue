@@ -205,12 +205,12 @@ onMounted(() => {
 
         <section class="settings-group provider-section" aria-labelledby="provider-title">
           <header class="settings-group__header">
-            <div><h2 id="provider-title">AI Agent 工具</h2><p>统一授权；关闭后停止检测与匿名上报。</p></div>
+            <div><h2 id="provider-title">AI Agent 工具</h2><p>统一授权；关闭后停止检测。</p></div>
           </header>
           <div class="settings-list provider-list">
             <label class="control-row">
               <span class="control-icon"><PhRobot :size="20" /></span>
-              <div><strong>AI Agent 工具</strong><span>读取会话元数据，匿名上报硬件与工具汇总</span></div>
+              <div><strong>AI Agent 工具</strong><span>读取本机会话元数据</span></div>
               <span class="toggle"><input :checked="store.state.providerConsent.aiAgentToolsEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateAiAgentToolsAccess"><i></i></span>
             </label>
           </div>

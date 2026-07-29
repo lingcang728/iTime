@@ -712,7 +712,9 @@ with sync_playwright() as playwright:
             and page.get_by_text("键盘计数", exact=True).count() == 1
             and page.get_by_text("字符键计数", exact=True).count() == 1
             and page.locator("#provider-title").get_by_text("AI Agent 工具", exact=True).count() == 1
-            and page.get_by_text("关闭后停止检测与匿名上报", exact=False).count() == 1
+            and page.get_by_text("关闭后停止检测", exact=False).count() == 1
+            and page.get_by_text("读取本机会话元数据", exact=False).count() == 1
+            and page.get_by_text("匿名上报", exact=False).count() == 0
             and page.locator(".provider-list input[type=\"checkbox\"]").count() == 1
             and page.locator("#update-title").get_by_text("软件更新", exact=True).count() == 1
             and page.get_by_text("每日最多静默检查一次", exact=False).count() == 1

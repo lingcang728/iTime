@@ -36,8 +36,22 @@ describe('AppIcon', () => {
   })
 
   it('keeps embedded assets as browser-preview fallbacks for known app names', async () => {
-    for (const appName of ['Codex', 'Typeless']) {
+    for (const appName of ['Codex', 'Typeless', 'Grok Build', 'Claude Code', '文件资源管理器']) {
       const wrapper = mount(AppIcon, { props: { appIdentity: 'process:anonymous', appName, size: 24 } })
+      await Promise.resolve()
+      expect(wrapper.find('img').exists()).toBe(true)
+      wrapper.unmount()
+    }
+  })
+
+  it('maps CLI agent tool ids to brand icons', async () => {
+    for (const [iconKey, appName] of [
+      ['grok-build', 'Grok Build'],
+      ['claude-code', 'Claude Code'],
+      ['codex', 'Codex'],
+      ['explorer', '文件资源管理器'],
+    ] as const) {
+      const wrapper = mount(AppIcon, { props: { iconKey, appName, size: 24 } })
       await Promise.resolve()
       expect(wrapper.find('img').exists()).toBe(true)
       wrapper.unmount()

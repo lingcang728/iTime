@@ -448,31 +448,25 @@ async function refreshProviderData(): Promise<void> {
       const { diagnostics } = result.snapshot
       state.providerDataStatus = 'degraded'
       if (diagnostics.permissionFailures > 0) {
-        state.providerDataMessage = `部分可用；${diagnostics.permissionFailures} 处无权限`
+        state.providerDataMessage = '部分可用；部分目录无权限'
       } else if (diagnostics.readFailures > 0) {
-        state.providerDataMessage = `部分可用；${diagnostics.readFailures} 处读取失败`
+        state.providerDataMessage = '部分可用；部分目录读取失败'
       } else if (diagnostics.badLines + diagnostics.badEvents > 0) {
-        state.providerDataMessage = `部分可用；忽略 ${diagnostics.badLines + diagnostics.badEvents} 条异常`
+        state.providerDataMessage = '部分可用；已忽略异常记录'
       } else if (readyTools.length) {
-        state.providerDataMessage = `${readyTools.map((t) => t.displayName).join('、')} 可用`
+        state.providerDataMessage = `${readyTools.length} 个工具可用`
       } else {
         // Installed but no exact parser yet — not "broken", just not timed.
-        const names = installedTools.map((tool) => tool.displayName).join('、')
-        state.providerDataMessage = names
-          ? `已安装 ${names}；会话计时待接入`
+        state.providerDataMessage = installedTools.length
+          ? '已安装；会话计时待接入'
           : '已安装；会话计时待接入'
       }
     } else if (result.snapshot.intervals.length) {
       state.providerDataStatus = 'ready'
-      const readyLabel = readyTools.length
-        ? ` · ${readyTools.map((t) => t.displayName).join('、')}`
-        : ''
-      state.providerDataMessage = `${result.snapshot.intervals.length} 个执行区间${readyLabel}`
+      state.providerDataMessage = `${result.snapshot.intervals.length} 个执行区间`
     } else {
       state.providerDataStatus = 'empty'
-      state.providerDataMessage = readyTools.length
-        ? `${readyTools.map((t) => t.displayName).join('、')} 已连接；当日无执行区间`
-        : '已连接；当日无执行区间'
+      state.providerDataMessage = '已连接；当日无执行区间'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {

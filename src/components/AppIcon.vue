@@ -11,6 +11,8 @@ import {
 import { embeddedAppIcons } from '../data/appIconAssets'
 import chromeIcon from '../assets/apps/chrome.svg'
 import claudeIcon from '../assets/apps/claude.svg'
+import explorerIcon from '../assets/apps/explorer.svg'
+import grokIcon from '../assets/apps/grok.svg'
 import vscodeIcon from '../assets/apps/vscode.svg'
 import itimeIcon from '../assets/logo.svg'
 import {
@@ -42,11 +44,14 @@ const props = withDefaults(
 )
 const store = useAppStore()
 
+/** Local brand assets — take priority over flaky native extraction for known apps/CLIs. */
 const localIcons: Record<string, string> = {
   claude: claudeIcon,
-  vscode: vscodeIcon,
   chrome: chromeIcon,
+  explorer: explorerIcon,
+  grok: grokIcon,
   itime: itimeIcon,
+  vscode: vscodeIcon,
 }
 
 const status = ref<IconStatus>('loading')
@@ -87,6 +92,8 @@ const requestedNativeSize = computed(() =>
 const embeddedSource = computed(
   () => localIcons[displayKey.value] ?? embeddedAppIcons[displayKey.value] ?? null,
 )
+/** Catalog brand icons win: CLI agents rarely ship a real .exe icon. */
+const preferEmbedded = computed(() => Boolean(embeddedSource.value))
 const accent = computed(() => {
   store.themeRevision.value
   return identityAccent(identityInfo.value.identity)
@@ -95,6 +102,7 @@ const glyph = computed(() => identityGlyph(props.appName, identityInfo.value.ide
 
 const displayUrl = computed(() => {
   if (imageBroken.value) return null
+  if (preferEmbedded.value) return embeddedSource.value
   return nativeUrl.value ?? embeddedSource.value
 })
 
