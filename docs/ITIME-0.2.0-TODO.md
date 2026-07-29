@@ -8,7 +8,7 @@
 - [x] 匿名硬件、性能和每日工具汇总遥测。
 - [x] 独立私有 `iTime-observability` Worker、D1 与开发者看板源码。
 - [x] GitHub Release 签名自动更新、更新前数据刷新和 `latest.json` 源码与发布脚本。
-- [ ] 应用、安装包、Tag 与 Release 统一为 `0.2.0`（源码、云端观测栈与本地产物已统一，等待发布 Tag/Release）。
+- [x] 应用、安装包、Tag 与 Release 已统一为 `0.2.0`。
 
 ## 当前外部条件
 
@@ -26,5 +26,5 @@
 - [x] `release/iTime.exe` 与 `release/iTime_0.2.0_x64-setup.exe` 同源同轮构建。
 - [x] 本机安装副本与桌面快捷方式同步。
 - [x] 源码提交并推送到 `origin/main`。
-- [ ] `v0.2.0` GitHub Release 包含两个 EXE 和 `latest.json`。
-- [ ] 重新下载远端资产并校验哈希、版本、URL 与 updater 签名。
+- [x] `v0.2.0` GitHub Release 包含两个 EXE 和 `latest.json`。
+- [x] 已重新下载远端资产并校验哈希、版本、URL 与 updater 签名。
