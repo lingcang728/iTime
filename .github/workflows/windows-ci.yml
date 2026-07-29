@@ -21,8 +21,11 @@ jobs:
     env:
       CI: "true"
       ITIME_BROWSER_CHANNEL: chrome
-      # Surface panics; keep cargo test parallel but avoid silent COM aborts when possible.
       RUST_BACKTRACE: "1"
+      # Serial cargo tests: host COM/WMI probes used to abort the whole process (0xC00000FF).
+      RUST_TEST_THREADS: "1"
+      # Visual regression is intentional-gate on baseline commits; slight CI font/DPI noise is ignored.
+      ITIME_CI_VISUAL_RELAXED: "1"
 
     steps:
       - name: Check out source

@@ -1,8 +1,19 @@
 use super::*;
 use crate::icons::identity::AppIdentityKind;
 
+fn skip_host_dependent_on_ci(label: &str) -> bool {
+    if std::env::var_os("CI").is_some() {
+        eprintln!("skip on CI: {label} depends on host-installed apps / shell COM");
+        return true;
+    }
+    false
+}
+
 #[test]
 fn extracts_known_vscode_icon_when_installed() {
+    if skip_host_dependent_on_ci("VS Code icon extract") {
+        return;
+    }
     // Given
     let req = vscode_request();
     let path = pipeline::resolve_source_path(&req);
@@ -24,6 +35,9 @@ fn extracts_known_vscode_icon_when_installed() {
 
 #[test]
 fn extracts_windows_rgba_when_known_vscode_path_is_installed() {
+    if skip_host_dependent_on_ci("VS Code RGBA extract") {
+        return;
+    }
     // Given
     let req = vscode_request();
     let Some(path) = pipeline::resolve_source_path(&req) else {
@@ -44,6 +58,9 @@ fn extracts_windows_rgba_when_known_vscode_path_is_installed() {
 
 #[test]
 fn extracts_an_installed_windows_shortcut_by_logical_name() {
+    if skip_host_dependent_on_ci("shortcut icon extract") {
+        return;
+    }
     for logical in [
         "obsidian",
         "notion",
@@ -72,6 +89,9 @@ fn extracts_an_installed_windows_shortcut_by_logical_name() {
 
 #[test]
 fn extracts_icon_from_an_explicit_real_executable_when_requested() {
+    if skip_host_dependent_on_ci("explicit EXE icon extract") {
+        return;
+    }
     let Ok(path) = std::env::var("ITIME_ICON_TEST_EXE") else {
         eprintln!("skip: ITIME_ICON_TEST_EXE is not set");
         return;
