@@ -8,14 +8,14 @@
 - [x] 匿名硬件、性能和每日工具汇总遥测。
 - [x] 独立私有 `iTime-observability` Worker、D1 与开发者看板源码。
 - [x] GitHub Release 签名自动更新、更新前数据刷新和 `latest.json` 源码与发布脚本。
-- [ ] 应用、安装包、Tag 与 Release 统一为 `0.2.0`（源码与本地产物已统一，等待 Cloudflare 部署后发布 Tag/Release）。
+- [ ] 应用、安装包、Tag 与 Release 统一为 `0.2.0`（源码、云端观测栈与本地产物已统一，等待发布 Tag/Release）。
 
 ## 当前外部条件
 
 - [x] GitHub CLI 已登录，公开仓库 `lingcang728/iTime` 可写。
-- [ ] Cloudflare API Token 与 Account ID：`wrangler whoami` 已确认本机未登录。
+- [x] Cloudflare OAuth 与 Account 已授权，Worker、D1 和 Pages 命令行可写。
 - [x] 私有 GitHub 仓库 `lingcang728/iTime-observability` 已创建并推送。
-- [ ] Cloudflare D1、Worker、Pages 与 Access：等待上述凭据后部署。
+- [x] Cloudflare D1、Worker、Pages 与全站私有认证已部署；当前 OAuth 没有 `Access: Apps and Policies Write`，因此先使用 Pages 顶层中间件与 Windows 凭据管理器的开发者密码实现 fail-closed，且保留 Cloudflare Access 邮箱头兼容。
 - [x] Tauri updater 签名密钥：已轮换，公钥写入配置，私钥与密码写入 GitHub Secrets，并保留 DPAPI 加密的离线备份。
 
 ## 验证与发布
