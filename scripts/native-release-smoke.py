@@ -140,6 +140,18 @@ def main() -> int:
                 timeout=15_000,
             )
 
+            app_version = invoke(page, "plugin:app|version")
+            if (
+                not isinstance(app_version, str)
+                or len(app_version.split(".")) != 3
+                or not all(part.isdigit() for part in app_version.split("."))
+            ):
+                raise AssertionError(f"application version was invalid: {app_version}")
+            report["checks"]["applicationVersion"] = {
+                "value": app_version,
+                "permissionGranted": True,
+            }
+
             initial_recording = invoke(page, "get_recording_state")
             if not isinstance(initial_recording, bool):
                 raise AssertionError("recording state was not boolean")
@@ -266,8 +278,12 @@ def main() -> int:
             page.locator(".local-data-section").wait_for(state="visible", timeout=15_000)
             for name in ("打开目录", "导出 JSON", "导出 CSV", "删除全部"):
                 check_button(page, name)
-            if page.locator(".provider-consent").count() != 1:
-                raise AssertionError("Provider permission notice was not visible")
+            if (
+                page.locator("#privacy-title").count() != 0
+                or page.locator(".provider-consent").count() != 0
+                or page.locator(".data-boundary").count() != 0
+            ):
+                raise AssertionError("removed settings boundary cards were still visible")
             tool_switch = page.locator(
                 ".provider-list input[type='checkbox']"
             )
@@ -281,12 +297,28 @@ def main() -> int:
             )
             if page.locator(".provider-source-status").count() != 1:
                 raise AssertionError("Provider source status was not visible")
+            update_label = page.locator(".update-status strong")
+            update_label.wait_for(state="visible", timeout=15_000)
+            page.wait_for_function(
+                """() => {
+                  const label = document.querySelector('.update-status strong')?.textContent?.trim();
+                  return Boolean(label && label !== '尚未检查' && label !== '正在检查');
+                }""",
+                timeout=20_000,
+            )
+            update_status = update_label.inner_text().strip()
+            if update_status != "已是最新版本":
+                error = page.locator(".update-status p").inner_text().strip()
+                raise AssertionError(
+                    f"desktop updater did not finish successfully: {update_status}: {error}"
+                )
             page.screenshot(path=str(screenshot_path), full_page=True)
             report["checks"]["nativeSettingsSurface"] = {
                 "localDataActionsVisible": True,
-                "providerPermissionNoticeVisible": True,
+                "removedBoundaryCardsHidden": True,
                 "singleAiAgentToolsSwitchDefaultOff": True,
                 "providerStatusVisible": True,
+                "updateStatus": update_status,
                 "screenshot": screenshot_path.name,
             }
 

@@ -17,8 +17,8 @@ afterEach(() => {
   store.state.recordingMessage = originalRecordingMessage
 })
 
-describe('AI Agent tool consent surface', () => {
-  it('shows the complete boundary and exactly one authorization switch', async () => {
+describe('settings privacy surface', () => {
+  it('keeps one authorization switch without the removed boundary cards', async () => {
     store.state.providerConsent = {
       version: 2,
       noticeSeen: false,
@@ -28,9 +28,9 @@ describe('AI Agent tool consent surface', () => {
       global: { stubs: { PageHeader: true } },
     })
 
-    expect(wrapper.text()).toContain('启用前请了解读取与上报边界')
-    expect(wrapper.text()).toContain('不会读取、保存、哈希或上传提示词')
-    expect(wrapper.text()).toContain('Cursor、Antigravity、Codex、Claude Code、OpenCode、Grok Build、Hermes 与 OpenClaw')
+    expect(wrapper.text()).not.toContain('输入统计与隐私')
+    expect(wrapper.text()).not.toContain('启用前请了解读取与上报边界')
+    expect(wrapper.text()).not.toContain('接入前历史不会被补造')
     expect(wrapper.findAll('.provider-list input[type="checkbox"]')).toHaveLength(1)
 
     store.state.providerConsent.noticeSeen = true

@@ -22,7 +22,7 @@ export interface UpdateViewState {
   error: string
 }
 
-const AUTO_CHECK_KEY = 'itime-updater-last-auto-check-v1'
+const AUTO_CHECK_KEY = 'itime-updater-last-auto-check-v2'
 const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1_000
 
 export const updateState = reactive<UpdateViewState>({
@@ -70,23 +70,27 @@ async function loadCurrentVersion(): Promise<void> {
 
 export async function checkForDesktopUpdate(manual = false): Promise<void> {
   if (!isTauriRuntime()) return
-  await loadCurrentVersion()
-  const lastCheck = Number(localStorage.getItem(AUTO_CHECK_KEY) ?? 0)
-  if (!manual && Date.now() - lastCheck < AUTO_CHECK_INTERVAL) return
-
   updateState.status = 'checking'
   updateState.error = ''
   try {
+    await loadCurrentVersion()
+    const lastCheck = Number(localStorage.getItem(AUTO_CHECK_KEY) ?? 0)
+    if (!manual && Date.now() - lastCheck < AUTO_CHECK_INTERVAL) {
+      updateState.status = 'upToDate'
+      return
+    }
+
     const { check } = await import('@tauri-apps/plugin-updater')
     pendingUpdate = await check({ timeout: 15_000 })
-    localStorage.setItem(AUTO_CHECK_KEY, String(Date.now()))
     if (!pendingUpdate) {
+      localStorage.setItem(AUTO_CHECK_KEY, String(Date.now()))
       updateState.status = 'upToDate'
       updateState.version = ''
       updateState.notes = ''
       updateState.sizeBytes = null
       return
     }
+    localStorage.removeItem(AUTO_CHECK_KEY)
     updateState.status = 'available'
     updateState.currentVersion = pendingUpdate.currentVersion
     updateState.version = pendingUpdate.version

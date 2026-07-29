@@ -232,7 +232,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($signature)) { throw 'updater 签名内容为空。' }
     $installerUrl = "https://github.com/lingcang728/iTime/releases/download/v$tauriVersion/$expectedSetupName"
     $releaseNotes = if ([string]::IsNullOrWhiteSpace($env:ITIME_RELEASE_NOTES)) {
-      'Windows 本地图标自动读取、统一 AI Agent 编程工具授权与匿名性能观测、GitHub 签名自动更新。'
+      '精简设置界面，并修复 EXE 版本读取与 GitHub Release 更新状态。'
     } else {
       $env:ITIME_RELEASE_NOTES.Trim()
     }

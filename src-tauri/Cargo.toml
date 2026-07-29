@@ -1,6 +1,6 @@
 [package]
 name = "itime"
-version = "0.2.0"
+version = "0.2.1"
 description = "A local-first screen time and AI work prototype"
 authors = ["iTime"]
 edition = "2021"

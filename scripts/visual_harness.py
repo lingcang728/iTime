@@ -716,6 +716,9 @@ with sync_playwright() as playwright:
             and page.locator(".provider-list input[type=\"checkbox\"]").count() == 1
             and page.locator("#update-title").get_by_text("软件更新", exact=True).count() == 1
             and page.get_by_text("GitHub Release 检查签名安装包", exact=False).count() == 1
+            and page.get_by_text("输入统计与隐私", exact=True).count() == 0
+            and page.get_by_text("启用前请了解读取与上报边界", exact=True).count() == 0
+            and page.get_by_text("接入前历史不会被补造", exact=True).count() == 0
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 

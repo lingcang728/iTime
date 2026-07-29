@@ -24,7 +24,7 @@ describe('updateService', () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', { value: {}, configurable: true })
     resetUpdateServiceForTests()
     vi.clearAllMocks()
-    mocks.getVersion.mockResolvedValue('0.2.0')
+    mocks.getVersion.mockResolvedValue('0.2.1')
     mocks.invoke.mockImplementation(async (command) => (
       command === 'prepare_for_update' ? { portable: false } : undefined
     ))
@@ -38,8 +38,8 @@ describe('updateService', () => {
       onEvent({ event: 'Finished' })
     })
     mocks.check.mockResolvedValue({
-      currentVersion: '0.2.0',
-      version: '0.2.1',
+      currentVersion: '0.2.1',
+      version: '0.2.2',
       date: '2026-07-29T00:00:00Z',
       body: '修复本地图标',
       rawJson: { size: 1_000 },
@@ -49,8 +49,8 @@ describe('updateService', () => {
     await checkForDesktopUpdate(true)
     expect(updateState).toMatchObject({
       status: 'available',
-      currentVersion: '0.2.0',
-      version: '0.2.1',
+      currentVersion: '0.2.1',
+      version: '0.2.2',
       notes: '修复本地图标',
       sizeBytes: 1_000,
     })
@@ -65,8 +65,8 @@ describe('updateService', () => {
   it('restores collection if download fails after preparation', async () => {
     mocks.downloadAndInstall.mockRejectedValue(new Error('network interrupted'))
     mocks.check.mockResolvedValue({
-      currentVersion: '0.2.0',
-      version: '0.2.1',
+      currentVersion: '0.2.1',
+      version: '0.2.2',
       rawJson: {},
       downloadAndInstall: mocks.downloadAndInstall,
     })
@@ -78,5 +78,27 @@ describe('updateService', () => {
     expect(mocks.invoke).toHaveBeenNthCalledWith(2, 'cancel_update_preparation')
     expect(updateState.status).toBe('failed')
     expect(updateState.error).toContain('network interrupted')
+  })
+
+  it('surfaces current-version failures instead of staying idle', async () => {
+    mocks.getVersion.mockRejectedValue(new Error('plugin:app|version not allowed'))
+
+    await checkForDesktopUpdate(true)
+
+    expect(mocks.check).not.toHaveBeenCalled()
+    expect(updateState.status).toBe('failed')
+    expect(updateState.error).toContain('plugin:app|version not allowed')
+  })
+
+  it('restores a recent successful auto-check as up to date after restart', async () => {
+    mocks.check.mockResolvedValue(null)
+
+    await checkForDesktopUpdate(false)
+    updateState.status = 'idle'
+    await checkForDesktopUpdate(false)
+
+    expect(mocks.check).toHaveBeenCalledOnce()
+    expect(updateState.currentVersion).toBe('0.2.1')
+    expect(updateState.status).toBe('upToDate')
   })
 })

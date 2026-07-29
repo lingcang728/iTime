@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import {
   PhArrowClockwise,
   PhChartBar,
-  PhDatabase,
   PhDesktop,
   PhDownloadSimple,
   PhFolderOpen,
@@ -204,24 +203,10 @@ onMounted(() => {
           </div>
         </section>
 
-        <section class="settings-group" aria-labelledby="privacy-title">
-          <header class="settings-group__header">
-            <div><h2 id="privacy-title">输入统计与隐私</h2><p>只保存聚合计数，不保存输入内容或可还原文字的事件序列。</p></div>
-          </header>
-          <div class="privacy-note"><PhShieldCheck :size="20" weight="regular" aria-hidden="true" /><p>iTime 只累计字符键按下次数并按分钟保存数量；不保存具体键值、键盘文字、密码内容、语音输入或剪贴板正文。</p></div>
-        </section>
-
         <section class="settings-group provider-section" aria-labelledby="provider-title">
           <header class="settings-group__header">
             <div><h2 id="provider-title">AI Agent 编程工具</h2><p>一个开关统一授权所有受支持工具；关闭后停止目录检测、匿名设备上报并清空待上传队列。</p></div>
           </header>
-          <div class="provider-consent" role="note" aria-labelledby="provider-consent-title">
-            <PhShieldCheck :size="24" weight="regular" aria-hidden="true" />
-            <div>
-              <strong id="provider-consent-title">启用前请了解读取与上报边界</strong>
-              <p>启用后，iTime 会检测 Cursor、Antigravity、Codex、Claude Code、OpenCode、Grok Build、Hermes 与 OpenClaw，只反序列化会话 ID、时间戳和事件类型；同时匿名上传电脑型号、CPU、GPU、内存、iTime 性能与每日工具汇总。不会读取、保存、哈希或上传提示词、回复、代码、工具输出、项目路径、用户名、序列号、MAC、窗口标题、按键内容或完整应用列表。</p>
-            </div>
-          </div>
           <div class="settings-list provider-list">
             <label class="control-row">
               <span class="control-icon"><PhRobot :size="20" /></span>
@@ -329,11 +314,6 @@ onMounted(() => {
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
             <PhArrowClockwise :size="17" weight="regular" />刷新键盘计数
           </button>
-        </section>
-
-        <section class="data-boundary">
-          <PhDatabase :size="22" weight="regular" aria-hidden="true" />
-          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器。AI Agent 执行只使用明确授权后可验证的本机会话时间事件。</p></div>
         </section>
       </aside>
     </div>
