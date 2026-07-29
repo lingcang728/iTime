@@ -21,6 +21,8 @@ jobs:
     env:
       CI: "true"
       ITIME_BROWSER_CHANNEL: chrome
+      # Surface panics; keep cargo test parallel but avoid silent COM aborts when possible.
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Check out source
@@ -50,6 +52,11 @@ jobs:
           npm ci
           python -m pip install --disable-pip-version-check playwright==1.58.0
           python -m playwright --version
+          # Prefer system Chrome via channel; fall back to Chromium if channel launch fails later.
+          if (-not (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe') -and
+              -not (Test-Path 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')) {
+            python -m playwright install chromium
+          }
 
       - name: Audit production dependencies
         run: npm run audit:prod

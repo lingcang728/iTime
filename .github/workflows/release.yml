@@ -57,6 +57,7 @@ jobs:
           python -m playwright --version
 
       - name: Validate immutable tag and versions
+        id: validate
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:ITIME_TELEMETRY_ENDPOINT) -or
@@ -71,13 +72,20 @@ jobs:
           $releaseExists = $LASTEXITCODE -eq 0
           $global:LASTEXITCODE = 0
           if ($releaseExists) {
-            throw '该标签已经存在 GitHub Release，拒绝覆盖。'
+            # Local package:release / gh release create already published this tag.
+            # Do not fail the workflow (that spams failure emails); just skip rebuild.
+            Write-Host "Release ${{ github.ref_name }} already exists — skipping immutable rebuild (no overwrite)."
+            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           }
 
       - name: Audit production dependencies
+        if: steps.validate.outputs.skip != 'true'
         run: npm run audit:prod
 
       - name: Build release from clean checkout
+        if: steps.validate.outputs.skip != 'true'
         run: npm run package:release
 
       - name: Upload synthetic visual failure evidence
@@ -91,10 +99,12 @@ jobs:
           include-hidden-files: false
 
       - name: Verify clean release manifest
+        if: steps.validate.outputs.skip != 'true'
         shell: pwsh
         run: ./scripts/verify-release-manifest.ps1 -RequireCleanSource
 
       - name: Create immutable GitHub Release
+        if: steps.validate.outputs.skip != 'true'
         shell: pwsh
         run: |
           $manifest = Get-Content -LiteralPath 'release/release-manifest.json' -Raw | ConvertFrom-Json
@@ -108,6 +118,7 @@ jobs:
             'release/latest.json'
 
       - name: Re-download and verify published assets
+        if: steps.validate.outputs.skip != 'true'
         shell: pwsh
         run: |
           $download = 'output/release-download'
