@@ -98,4 +98,23 @@ describe('provider activity adapter', () => {
       diagnostics: { ...wire.diagnostics, permissionFailures: -1 },
     })).toThrow()
   })
+
+  it('accepts an open-ended tool catalog larger than the original 8-tool set', () => {
+    const expanded = Array.from({ length: 25 }, (_, index) => ({
+      toolId: `tool-${index}`,
+      displayName: `Tool ${index}`,
+      installed: index < 3,
+      formatVersion: 'catalog-v1',
+      exactTaskCount: index < 3,
+      exactDuration: index < 3,
+      exactConcurrency: index < 3,
+      diagnosticStatus: index < 3 ? 'ready' as const : 'notInstalled' as const,
+    }))
+    const parsed = parseProviderActivitySnapshot({
+      ...wire,
+      capabilities: { contentCaptured: false, tools: expanded },
+    })
+    expect(parsed.capabilities.tools).toHaveLength(25)
+    expect(parsed.capabilities.tools.filter((tool) => tool.installed)).toHaveLength(3)
+  })
 })

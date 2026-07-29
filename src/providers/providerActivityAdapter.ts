@@ -55,6 +55,7 @@ const snapshotSchema = z.object({
   }),
   capabilities: z.object({
     contentCaptured: z.literal(false),
+    // Open-ended: Rust ProviderKind catalog can grow beyond any fixed size.
     tools: z.array(z.object({
       toolId: agentToolIdSchema,
       displayName: z.string().min(1),
@@ -71,7 +72,7 @@ const snapshotSchema = z.object({
         'schemaChanged',
         'permissionDenied',
       ]),
-    })).length(8),
+    })),
   }),
 })
 
