@@ -41,7 +41,7 @@ describe('AI agent surface', () => {
     wrapper.unmount()
   })
 
-  it('keeps the local provider evidence and insight windows on the AI page', () => {
+  it('keeps local AI Agent evidence and insight windows on the AI page', () => {
     const wrapper = mount(AiAgentsPage, {
       global: {
         stubs: {
@@ -53,7 +53,7 @@ describe('AI agent surface', () => {
       },
     })
     expect(wrapper.text()).toContain('今日洞察')
-    expect(wrapper.text()).toContain('执行区间来自已授权的 Codex/Claude Code 本机会话时间与事件类型元数据')
+    expect(wrapper.text()).toContain('执行区间来自已授权 AI Agent 编程工具的本机会话时间与事件类型元数据')
     expect(wrapper.text()).toContain('最活跃时段')
     expect(wrapper.text()).toContain('最佳并发时段')
     expect(wrapper.findComponent({ name: 'ProviderActivityIcon' }).exists()).toBe(true)

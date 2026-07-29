@@ -1,13 +1,12 @@
 import { z } from 'zod'
 import type { AiWorkInterval, TimeDataset, TimeRange } from '../domain/events'
 
-export const PROVIDER_CONSENT_VERSION = 1 as const
+export const PROVIDER_CONSENT_VERSION = 2 as const
 
 const providerConsentSchema = z.object({
   version: z.literal(PROVIDER_CONSENT_VERSION),
   noticeSeen: z.boolean(),
-  codexEnabled: z.boolean(),
-  claudeEnabled: z.boolean(),
+  aiAgentToolsEnabled: z.boolean(),
 })
 
 export type ProviderConsent = z.infer<typeof providerConsentSchema>
@@ -15,16 +14,27 @@ export type ProviderConsent = z.infer<typeof providerConsentSchema>
 export const defaultProviderConsent: ProviderConsent = {
   version: PROVIDER_CONSENT_VERSION,
   noticeSeen: false,
-  codexEnabled: false,
-  claudeEnabled: false,
+  aiAgentToolsEnabled: false,
 }
+
+export const agentToolIdSchema = z.enum([
+  'cursor',
+  'antigravity',
+  'codex',
+  'claude-code',
+  'opencode',
+  'grok-build',
+  'hermes',
+  'openclaw',
+])
+export type AgentToolId = z.infer<typeof agentToolIdSchema>
 
 const providerIntervalSchema = z.object({
   version: z.literal(1),
   start: z.number().int().nonnegative(),
   end: z.number().int().positive(),
-  provider: z.enum(['codex', 'claude']),
-  toolId: z.string().min(1),
+  provider: agentToolIdSchema,
+  toolId: agentToolIdSchema,
   toolName: z.string().min(1),
   agentId: z.string().min(1),
   taskId: z.string().min(1),
@@ -53,8 +63,23 @@ const snapshotSchema = z.object({
   }),
   capabilities: z.object({
     contentCaptured: z.literal(false),
-    codexTaskEvents: z.boolean(),
-    claudeTurnEvents: z.boolean(),
+    tools: z.array(z.object({
+      toolId: agentToolIdSchema,
+      displayName: z.string().min(1),
+      installed: z.boolean(),
+      formatVersion: z.string().min(1),
+      exactTaskCount: z.boolean(),
+      exactDuration: z.boolean(),
+      exactConcurrency: z.boolean(),
+      diagnosticStatus: z.enum([
+        'disabled',
+        'notInstalled',
+        'ready',
+        'detectedUnsupported',
+        'schemaChanged',
+        'permissionDenied',
+      ]),
+    })).length(8),
   }),
 })
 

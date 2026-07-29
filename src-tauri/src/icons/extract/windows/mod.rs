@@ -7,11 +7,47 @@ use super::{ExtractError, ExtractRequest, IconSource};
 use image::RgbaImage;
 use std::path::Path;
 
+fn non_generic(image: RgbaImage, size: u32) -> Option<RgbaImage> {
+    (!shell::is_generic_application_icon(&image, size)).then_some(image)
+}
+
+fn extract_shortcut(
+    shortcut: &shortcuts::ShortcutInfo,
+    size: u32,
+) -> Option<(RgbaImage, IconSource)> {
+    if let Ok(image) = shell::shell_item_image_from_path(&shortcut.path, size) {
+        if let Some(image) = non_generic(image, size) {
+            return Some((image, IconSource::Shortcut));
+        }
+    }
+    if let Some(icon_path) = shortcut.icon_path.as_deref().filter(|path| path.is_file()) {
+        if let Ok(image) = shell::extract_icon_ex_image_at(icon_path, shortcut.icon_index, size) {
+            if let Some(image) = non_generic(image, size) {
+                return Some((image, IconSource::Shortcut));
+            }
+        }
+    }
+    if let Ok(image) = shell::sh_get_file_info_image(&shortcut.path, size) {
+        if let Some(image) = non_generic(image, size) {
+            return Some((image, IconSource::Shortcut));
+        }
+    }
+    None
+}
+
 pub(super) fn extract_rgba_windows(
     req: &ExtractRequest,
     path: Option<&Path>,
     size: u32,
 ) -> Result<(RgbaImage, IconSource), ExtractError> {
+    if let Some(path) = path {
+        if let Some(shortcut) = shortcuts::find_shortcut_for_executable(path, &req.app_identity) {
+            if let Some(image) = extract_shortcut(&shortcut, size) {
+                return Ok(image);
+            }
+        }
+    }
+
     if let Some(aumid) = req.aumid.as_deref().filter(|value| !value.is_empty()) {
         let parsing_name = format!("shell:AppsFolder\\{aumid}");
         if let Ok(image) = shell::shell_item_image_from_parsing_name(&parsing_name, size) {
@@ -31,32 +67,27 @@ pub(super) fn extract_rgba_windows(
         }
     }
 
-    if let Some(shortcut) = shortcuts::find_shortcut_by_identity(&req.app_identity) {
-        if let Ok(image) = shell::shell_item_image_from_path(&shortcut, size) {
-            return Ok((image, IconSource::Shortcut));
+    if let Some(path) = path {
+        if let Ok(image) = shell::extract_icon_ex_image(path, size) {
+            if let Some(image) = non_generic(image, size) {
+                return Ok((image, IconSource::ExtractIcon));
+            }
         }
-        if let Ok(image) = shell::sh_get_file_info_image(&shortcut, size) {
-            return Ok((image, IconSource::Shortcut));
+        if let Ok(image) = shell::shell_item_image_from_path(path, size) {
+            if let Some(image) = non_generic(image, size) {
+                return Ok((image, IconSource::ShellItem));
+            }
+        }
+        if let Ok(image) = shell::sh_get_file_info_image(path, size) {
+            if let Some(image) = non_generic(image, size) {
+                return Ok((image, IconSource::ShGetFileInfo));
+            }
         }
     }
 
-    if let Some(path) = path {
-        if let Ok(image) = shell::shell_item_image_from_path(path, size) {
-            return Ok((image, IconSource::ShellItem));
-        }
-        if let Ok(image) = shell::sh_get_file_info_image(path, size) {
-            return Ok((image, IconSource::ShGetFileInfo));
-        }
-        if let Ok(image) = shell::extract_icon_ex_image(path, size) {
-            return Ok((image, IconSource::ExtractIcon));
-        }
-        if let Some(shortcut) = shortcuts::find_start_menu_shortcut(path) {
-            if let Ok(image) = shell::shell_item_image_from_path(&shortcut, size) {
-                return Ok((image, IconSource::Shortcut));
-            }
-            if let Ok(image) = shell::sh_get_file_info_image(&shortcut, size) {
-                return Ok((image, IconSource::Shortcut));
-            }
+    if let Some(shortcut) = shortcuts::find_shortcut_by_identity(&req.app_identity) {
+        if let Some(image) = extract_shortcut(&shortcut, size) {
+            return Ok(image);
         }
     }
 

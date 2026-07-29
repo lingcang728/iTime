@@ -58,6 +58,12 @@ export async function getDesktopRecording(): Promise<boolean> {
   return invoke<boolean>('get_recording_state')
 }
 
+export async function markDesktopUiReady(): Promise<void> {
+  if (!isTauriRuntime()) return
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('mark_ui_ready')
+}
+
 export async function configureDesktopReminders(input: {
   enabled: boolean
   intervalMinutes: number

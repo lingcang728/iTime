@@ -61,7 +61,7 @@ const lanes = computed<LaneView[]>(() => {
     segments: props.foreground.flatMap((item) => segment(item.id, 'human', item, item.appName)),
   }
   const tools = props.tools.map((tool): LaneView => {
-    const work = tool.workIntervals.flatMap((item) => segment(`work:${item.id}`, 'work', item, 'Provider 执行'))
+    const work = tool.workIntervals.flatMap((item) => segment(`work:${item.id}`, 'work', item, 'AI Agent 执行'))
     const interactions = tool.interactionIntervals.flatMap((item) => segment(`interaction:${item.id}`, 'interaction', item, 'AI 前台活跃'))
     const waits = tool.waitIntervals.flatMap((item, index) => segment(`${tool.toolId}-wait-${index}`, 'wait', item, '静默等待'))
     const overlap = intersectRanges(tool.workIntervals, props.foreground).flatMap((item, index) => segment(`${tool.toolId}-overlap-${index}`, 'overlap', item, '并行重叠'))
@@ -101,7 +101,7 @@ const lanes = computed<LaneView[]>(() => {
       </div>
     </div>
     <div class="timeline__legend" aria-label="图例">
-      <span class="is-human">人的前台活动</span><span class="is-work">Provider 执行</span>
+      <span class="is-human">人的前台活动</span><span class="is-work">AI Agent 执行</span>
       <span class="is-interaction">AI 前台活跃</span><span class="is-wait">静默等待</span><span class="is-overlap">并行重叠</span>
     </div>
   </div>

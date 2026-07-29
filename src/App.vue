@@ -20,7 +20,7 @@ import { useAppStore } from './stores/appStore'
 import {
   configureDesktopReminders,
   hideWindow, isTauriRuntime, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
-  quitApplication, startWindowDragging, toggleMaximizeWindow,
+  markDesktopUiReady, quitApplication, startWindowDragging, toggleMaximizeWindow,
 } from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import AppMark from './components/AppMark.vue'
@@ -28,6 +28,7 @@ import CloseDialog from './components/CloseDialog.vue'
 import { useNow } from './composables/useNow'
 import { runtimeSyncStatus } from './stores/runtimeStatus'
 import { registerListenersIndependently } from './platform/listenerRegistry'
+import { checkForDesktopUpdate } from './services/updateService'
 
 const store = useAppStore()
 const { nowMs } = useNow()
@@ -143,6 +144,9 @@ watch(
 
 onMounted(async () => {
   store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
+  await nextTick()
+  await markDesktopUiReady()
+  void checkForDesktopUpdate(false)
   window.addEventListener('keydown', handleKeydown)
   const listenerError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)

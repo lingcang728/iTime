@@ -149,6 +149,14 @@ pub(super) fn sh_get_file_info_image(path: &Path, size: u32) -> Result<RgbaImage
 }
 
 pub(super) fn extract_icon_ex_image(path: &Path, size: u32) -> Result<RgbaImage, ExtractError> {
+    extract_icon_ex_image_at(path, 0, size)
+}
+
+pub(super) fn extract_icon_ex_image_at(
+    path: &Path,
+    icon_index: i32,
+    size: u32,
+) -> Result<RgbaImage, ExtractError> {
     let wide = to_wide(path.as_os_str());
     let mut large_handle = HICON::default();
     let mut small_handle = HICON::default();
@@ -157,7 +165,7 @@ pub(super) fn extract_icon_ex_image(path: &Path, size: u32) -> Result<RgbaImage,
     let count = unsafe {
         ExtractIconExW(
             PCWSTR(wide.as_ptr()),
-            0,
+            icon_index,
             Some(&mut large_handle),
             Some(&mut small_handle),
             1,
@@ -192,6 +200,32 @@ pub(super) fn extract_icon_ex_image(path: &Path, size: u32) -> Result<RgbaImage,
         .copied()
         .ok_or_else(|| ExtractError::Api("ExtractIconExW empty icons".into()))?;
     gdi::hicon_to_rgba(icon, size)
+}
+
+pub(super) fn is_generic_application_icon(image: &RgbaImage, size: u32) -> bool {
+    let default_matches = default_application_icon(size)
+        .ok()
+        .is_some_and(|candidate| images_equivalent(image, &candidate));
+    if default_matches {
+        return true;
+    }
+    let generic_executable = Path::new(r"Z:\__itime_missing_icon_source__.exe");
+    sh_get_file_info_image(generic_executable, size)
+        .ok()
+        .is_some_and(|candidate| images_equivalent(image, &candidate))
+}
+
+fn images_equivalent(left: &RgbaImage, right: &RgbaImage) -> bool {
+    if left.dimensions() != right.dimensions() {
+        return false;
+    }
+    let total = left
+        .as_raw()
+        .iter()
+        .zip(right.as_raw())
+        .map(|(left, right)| u64::from(left.abs_diff(*right)))
+        .sum::<u64>();
+    total <= u64::from(left.width()) * u64::from(left.height()) * 4
 }
 
 pub(super) fn package_path_by_full_name(full_name: &str) -> Option<PathBuf> {
@@ -241,7 +275,8 @@ pub(super) fn default_application_icon(size: u32) -> Result<RgbaImage, ExtractEr
 
 #[cfg(test)]
 mod tests {
-    use super::com_initialization_needs_uninitialize;
+    use super::{com_initialization_needs_uninitialize, images_equivalent};
+    use image::{Rgba, RgbaImage};
     use windows::core::HRESULT;
 
     #[test]
@@ -251,5 +286,16 @@ mod tests {
         assert!(!com_initialization_needs_uninitialize(HRESULT(
             0x8001_0106u32 as i32
         ))); // RPC_E_CHANGED_MODE
+    }
+
+    #[test]
+    fn generic_icon_comparison_allows_only_tiny_rendering_noise() {
+        let base = RgbaImage::from_pixel(2, 2, Rgba([10, 20, 30, 255]));
+        let mut near = base.clone();
+        near.get_pixel_mut(0, 0).0[0] = 11;
+        assert!(images_equivalent(&base, &near));
+
+        let far = RgbaImage::from_pixel(2, 2, Rgba([240, 20, 30, 255]));
+        assert!(!images_equivalent(&base, &far));
     }
 }

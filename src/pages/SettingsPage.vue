@@ -16,17 +16,23 @@ import {
   PhRobot,
   PhShieldCheck,
   PhSun,
-  PhTerminalWindow,
   PhTrash,
   PhTray,
+  PhUploadSimple,
 } from '@phosphor-icons/vue'
 import PageHeader from '../components/PageHeader.vue'
 import { isTauriRuntime } from '../platform/desktop'
 import { useAppStore } from '../stores/appStore'
+import {
+  checkForDesktopUpdate,
+  downloadAndInstallDesktopUpdate,
+  updateState,
+} from '../services/updateService'
 
 const store = useAppStore()
 const desktopControlsAvailable = isTauriRuntime()
 const deleteArmed = ref(false)
+const updateInstallArmed = ref(false)
 
 const inputStatusLabel = computed(() => ({
   loading: '正在连接',
@@ -54,7 +60,7 @@ const providerStatusLabel = computed(() => ({
 }[store.state.providerDataStatus]))
 
 const providerEnabled = computed(() => (
-  store.state.providerConsent.codexEnabled || store.state.providerConsent.claudeEnabled
+  store.state.providerConsent.aiAgentToolsEnabled
 ))
 
 const localDataStatusLabel = computed(() => ({
@@ -67,12 +73,36 @@ const localDataStatusLabel = computed(() => ({
 }[store.state.localDataStatus]))
 
 const localDataBusy = computed(() => store.state.localDataBusy !== null)
+const updateBusy = computed(() => ['checking', 'downloading', 'installing'].includes(updateState.status))
+const updateProgress = computed(() => {
+  if (!updateState.totalBytes) return null
+  return Math.min(100, Math.round(updateState.downloadedBytes / updateState.totalBytes * 100))
+})
+const updateStatusLabel = computed(() => ({
+  idle: '尚未检查',
+  checking: '正在检查',
+  available: `发现 ${updateState.version}`,
+  downloading: '正在下载',
+  installing: '正在安装',
+  failed: '更新失败',
+  upToDate: '已是最新版本',
+}[updateState.status]))
 const retentionValue = computed(() => store.state.localData.retentionDays?.toString() ?? 'permanent')
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function formatUpdateDate(value: string): string {
+  if (!value) return '未提供发布时间'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
 }
 
 function formatMoment(value: number | null): string {
@@ -119,16 +149,11 @@ async function updateAutostart(event: Event): Promise<void> {
   await store.setAutostart(checkedValue(event))
 }
 
-async function acknowledgeProviderNotice(): Promise<void> {
-  await store.updateProviderConsent({ noticeSeen: true })
-}
-
-async function updateCodexAccess(event: Event): Promise<void> {
-  await store.updateProviderConsent({ noticeSeen: true, codexEnabled: checkedValue(event) })
-}
-
-async function updateClaudeAccess(event: Event): Promise<void> {
-  await store.updateProviderConsent({ noticeSeen: true, claudeEnabled: checkedValue(event) })
+async function updateAiAgentToolsAccess(event: Event): Promise<void> {
+  await store.updateProviderConsent({
+    noticeSeen: true,
+    aiAgentToolsEnabled: checkedValue(event),
+  })
 }
 
 async function updateRetention(event: Event): Promise<void> {
@@ -138,6 +163,11 @@ async function updateRetention(event: Event): Promise<void> {
 
 async function confirmClearLocalData(): Promise<void> {
   if (await store.clearLocalRecords()) deleteArmed.value = false
+}
+
+async function installUpdate(): Promise<void> {
+  updateInstallArmed.value = false
+  await downloadAndInstallDesktopUpdate()
 }
 
 onMounted(() => {
@@ -183,34 +213,55 @@ onMounted(() => {
 
         <section class="settings-group provider-section" aria-labelledby="provider-title">
           <header class="settings-group__header">
-            <div><h2 id="provider-title">Provider 本机会话授权</h2><p>Codex 与 Claude Code 分别授权；未启用的数据源不会枚举目录或读取文件。</p></div>
+            <div><h2 id="provider-title">AI Agent 编程工具</h2><p>一个开关统一授权所有受支持工具；关闭后停止目录检测、匿名设备上报并清空待上传队列。</p></div>
           </header>
-          <div v-if="!store.state.providerConsent.noticeSeen" class="provider-consent" role="note" aria-labelledby="provider-consent-title">
+          <div class="provider-consent" role="note" aria-labelledby="provider-consent-title">
             <PhShieldCheck :size="24" weight="regular" aria-hidden="true" />
             <div>
-              <strong id="provider-consent-title">先了解读取边界，再选择是否启用</strong>
-              <p>启用后，iTime 仅在对应本机会话目录中读取时间、事件类型、时长和文件更新时间，用于计算 Provider 执行区间。不会访问、保存或显示消息正文、提示词、回复内容和代码内容。关闭后立即停止扫描，并清除内存缓存。</p>
-              <button type="button" :disabled="store.state.providerConsentStatus === 'loading'" @click="acknowledgeProviderNotice">我已了解，选择数据源</button>
+              <strong id="provider-consent-title">启用前请了解读取与上报边界</strong>
+              <p>启用后，iTime 会检测 Cursor、Antigravity、Codex、Claude Code、OpenCode、Grok Build、Hermes 与 OpenClaw，只反序列化会话 ID、时间戳和事件类型；同时匿名上传电脑型号、CPU、GPU、内存、iTime 性能与每日工具汇总。不会读取、保存、哈希或上传提示词、回复、代码、工具输出、项目路径、用户名、序列号、MAC、窗口标题、按键内容或完整应用列表。</p>
             </div>
           </div>
-          <template v-else>
-            <div class="settings-list provider-list">
-              <label class="control-row">
-                <span class="control-icon"><PhTerminalWindow :size="20" /></span>
-                <div><strong>Codex 本机会话</strong><span>只读 %USERPROFILE%\.codex\sessions 中的任务开始、完成与中止时间事件。</span></div>
-                <span class="toggle"><input :checked="store.state.providerConsent.codexEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateCodexAccess"><i></i></span>
-              </label>
-              <label class="control-row">
-                <span class="control-icon"><PhRobot :size="20" /></span>
-                <div><strong>Claude Code 本机会话</strong><span>只读 %USERPROFILE%\.claude\projects 中的用户回合、结束与时长元数据。</span></div>
-                <span class="toggle"><input :checked="store.state.providerConsent.claudeEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateClaudeAccess"><i></i></span>
-              </label>
+          <div class="settings-list provider-list">
+            <label class="control-row">
+              <span class="control-icon"><PhRobot :size="20" /></span>
+              <div><strong>AI Agent 编程工具</strong><span>授权读取八类工具的本机会话结构元数据，并发送匿名硬件、性能与每日工具汇总。</span></div>
+              <span class="toggle"><input :checked="store.state.providerConsent.aiAgentToolsEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateAiAgentToolsAccess"><i></i></span>
+            </label>
+          </div>
+          <div :class="['source-status', 'provider-source-status', store.state.providerDataStatus]">
+            <span class="status-dot"></span><div><strong>{{ providerStatusLabel }}</strong><p>{{ store.state.providerDataMessage }}</p></div>
+            <button v-if="providerEnabled" type="button" :disabled="store.state.providerDataStatus === 'loading'" @click="store.refreshProviderData"><PhArrowClockwise :size="16" />刷新</button>
+          </div>
+        </section>
+
+        <section class="settings-group update-section" aria-labelledby="update-title">
+          <header class="settings-group__header">
+            <div><h2 id="update-title">软件更新</h2><p>从 iTime 的 GitHub Release 检查签名安装包；启动时每天最多静默检查一次。</p></div>
+          </header>
+          <div :class="['source-status', 'update-status', updateState.status]" role="status" aria-live="polite">
+            <span class="status-dot"></span>
+            <div>
+              <strong>{{ updateStatusLabel }}</strong>
+              <p v-if="updateState.status === 'available'">当前 {{ updateState.currentVersion }} · {{ formatUpdateDate(updateState.date) }}<template v-if="updateState.sizeBytes"> · {{ formatBytes(updateState.sizeBytes) }}</template></p>
+              <p v-else-if="updateState.status === 'downloading'">{{ updateProgress === null ? '正在接收签名安装包' : `已下载 ${updateProgress}%` }}</p>
+              <p v-else-if="updateState.status === 'installing'">本地数据已安全落盘，正在交给 Windows 安装器。</p>
+              <p v-else-if="updateState.status === 'failed'">{{ updateState.error }}</p>
+              <p v-else>当前版本 {{ updateState.currentVersion || '读取中' }}</p>
             </div>
-            <div :class="['source-status', 'provider-source-status', store.state.providerDataStatus]">
-              <span class="status-dot"></span><div><strong>{{ providerStatusLabel }}</strong><p>{{ store.state.providerDataMessage }}</p></div>
-              <button v-if="providerEnabled" type="button" :disabled="store.state.providerDataStatus === 'loading'" @click="store.refreshProviderData"><PhArrowClockwise :size="16" />刷新</button>
-            </div>
-          </template>
+            <button type="button" :disabled="!desktopControlsAvailable || updateBusy" @click="checkForDesktopUpdate(true)"><PhArrowClockwise :size="16" />检查更新</button>
+          </div>
+          <progress v-if="updateState.status === 'downloading' && updateProgress !== null" class="update-progress" :value="updateProgress" max="100">{{ updateProgress }}%</progress>
+          <div v-if="updateState.status === 'available'" class="update-release">
+            <div><strong>iTime {{ updateState.version }}</strong><p>{{ updateState.notes || '此版本未提供 Release Notes。' }}</p></div>
+            <button type="button" @click="updateInstallArmed = true"><PhUploadSimple :size="17" />下载并安装</button>
+          </div>
+          <div v-if="updateInstallArmed" class="update-confirmation" role="alert">
+            <PhShieldCheck :size="21" aria-hidden="true" />
+            <div><strong>确认下载并安装 iTime {{ updateState.version }}？</strong><p>iTime 会先暂停采集、刷新本地数据并保存待上传队列；失败时会恢复当前版本。</p></div>
+            <button type="button" @click="updateInstallArmed = false">取消</button>
+            <button class="confirm-update" type="button" @click="installUpdate">确认更新</button>
+          </div>
         </section>
 
         <section class="settings-group local-data-section" aria-labelledby="local-data-title">
@@ -282,7 +333,7 @@ onMounted(() => {
 
         <section class="data-boundary">
           <PhDatabase :size="22" weight="regular" aria-hidden="true" />
-          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器。Provider 活动仅在用户逐项授权后读取对应本机会话时间元数据。</p></div>
+          <div><span>数据边界</span><h2>接入前历史不会被补造</h2><p>键盘计数从本次版本启动后开始；应用活动来自 iTime 采集器。AI Agent 执行只使用明确授权后可验证的本机会话时间事件。</p></div>
         </section>
       </aside>
     </div>

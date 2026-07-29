@@ -1,4 +1,5 @@
 mod activity;
+mod atomic_json;
 mod data_files;
 mod data_management;
 mod icons;
@@ -6,6 +7,8 @@ mod keyboard;
 mod provider_activity;
 mod reminders;
 mod settings;
+mod telemetry;
+mod updates;
 #[cfg(windows)]
 mod windows_shell;
 
@@ -25,6 +28,7 @@ use tauri::{
     webview::PageLoadEvent,
     AppHandle, Emitter, LogicalSize, Manager, State, WindowEvent,
 };
+use telemetry::TelemetryService;
 
 const DEFAULT_WINDOW_WIDTH: f64 = 1540.0;
 const DEFAULT_WINDOW_HEIGHT: f64 = 944.0;
@@ -273,6 +277,7 @@ pub fn run() {
     let launch_args = std::env::args().collect::<Vec<_>>();
     let recording = Arc::new(AtomicBool::new(settings::load_recording().unwrap_or(true)));
     let provider_consent = settings::load_provider_consent().unwrap_or_default();
+    let telemetry = TelemetryService::new(provider_consent.ai_agent_tools_enabled);
     let recording_generation = Arc::new(AtomicU64::new(0));
     tauri::Builder::default()
         .manage(RuntimeState {
@@ -286,7 +291,11 @@ pub fn run() {
         .manage(IconService::new())
         .manage(KeyboardService::new())
         .manage(ProviderActivityService::new(provider_consent))
+        .manage(telemetry)
         .manage(ReminderService::new())
+        .manage(updates::UpdatePreparationState::default())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -330,11 +339,14 @@ pub fn run() {
             let icons = (*app.state::<IconService>()).clone();
             let keyboard = (*app.state::<KeyboardService>()).clone();
             let reminders = (*app.state::<ReminderService>()).clone();
+            let telemetry = (*app.state::<TelemetryService>()).clone();
+            telemetry.start();
             app.manage(ActivityCollector::start(
                 recording_now,
                 generation.load(Ordering::Acquire),
                 icons,
                 reminders,
+                telemetry.performance(),
                 app.handle().clone(),
             ));
             app.manage(KeyboardCollector::start(keyboard, recording, generation));
@@ -444,6 +456,11 @@ pub fn run() {
             provider_activity::get_provider_consent,
             provider_activity::set_provider_consent,
             provider_activity::get_provider_activity_snapshot,
+            telemetry::mark_ui_ready,
+            telemetry::get_telemetry_status,
+            updates::prepare_for_update,
+            updates::cancel_update_preparation,
+            updates::launch_migrated_install,
             icons::commands::resolve_app_icon,
             keyboard::get_keyboard_snapshot
         ])

@@ -87,8 +87,6 @@ const requestedNativeSize = computed(() =>
 const embeddedSource = computed(
   () => localIcons[displayKey.value] ?? embeddedAppIcons[displayKey.value] ?? null,
 )
-const lockedBrandAsset = computed(() => ['codex', 'typeless'].includes(displayKey.value) ? embeddedSource.value : null)
-
 const accent = computed(() => {
   store.themeRevision.value
   return identityAccent(identityInfo.value.identity)
@@ -97,7 +95,7 @@ const glyph = computed(() => identityGlyph(props.appName, identityInfo.value.ide
 
 const displayUrl = computed(() => {
   if (imageBroken.value) return null
-  return lockedBrandAsset.value ?? nativeUrl.value ?? embeddedSource.value
+  return nativeUrl.value ?? embeddedSource.value
 })
 
 const showImage = computed(() => Boolean(displayUrl.value) && !imageBroken.value)

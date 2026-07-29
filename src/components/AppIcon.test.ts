@@ -35,7 +35,7 @@ describe('AppIcon', () => {
     expect(img.attributes('src')).toBeTruthy()
   })
 
-  it('uses locked brand assets for Codex and Typeless even with anonymous process ids', async () => {
+  it('keeps embedded assets as browser-preview fallbacks for known app names', async () => {
     for (const appName of ['Codex', 'Typeless']) {
       const wrapper = mount(AppIcon, { props: { appIdentity: 'process:anonymous', appName, size: 24 } })
       await Promise.resolve()

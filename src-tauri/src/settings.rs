@@ -1,13 +1,13 @@
+use crate::atomic_json;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
     sync::Mutex,
 };
 
-const SETTINGS_VERSION: u8 = 3;
-pub(crate) const PROVIDER_CONSENT_VERSION: u8 = 1;
+const SETTINGS_VERSION: u8 = 4;
+pub(crate) const PROVIDER_CONSENT_VERSION: u8 = 2;
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -15,8 +15,8 @@ static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 pub(crate) struct ProviderConsent {
     pub(crate) version: u8,
     pub(crate) notice_seen: bool,
-    pub(crate) codex_enabled: bool,
-    pub(crate) claude_enabled: bool,
+    #[serde(default)]
+    pub(crate) ai_agent_tools_enabled: bool,
 }
 
 impl Default for ProviderConsent {
@@ -24,8 +24,7 @@ impl Default for ProviderConsent {
         Self {
             version: PROVIDER_CONSENT_VERSION,
             notice_seen: false,
-            codex_enabled: false,
-            claude_enabled: false,
+            ai_agent_tools_enabled: false,
         }
     }
 }
@@ -33,10 +32,10 @@ impl Default for ProviderConsent {
 impl ProviderConsent {
     pub(crate) fn validate(&self) -> Result<(), String> {
         if self.version != PROVIDER_CONSENT_VERSION {
-            return Err("Provider 授权版本不受支持".into());
+            return Err("AI Agent 编程工具授权版本不受支持".into());
         }
-        if (self.codex_enabled || self.claude_enabled) && !self.notice_seen {
-            return Err("启用 Provider 前必须先确认本地数据权限说明".into());
+        if self.ai_agent_tools_enabled && !self.notice_seen {
+            return Err("启用 AI Agent 编程工具前必须先确认本地读取与匿名上报说明".into());
         }
         Ok(())
     }
@@ -74,28 +73,23 @@ fn load_settings_from(path: &Path) -> Result<RuntimeSettings, String> {
     let bytes = fs::read(path).map_err(|error| error.to_string())?;
     let mut settings: RuntimeSettings =
         serde_json::from_slice(&bytes).map_err(|error| format!("记录设置损坏：{error}"))?;
-    if !matches!(settings.version, 1 | 2 | SETTINGS_VERSION) {
+    if !matches!(settings.version, 1 | 2 | 3 | SETTINGS_VERSION) {
         return Err("记录设置版本不受支持".into());
     }
     settings.version = SETTINGS_VERSION;
+    // V1 independently authorized Codex/Claude. V2 covers every registered
+    // AI Agent tool plus anonymous device/performance summaries, so the old
+    // choice must never silently expand into the new scope.
+    if settings.provider_consent.version == 1 {
+        settings.provider_consent = ProviderConsent::default();
+    }
     settings.provider_consent.validate()?;
     validate_data_retention(settings.data_retention_days)?;
     Ok(settings)
 }
 
 fn save_settings_to(path: &Path, settings: &RuntimeSettings) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(path)
-        .map_err(|error| error.to_string())?;
-    serde_json::to_writer(&mut file, settings).map_err(|error| error.to_string())?;
-    file.write_all(b"\n").map_err(|error| error.to_string())?;
-    file.sync_all().map_err(|error| error.to_string())
+    atomic_json::write(path, settings)
 }
 
 fn update_settings(
@@ -123,6 +117,15 @@ pub(crate) fn save_recording(recording: bool) -> Result<(), String> {
         settings.recording = recording;
         Ok(())
     })
+}
+
+pub(crate) fn sync_settings() -> Result<(), String> {
+    let _guard = SETTINGS_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let path = settings_path()?;
+    let settings = load_settings_from(&path)?;
+    save_settings_to(&path, &settings)
 }
 
 pub(crate) fn load_provider_consent() -> Result<ProviderConsent, String> {
@@ -191,7 +194,7 @@ mod tests {
     #[test]
     fn refuses_enabled_provider_without_notice_confirmation() {
         let consent = ProviderConsent {
-            codex_enabled: true,
+            ai_agent_tools_enabled: true,
             ..ProviderConsent::default()
         };
         assert!(consent.validate().is_err());
@@ -209,6 +212,21 @@ mod tests {
         let _ = fs::remove_file(path);
         assert_eq!(settings.version, SETTINGS_VERSION);
         assert_eq!(settings.data_retention_days, None);
+        assert_eq!(settings.provider_consent, ProviderConsent::default());
+    }
+
+    #[test]
+    fn resets_legacy_enabled_provider_access_for_explicit_v2_reauthorization() {
+        let path = fixture_path("legacy-enabled");
+        fs::write(
+            &path,
+            br#"{"version":3,"recording":true,"providerConsent":{"version":1,"noticeSeen":true,"codexEnabled":true,"claudeEnabled":true}}"#,
+        )
+        .unwrap();
+        let settings = load_settings_from(&path).unwrap();
+        let _ = fs::remove_file(path);
+
+        assert_eq!(settings.provider_consent, ProviderConsent::default());
     }
 
     #[test]

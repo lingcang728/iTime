@@ -447,7 +447,7 @@ with sync_playwright() as playwright:
         report["interactions"]["agentInfoTooltip"] = metric_info.locator('[role="tooltip"]').evaluate("element => getComputedStyle(element).opacity === '1'")
         page.locator(".ai-tool-item button").first.click()
         page.wait_for_selector(".ai-drawer")
-        report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["Provider 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
+        report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["AI Agent 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
         report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("不是工具的“知性度”", exact=False).count() == 1
         page.locator(".ai-drawer__close").click()
 
@@ -711,9 +711,11 @@ with sync_playwright() as playwright:
             page.get_by_text("开机自启动", exact=True).count() == 1
             and page.get_by_text("本机键盘计数", exact=True).count() == 1
             and page.get_by_text("Windows 字符键按下计数", exact=True).count() == 1
-            and page.get_by_text("Provider 本机会话授权", exact=True).count() == 1
-            and page.get_by_text("未启用的数据源不会枚举目录或读取文件", exact=False).count() == 1
-            and page.locator(".provider-list input[type=\"checkbox\"]").count() == 2
+            and page.locator("#provider-title").get_by_text("AI Agent 编程工具", exact=True).count() == 1
+            and page.get_by_text("关闭后停止目录检测、匿名设备上报并清空待上传队列", exact=False).count() == 1
+            and page.locator(".provider-list input[type=\"checkbox\"]").count() == 1
+            and page.locator("#update-title").get_by_text("软件更新", exact=True).count() == 1
+            and page.get_by_text("GitHub Release 检查签名安装包", exact=False).count() == 1
             and page.get_by_text("演示迁移", exact=False).count() == 0
         )
 

@@ -21,7 +21,14 @@ if (-not $releaseDirectory.StartsWith($rootPrefix, [System.StringComparison]::Or
   throw '发布输出目录必须位于当前仓库内。'
 }
 $releaseManifest = Join-Path $releaseDirectory 'release-manifest.json'
+$latestManifest = Join-Path $releaseDirectory 'latest.json'
 $releaseVerifier = Join-Path $PSScriptRoot 'verify-release-manifest.ps1'
+$localSigningBackup = if ([string]::IsNullOrWhiteSpace($env:ITIME_UPDATER_BACKUP_DIR)) {
+  Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'iTime-Updater-Offline-Backup'
+} else {
+  $env:ITIME_UPDATER_BACKUP_DIR
+}
+$loadedLocalSigningKey = $false
 
 function Copy-WithRetry {
   param(
@@ -66,6 +73,18 @@ function Get-Sha256 {
   }
 }
 
+function Get-TextSha256 {
+  param([Parameter(Mandatory = $true)][string]$Value)
+
+  $algorithm = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    return (($algorithm.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) |
+      ForEach-Object { $_.ToString('X2') }) -join '')
+  } finally {
+    $algorithm.Dispose()
+  }
+}
+
 Push-Location $root
 try {
   & npm run verify:full
@@ -95,6 +114,22 @@ try {
   if (Test-Path -LiteralPath $bundleDirectory) {
     Get-ChildItem -LiteralPath $bundleDirectory -Filter "iTime_${tauriVersion}_*-setup.exe" -File -ErrorAction SilentlyContinue |
       Remove-Item -Force
+    Remove-Item -LiteralPath (Join-Path $bundleDirectory "$expectedSetupName.sig") -Force -ErrorAction SilentlyContinue
+  }
+
+  if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY) -and
+      [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PATH)) {
+    $privateKeyPath = Join-Path $localSigningBackup 'itime-updater.key'
+    $encryptedPasswordPath = Join-Path $localSigningBackup 'itime-updater-password.dpapi'
+    if (-not (Test-Path -LiteralPath $privateKeyPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $encryptedPasswordPath -PathType Leaf)) {
+      throw '缺少 Tauri updater 签名密钥；拒绝生成不可验证的更新包。'
+    }
+    $securePassword = ConvertTo-SecureString (Get-Content -LiteralPath $encryptedPasswordPath -Raw)
+    $credential = [System.Management.Automation.PSCredential]::new('itime-updater', $securePassword)
+    $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content -LiteralPath $privateKeyPath -Raw).Trim()
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $credential.GetNetworkCredential().Password
+    $loadedLocalSigningKey = $true
   }
 
   $startedAt = Get-Date
@@ -104,8 +139,15 @@ try {
   $sourceSetup = Get-ChildItem -LiteralPath $bundleDirectory -Filter $expectedSetupName -File | Select-Object -First 1
   if (-not (Test-Path -LiteralPath $sourceExecutable)) { throw '本轮构建没有生成可直接运行的 iTime.exe。' }
   if (-not $sourceSetup) { throw "本轮构建没有生成 $expectedSetupName。" }
+  $sourceSignature = "$($sourceSetup.FullName).sig"
+  if (-not (Test-Path -LiteralPath $sourceSignature -PathType Leaf)) {
+    throw "本轮构建没有生成 updater 签名：$sourceSignature"
+  }
   $sourceExecutableFile = Get-Item -LiteralPath $sourceExecutable
-  if ($sourceExecutableFile.LastWriteTime -lt $startedAt -or $sourceSetup.LastWriteTime -lt $startedAt) {
+  $sourceSignatureFile = Get-Item -LiteralPath $sourceSignature
+  if ($sourceExecutableFile.LastWriteTime -lt $startedAt -or
+      $sourceSetup.LastWriteTime -lt $startedAt -or
+      $sourceSignatureFile.LastWriteTime -lt $startedAt) {
     throw '检测到旧发布产物，拒绝同步 release。'
   }
 
@@ -119,12 +161,16 @@ try {
   $backupSetup = Join-Path $releaseDirectory ".iTime-setup-$transaction.exe.bak"
   $stagedManifest = Join-Path $releaseDirectory ".release-manifest-$transaction.json.new"
   $backupManifest = Join-Path $releaseDirectory ".release-manifest-$transaction.json.bak"
+  $stagedLatest = Join-Path $releaseDirectory ".latest-$transaction.json.new"
+  $backupLatest = Join-Path $releaseDirectory ".latest-$transaction.json.bak"
   $hadDestinationExecutable = Test-Path -LiteralPath $destinationExecutable
   $hadDestinationSetup = Test-Path -LiteralPath $destinationSetup
   $hadReleaseManifest = Test-Path -LiteralPath $releaseManifest
+  $hadLatestManifest = Test-Path -LiteralPath $latestManifest
   $wroteDestinationExecutable = $false
   $wroteDestinationSetup = $false
   $wroteReleaseManifest = $false
+  $wroteLatestManifest = $false
   $staleExecutableBackups = @()
 
   try {
@@ -140,6 +186,7 @@ try {
     if ($hadDestinationExecutable) { Copy-WithRetry -Source $destinationExecutable -Destination $backupExecutable }
     if ($hadDestinationSetup) { Copy-WithRetry -Source $destinationSetup -Destination $backupSetup }
     if ($hadReleaseManifest) { Copy-WithRetry -Source $releaseManifest -Destination $backupManifest }
+    if ($hadLatestManifest) { Copy-WithRetry -Source $latestManifest -Destination $backupLatest }
     Copy-WithRetry -Source $stagedExecutable -Destination $destinationExecutable
     $wroteDestinationExecutable = $true
     Copy-WithRetry -Source $stagedSetup -Destination $destinationSetup
@@ -180,6 +227,36 @@ try {
       sourceDirty = $sourceDirty
       builtAtUtc = (Get-Date).ToUniversalTime().ToString('o')
       files = $manifestFiles
+    }
+    $signature = (Get-Content -LiteralPath $sourceSignature -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($signature)) { throw 'updater 签名内容为空。' }
+    $installerUrl = "https://github.com/lingcang728/iTime/releases/download/v$tauriVersion/$expectedSetupName"
+    $releaseNotes = if ([string]::IsNullOrWhiteSpace($env:ITIME_RELEASE_NOTES)) {
+      'Windows 本地图标自动读取、统一 AI Agent 编程工具授权与匿名性能观测、GitHub 签名自动更新。'
+    } else {
+      $env:ITIME_RELEASE_NOTES.Trim()
+    }
+    $latestDocument = [ordered]@{
+      version = $tauriVersion
+      notes = $releaseNotes
+      pub_date = (Get-Date).ToUniversalTime().ToString('o')
+      size = (Get-Item -LiteralPath $destinationSetup).Length
+      platforms = [ordered]@{
+        'windows-x86_64' = [ordered]@{
+          signature = $signature
+          url = $installerUrl
+          size = (Get-Item -LiteralPath $destinationSetup).Length
+        }
+      }
+    }
+    Write-Utf8NoBom -Path $stagedLatest -Content ($latestDocument | ConvertTo-Json -Depth 6)
+    Copy-WithRetry -Source $stagedLatest -Destination $latestManifest
+    $wroteLatestManifest = $true
+    $manifestDocument.updaterManifest = [ordered]@{
+      fileName = 'latest.json'
+      sha256 = Get-Sha256 -Path $latestManifest
+      installerUrl = $installerUrl
+      installerSignatureSha256 = Get-TextSha256 -Value $signature
     }
     Write-Utf8NoBom -Path $stagedManifest -Content ($manifestDocument | ConvertTo-Json -Depth 6)
     Copy-WithRetry -Source $stagedManifest -Destination $releaseManifest
@@ -222,6 +299,11 @@ try {
     } elseif ($wroteReleaseManifest -and -not $hadReleaseManifest) {
       Remove-Item -LiteralPath $releaseManifest -Force -ErrorAction SilentlyContinue
     }
+    if ($wroteLatestManifest -and (Test-Path -LiteralPath $backupLatest)) {
+      Copy-WithRetry -Source $backupLatest -Destination $latestManifest
+    } elseif ($wroteLatestManifest -and -not $hadLatestManifest) {
+      Remove-Item -LiteralPath $latestManifest -Force -ErrorAction SilentlyContinue
+    }
     foreach ($staleBackup in $staleExecutableBackups) {
       if ((Test-Path -LiteralPath $staleBackup.Backup) -and -not (Test-Path -LiteralPath $staleBackup.Original)) {
         Copy-WithRetry -Source $staleBackup.Backup -Destination $staleBackup.Original
@@ -229,7 +311,16 @@ try {
     }
     throw
   } finally {
-    @($stagedExecutable, $stagedSetup, $backupExecutable, $backupSetup, $stagedManifest, $backupManifest) | ForEach-Object {
+    @(
+      $stagedExecutable,
+      $stagedSetup,
+      $backupExecutable,
+      $backupSetup,
+      $stagedManifest,
+      $backupManifest,
+      $stagedLatest,
+      $backupLatest
+    ) | ForEach-Object {
       Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue
     }
     foreach ($staleBackup in $staleExecutableBackups) {
@@ -237,5 +328,9 @@ try {
     }
   }
 } finally {
+  if ($loadedLocalSigningKey) {
+    Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+  }
   Pop-Location
 }

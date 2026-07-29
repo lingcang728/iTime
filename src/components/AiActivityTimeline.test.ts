@@ -92,7 +92,7 @@ describe('AiActivityTimeline', () => {
     })
     const labels = wrapper.findAll('button.timeline__segment').map((item) => item.attributes('aria-label'))
     expect(labels).toContain('Editor · 09:30–10:30')
-    expect(labels).toContain('Provider 执行 · 10:00–10:30')
+    expect(labels).toContain('AI Agent 执行 · 10:00–10:30')
     expect(labels.some((label) => label?.includes('静默等待'))).toBe(false)
   })
 })

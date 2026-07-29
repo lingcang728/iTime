@@ -1,11 +1,11 @@
 //! Windows local application icon resolution, disk cache, and async queue.
 //!
 //! Resolution order (when not served from cache):
-//! 1. Shell item / package identity (AUMID, package path)
-//! 2. IShellItemImageFactory ICONONLY on executable path
-//! 3. SHGetFileInfoW
-//! 4. ExtractIconExW
-//! 5. Start-menu shortcut shell icon
+//! 1. Exact desktop / Start-menu shortcut targeting the executable
+//! 2. Package identity (AUMID / package asset)
+//! 3. Embedded executable icon
+//! 4. Non-generic Windows Shell icon
+//! 5. Logical-name shortcut
 //! 6. Explicit failure → frontend shows designed fallback
 
 mod cache;
@@ -18,5 +18,5 @@ mod request;
 
 pub use queue::IconService;
 
-pub const ICON_RESOLVER_VERSION: u32 = 2;
+pub const ICON_RESOLVER_VERSION: u32 = 3;
 pub const DEFAULT_ICON_SIZE: u32 = 64;

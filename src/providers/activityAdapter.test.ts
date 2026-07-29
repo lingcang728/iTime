@@ -30,7 +30,7 @@ describe('activity adapter', () => {
     expect(JSON.stringify(dataset)).not.toContain('windowTitle')
   })
 
-  it('keeps foreground AI activity separate from Provider execution evidence', () => {
+  it('keeps foreground AI activity separate from AI Agent execution evidence', () => {
     const dataset = activityDataset({
       ...base,
       intervals: [{

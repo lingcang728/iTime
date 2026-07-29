@@ -60,11 +60,36 @@ foreach ($role in $expected.Keys) {
   if ($entry[0].sourceSha256 -cne $hash) { throw "构建源 SHA-256 校验失败：$fileName" }
 }
 
+$latestPath = Join-Path $AssetsDirectory 'latest.json'
+if (-not (Test-Path -LiteralPath $latestPath -PathType Leaf)) {
+  throw '发布资产缺少 latest.json。'
+}
+$latest = Get-Content -LiteralPath $latestPath -Raw | ConvertFrom-Json
+if ($latest.version -cne $manifest.version) {
+  throw '发布的 latest.json 版本与 manifest 不一致。'
+}
+$platform = $latest.platforms.'windows-x86_64'
+if (-not $platform -or [string]::IsNullOrWhiteSpace($platform.signature)) {
+  throw '发布的 latest.json 缺少 Windows x64 签名。'
+}
+$expectedUrl = "https://github.com/lingcang728/iTime/releases/download/v$($manifest.version)/iTime_$($manifest.version)_x64-setup.exe"
+if ($platform.url -cne $expectedUrl) {
+  throw '发布的 latest.json 安装包 URL 不一致。'
+}
+$installer = Get-Item -LiteralPath (Join-Path $AssetsDirectory $expected.installer)
+if ([long]$latest.size -ne $installer.Length -or [long]$platform.size -ne $installer.Length) {
+  throw '发布的 latest.json 安装包大小不一致。'
+}
+if ($manifest.updaterManifest.sha256 -cne (Get-Sha256 -Path $latestPath)) {
+  throw '发布的 latest.json SHA-256 不一致。'
+}
+
 [PSCustomObject]@{
   Manifest = (Resolve-Path -LiteralPath $ManifestPath).Path
   AssetsDirectory = (Resolve-Path -LiteralPath $AssetsDirectory).Path
   Version = $manifest.version
   GitCommit = $manifest.gitCommit
   Files = @($expected.Values)
+  UpdaterManifest = $latestPath
   Verified = $true
 }

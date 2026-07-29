@@ -71,7 +71,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Windows 桌面 · 本地优先</p>
           <h1>记录你的屏幕时间，也记录 AI 替你工作的时间</h1>
-          <p class="lede">自动记录前台应用占用，单独标出 AI 工具的前台时间。数据只留在本机，不上传云端。</p>
+          <p class="lede">自动记录前台应用占用，单独标出 AI 工具的前台时间。原始记录只留在本机；匿名设备与性能汇总仅在你明确授权后上传。</p>
           <div class="hero-actions">
             <a class="btn btn-primary" data-release-link="installer" href="https://github.com/lingcang728/iTime/releases/latest">下载安装包</a>
             <a
@@ -118,7 +118,7 @@
           </article>
           <article class="product-card">
             <h3>本地优先</h3>
-            <p>活动记录保存在你的电脑上。当前版本不把使用数据上传到服务器，也没有账号云同步。</p>
+            <p>活动、键盘计数和会话原始数据保存在你的电脑上。没有账号云同步；匿名诊断数据只在你打开“AI Agent 编程工具”后上报。</p>
           </article>
         </div>
       </div>
@@ -214,7 +214,7 @@
       <div class="shell privacy-layout">
         <div class="section-head">
           <h2>隐私说明</h2>
-          <p>iTime 把隐私当成默认选项，而不是附加条款。你可以把它当成只在本机的时间记账本。</p>
+          <p>iTime 把隐私当成默认选项：原始记录只在本机，匿名设备与性能诊断必须由你明确授权。</p>
         </div>
         <div class="privacy-grid">
           <div class="privacy-card privacy-yes">
@@ -222,7 +222,8 @@
             <ul>
               <li>在本机采样前台应用占用</li>
               <li>按分钟汇总字符键次数，不保存键值</li>
-              <li>经逐项授权后，只解析 Codex / Claude Code 会话的时间与事件元数据</li>
+              <li>经单一开关授权后，只解析八类 AI Agent 工具的会话 ID、时间与事件类型元数据</li>
+              <li>授权后匿名上报硬件、性能与每日工具汇总，滚动保留 180 天</li>
               <li>提供 JSON/CSV 导出、保留期和二次确认清空</li>
             </ul>
           </div>
@@ -231,8 +232,8 @@
             <ul>
               <li>不读取或保存窗口标题、文档名</li>
               <li>不读取聊天正文、提示词、具体按键或完整程序路径</li>
-              <li>不把使用数据上传到我们的服务器（当前版本）</li>
-              <li>Provider 未授权时不扫描对应会话目录</li>
+              <li>不上传提示词、回复、代码、工具输出、项目路径、用户名、序列号或 MAC</li>
+              <li>未授权时不扫描 AI Agent 工具目录、不采集硬件、不产生上传队列</li>
             </ul>
           </div>
         </div>

@@ -26,14 +26,14 @@ let returnFocus: HTMLElement | null = null
 const intervalRows = computed<IntervalRow[]>(() => {
   if (!tool.value) return []
   return [
-    ...tool.value.workIntervals.map((item) => ({ id: `work:${item.id}`, start: item.start, end: item.end, label: 'Provider 执行', tone: 'work' as const })),
+    ...tool.value.workIntervals.map((item) => ({ id: `work:${item.id}`, start: item.start, end: item.end, label: 'AI Agent 执行', tone: 'work' as const })),
     ...tool.value.interactionIntervals.map((item) => ({ id: `interaction:${item.id}`, start: item.start, end: item.end, label: '前台活跃', tone: 'interaction' as const })),
     ...tool.value.waitIntervals.map((item, index) => ({ id: `wait-${index}`, start: item.start, end: item.end, label: '静默等待', tone: 'wait' as const })),
   ].sort((a, b) => a.start - b.start)
 })
 
 const definitions = [
-  ['Provider 执行', '仅统计能报告任务开始与结束的 Provider 区间；当前来源只观察前台活动时保持不可用。'],
+  ['AI Agent 执行', '仅统计能验证任务开始与结束的 AI Agent 区间；当前来源只观察前台活动时保持不可用。'],
   ['前台活跃', '设备处于活跃状态且前台进程匹配 AI 工具；不代表持续输入，也不读取提示词、对话或文件内容。'],
   ['静默等待', '工具处于等待、暂停等状态的区间，不计入有效执行。'],
   ['并行重叠', '工具有效执行与人的前台活动在时间上相交；只说明同时发生，不表示因果关系。'],
@@ -89,9 +89,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <p class="ai-drawer__privacy">数据来自本机活动事件的时间匹配。iTime 不读取提示词、对话、按键内容或文件正文。</p>
 
           <dl class="ai-drawer__metrics">
-            <div><dt>Provider 执行</dt><dd>{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '—' }}</dd><small>{{ executionAvailable ? `${tool.taskCount} 组执行记录` : '当前来源未提供' }}</small></div>
+            <div><dt>AI Agent 执行</dt><dd>{{ executionAvailable ? formatDuration(tool.effectiveDuration, true) : '—' }}</dd><small>{{ executionAvailable ? `${tool.taskCount} 组执行记录` : '当前来源未提供' }}</small></div>
             <div><dt>前台活跃</dt><dd>{{ formatDuration(tool.foregroundDuration, true) }}</dd><small>设备活跃且工具在前台</small></div>
-            <div><dt>静默等待</dt><dd>{{ executionAvailable ? formatDuration(tool.silentWaitDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '不计入 Provider 执行' : '当前来源未提供' }}</small></div>
+            <div><dt>静默等待</dt><dd>{{ executionAvailable ? formatDuration(tool.silentWaitDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '不计入 AI Agent 执行' : '当前来源未提供' }}</small></div>
             <div><dt>并行重叠</dt><dd>{{ executionAvailable ? formatDuration(tool.parallelOverlapDuration, true) : '—' }}</dd><small>{{ executionAvailable ? '与人的活动同时发生' : '当前来源未提供' }}</small></div>
           </dl>
 

@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $ReleaseDirectory 'release-manifest.json'
+$latestPath = Join-Path $ReleaseDirectory 'latest.json'
 $packageJsonPath = Join-Path $root 'package.json'
 
 function Get-Sha256 {
@@ -95,11 +96,37 @@ foreach ($role in $expectedRoles.Keys) {
   if ($entry.Count -ne 1) { throw "manifest 缺少唯一的 $role 角色映射。" }
 }
 
+if (-not (Test-Path -LiteralPath $latestPath -PathType Leaf)) {
+  throw "release 缺少 updater 清单：$latestPath"
+}
+$latest = Get-Content -LiteralPath $latestPath -Raw | ConvertFrom-Json
+if ($latest.version -cne $manifest.version) {
+  throw "latest.json 与发布版本不一致：latest=$($latest.version), manifest=$($manifest.version)"
+}
+$platform = $latest.platforms.'windows-x86_64'
+if (-not $platform -or [string]::IsNullOrWhiteSpace($platform.signature)) {
+  throw 'latest.json 缺少 Windows x64 updater 签名。'
+}
+$expectedUrl = "https://github.com/lingcang728/iTime/releases/download/v$($manifest.version)/iTime_$($manifest.version)_x64-setup.exe"
+if ($platform.url -cne $expectedUrl) {
+  throw "latest.json 安装包 URL 不一致：$($platform.url)"
+}
+$installer = Get-Item -LiteralPath (Join-Path $ReleaseDirectory "iTime_$($manifest.version)_x64-setup.exe")
+if ([long]$platform.size -ne $installer.Length -or [long]$latest.size -ne $installer.Length) {
+  throw 'latest.json 安装包大小与真实文件不一致。'
+}
+if (-not $manifest.updaterManifest -or
+    $manifest.updaterManifest.fileName -cne 'latest.json' -or
+    $manifest.updaterManifest.sha256 -cne (Get-Sha256 -Path $latestPath)) {
+  throw 'release manifest 与 latest.json 的摘要不一致。'
+}
+
 [PSCustomObject]@{
   Manifest = $manifestPath
   Version = $manifest.version
   GitCommit = $manifest.gitCommit
   SourceDirty = [bool]$manifest.sourceDirty
   Files = $expectedNames
+  UpdaterManifest = $latestPath
   Verified = $true
 }

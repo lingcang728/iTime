@@ -7,6 +7,7 @@ use super::{
 };
 use crate::icons::IconService;
 use crate::reminders::ReminderService;
+use crate::telemetry::PerformanceRecorder;
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -14,13 +15,21 @@ use std::{
         Arc, Mutex,
     },
     thread::{self, JoinHandle},
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 const MAX_CONTIGUOUS_MILLIS: u64 = SAMPLE_INTERVAL_SECONDS * 2 * 1_000;
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(2);
 
 type PendingActivity = (u64, ActivityObservation, u64);
+
+struct CaptureServices<'a> {
+    health: &'a HealthState,
+    icons: &'a IconService,
+    reminders: &'a ReminderService,
+    performance: &'a PerformanceRecorder,
+    app: &'a tauri::AppHandle,
+}
 
 struct HealthState {
     running: AtomicBool,
@@ -123,24 +132,28 @@ fn capture_sample(
     previous: &mut Option<PendingActivity>,
     generation: u64,
     now: u64,
-    health: &HealthState,
-    icons: &IconService,
-    reminders: &ReminderService,
-    app: &tauri::AppHandle,
+    services: &CaptureServices<'_>,
 ) -> Result<(), String> {
-    let current = capture_observation();
-    if let Some((identity, path)) = current.icon_hint.clone() {
-        icons.register_executable_hint(app, identity, path);
-    }
-    reminders.observe(
-        app,
-        now,
-        current.observation.device_state == DeviceState::Active,
-    );
-    let boundary = observation_boundary(previous, &current, now);
-    write_previous(previous, boundary, health)?;
-    *previous = Some((boundary, current.observation, generation));
-    Ok(())
+    let began = Instant::now();
+    let result = (|| {
+        let current = capture_observation();
+        if let Some((identity, path)) = current.icon_hint.clone() {
+            services
+                .icons
+                .register_executable_hint(services.app, identity, path);
+        }
+        services.reminders.observe(
+            services.app,
+            now,
+            current.observation.device_state == DeviceState::Active,
+        );
+        let boundary = observation_boundary(previous, &current, now);
+        write_previous(previous, boundary, services.health)?;
+        *previous = Some((boundary, current.observation, generation));
+        Ok(())
+    })();
+    services.performance.record_activity_loop(began.elapsed());
+    result
 }
 
 fn send_reply(reply: SyncSender<Result<(), String>>, result: Result<(), String>) {
@@ -153,6 +166,7 @@ impl ActivityCollector {
         generation: u64,
         icons: IconService,
         reminders: ReminderService,
+        performance: PerformanceRecorder,
         app: tauri::AppHandle,
     ) -> Self {
         let health = Arc::new(HealthState {
@@ -169,18 +183,17 @@ impl ActivityCollector {
                 let mut previous = None;
                 let mut recording_now = recording;
                 let mut current_generation = generation;
+                let services = CaptureServices {
+                    health: &thread_health,
+                    icons: &icons,
+                    reminders: &reminders,
+                    performance: &performance,
+                    app: &app,
+                };
 
                 if recording_now {
                     if let Some(now) = unix_millis() {
-                        let _ = capture_sample(
-                            &mut previous,
-                            current_generation,
-                            now,
-                            &thread_health,
-                            &icons,
-                            &reminders,
-                            &app,
-                        );
+                        let _ = capture_sample(&mut previous, current_generation, now, &services);
                     }
                 }
 
@@ -193,10 +206,7 @@ impl ActivityCollector {
                                         &mut previous,
                                         current_generation,
                                         now,
-                                        &thread_health,
-                                        &icons,
-                                        &reminders,
-                                        &app,
+                                        &services,
                                     );
                                 }
                             }
@@ -215,31 +225,23 @@ impl ActivityCollector {
                             at,
                             reply,
                         }) => {
-                            let result =
-                                if recording == recording_now && generation == current_generation {
-                                    Ok(())
-                                } else if recording {
-                                    previous = None;
-                                    capture_sample(
-                                        &mut previous,
-                                        generation,
-                                        at,
-                                        &thread_health,
-                                        &icons,
-                                        &reminders,
-                                        &app,
-                                    )
-                                    .map(|()| {
-                                        recording_now = true;
-                                        current_generation = generation;
-                                    })
-                                } else {
-                                    write_previous(&mut previous, at, &thread_health).map(|()| {
-                                        recording_now = false;
-                                        current_generation = generation;
-                                        reminders.observe(&app, at, false);
-                                    })
-                                };
+                            let result = if recording == recording_now
+                                && generation == current_generation
+                            {
+                                Ok(())
+                            } else if recording {
+                                previous = None;
+                                capture_sample(&mut previous, generation, at, &services).map(|()| {
+                                    recording_now = true;
+                                    current_generation = generation;
+                                })
+                            } else {
+                                write_previous(&mut previous, at, &thread_health).map(|()| {
+                                    recording_now = false;
+                                    current_generation = generation;
+                                    services.reminders.observe(services.app, at, false);
+                                })
+                            };
                             send_reply(reply, result);
                         }
                         Ok(CollectorCommand::Shutdown { at, reply }) => {

@@ -68,8 +68,7 @@ const previewTheme: ResolvedTheme | undefined = requestedTheme === 'light' || re
 const previewProviderConsent: ProviderConsent = {
   ...defaultProviderConsent,
   noticeSeen: true,
-  codexEnabled: true,
-  claudeEnabled: true,
+  aiAgentToolsEnabled: true,
 }
 
 function localDate(value = new Date()): string {
@@ -84,7 +83,7 @@ const state = reactive({
   activityDataStatus: (desktopRuntime ? 'loading' : 'preview') as ActivityDataStatus,
   activityDataMessage: desktopRuntime ? '正在读取 iTime 本机活动记录' : '浏览器预览数据',
   providerDataStatus: (desktopRuntime ? 'disabled' : 'preview') as ActivityDataStatus,
-  providerDataMessage: desktopRuntime ? '未授权读取 Provider 本机会话' : '浏览器预览数据',
+  providerDataMessage: desktopRuntime ? '未授权读取 AI Agent 编程工具' : '浏览器预览数据',
   providerConsent: desktopRuntime ? { ...defaultProviderConsent } : previewProviderConsent,
   providerConsentStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   lastDataRefreshAt: desktopRuntime ? null as number | null : Date.now(),
@@ -407,17 +406,17 @@ async function refreshActivityData(): Promise<void> {
 
 async function refreshProviderData(): Promise<void> {
   if (!desktopRuntime) return
-  if (!state.providerConsent.codexEnabled && !state.providerConsent.claudeEnabled) {
+  if (!state.providerConsent.aiAgentToolsEnabled) {
     liveProviderDataset.value = { version: 'itime-local-provider-v1', events: [] }
     providerDates.value = []
     updateAvailableDates()
     state.providerDataStatus = 'disabled'
-    state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+    state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
     return
   }
   const request = ++providerRequest
   state.providerDataStatus = 'loading'
-  state.providerDataMessage = '正在读取已授权的 Provider 本机会话'
+  state.providerDataMessage = '正在读取已授权的 AI Agent 编程工具'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
   startDate.setDate(startDate.getDate() - 7)
@@ -430,48 +429,52 @@ async function refreshProviderData(): Promise<void> {
     state.providerConsent = result.snapshot.consent
     if (result.snapshot.status === 'disabled') {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+      state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
     } else if (result.snapshot.status === 'unavailable') {
-      const enabled = [
-        result.snapshot.consent.codexEnabled && 'Codex',
-        result.snapshot.consent.claudeEnabled && 'Claude Code',
-      ].filter(Boolean).join('、')
+      const detected = result.snapshot.capabilities.tools
+        .filter((tool) => tool.installed)
+        .map((tool) => tool.displayName)
+        .join('、')
       state.providerDataStatus = 'error'
       if (result.snapshot.diagnostics.permissionFailures > 0) {
-        state.providerDataMessage = `已授权的 ${enabled} 会话目录没有读取权限`
+        state.providerDataMessage = 'AI Agent 编程工具目录没有读取权限'
       } else if (result.snapshot.diagnostics.readFailures > 0) {
-        state.providerDataMessage = `已授权的 ${enabled} 会话目录读取失败`
+        state.providerDataMessage = 'AI Agent 编程工具目录读取失败'
+      } else if (detected) {
+        state.providerDataMessage = `已检测 ${detected}，当前版本暂无法精确统计`
       } else {
-        state.providerDataMessage = `未找到已授权的 ${enabled} 本机会话目录`
+        state.providerDataMessage = '未检测到受支持的 AI Agent 编程工具'
       }
     } else if (result.snapshot.status === 'partial') {
       const { diagnostics } = result.snapshot
       state.providerDataStatus = 'degraded'
       if (diagnostics.permissionFailures > 0) {
-        state.providerDataMessage = `Provider 部分可用；${diagnostics.permissionFailures} 个目录或文件没有读取权限`
+        state.providerDataMessage = `AI Agent 编程工具部分可用；${diagnostics.permissionFailures} 个目录或文件没有读取权限`
       } else if (diagnostics.readFailures > 0) {
-        state.providerDataMessage = `Provider 部分可用；${diagnostics.readFailures} 个目录或文件读取失败`
+        state.providerDataMessage = `AI Agent 编程工具部分可用；${diagnostics.readFailures} 个目录或文件读取失败`
       } else if (diagnostics.badLines + diagnostics.badEvents > 0) {
-        state.providerDataMessage = `Provider 部分可用；已忽略 ${diagnostics.badLines} 个损坏行和 ${diagnostics.badEvents} 个异常事件`
+        state.providerDataMessage = `AI Agent 编程工具部分可用；已忽略 ${diagnostics.badLines} 个损坏行和 ${diagnostics.badEvents} 个异常事件`
       } else {
-        const missing = [
-          result.snapshot.consent.codexEnabled && !result.snapshot.capabilities.codexTaskEvents && 'Codex',
-          result.snapshot.consent.claudeEnabled && !result.snapshot.capabilities.claudeTurnEvents && 'Claude Code',
-        ].filter(Boolean).join('、')
-        state.providerDataMessage = `${missing || '部分 Provider'} 的已授权会话目录不可用`
+        const unsupported = result.snapshot.capabilities.tools
+          .filter((tool) => tool.installed && !tool.exactDuration)
+          .map((tool) => tool.displayName)
+          .join('、')
+        state.providerDataMessage = unsupported
+          ? `已检测 ${unsupported}，当前版本暂无法精确统计`
+          : '部分 AI Agent 编程工具会话结构暂不可用'
       }
     } else if (result.snapshot.intervals.length) {
       state.providerDataStatus = 'ready'
-      state.providerDataMessage = `已读取 ${result.snapshot.intervals.length} 个本机 Provider 执行区间`
+      state.providerDataMessage = `已读取 ${result.snapshot.intervals.length} 个 AI Agent 可靠执行区间`
     } else {
       state.providerDataStatus = 'empty'
-      state.providerDataMessage = 'Provider 会话已连接；所选日期未检测到执行区间'
+      state.providerDataMessage = 'AI Agent 编程工具已连接；所选日期未检测到可靠执行区间'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
     if (request !== providerRequest) return
     state.providerDataStatus = 'error'
-    state.providerDataMessage = errorMessage(error, 'Codex 与 Claude Code 本机会话暂时不可用')
+    state.providerDataMessage = errorMessage(error, 'AI Agent 编程工具本机会话暂时不可用')
   }
 }
 
@@ -481,21 +484,21 @@ async function syncProviderConsent(): Promise<void> {
   try {
     state.providerConsent = await loadProviderConsent()
     state.providerConsentStatus = 'ready'
-    if (state.providerConsent.codexEnabled || state.providerConsent.claudeEnabled) {
+    if (state.providerConsent.aiAgentToolsEnabled) {
       state.providerDataStatus = 'loading'
-      state.providerDataMessage = '正在读取已授权的 Provider 本机会话'
+      state.providerDataMessage = '正在读取已授权的 AI Agent 编程工具'
     } else {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权读取 Provider 本机会话；iTime 不会扫描相关目录'
+      state.providerDataMessage = '未授权读取 AI Agent 编程工具；iTime 不会扫描工具目录或产生匿名上报'
     }
   } catch (error) {
     state.providerConsentStatus = 'error'
     state.providerDataStatus = 'error'
-    state.providerDataMessage = errorMessage(error, '无法读取 Provider 授权设置')
+    state.providerDataMessage = errorMessage(error, '无法读取 AI Agent 编程工具授权设置')
   }
 }
 
-async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noticeSeen' | 'codexEnabled' | 'claudeEnabled'>>): Promise<void> {
+async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noticeSeen' | 'aiAgentToolsEnabled'>>): Promise<void> {
   if (!desktopRuntime) return
   state.providerConsentStatus = 'loading'
   try {
@@ -508,7 +511,7 @@ async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noti
     await refreshProviderData()
   } catch (error) {
     state.providerConsentStatus = 'error'
-    showToast(errorMessage(error, '无法保存 Provider 授权设置'))
+    showToast(errorMessage(error, '无法保存 AI Agent 编程工具授权设置'))
   }
 }
 

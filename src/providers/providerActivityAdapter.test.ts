@@ -2,16 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { parseProviderActivitySnapshot, providerActivityDataset } from './providerActivityAdapter'
 
 const wire = {
-  source: '已授权的 Codex 与 Claude Code 本机会话时间事件',
+  source: '已授权的 AI Agent 编程工具本机会话结构元数据',
   status: 'ready',
   updatedAt: 1_752_800_000_000,
   scannedFiles: 2,
   skippedFiles: 0,
   consent: {
-    version: 1,
+    version: 2,
     noticeSeen: true,
-    codexEnabled: true,
-    claudeEnabled: true,
+    aiAgentToolsEnabled: true,
   },
   diagnostics: {
     candidateFiles: 2,
@@ -40,8 +39,25 @@ const wire = {
   ],
   capabilities: {
     contentCaptured: false,
-    codexTaskEvents: true,
-    claudeTurnEvents: true,
+    tools: [
+      ['cursor', 'Cursor', false, 'detectedUnsupported'],
+      ['antigravity', 'Antigravity', false, 'detectedUnsupported'],
+      ['codex', 'Codex', true, 'ready'],
+      ['claude-code', 'Claude Code', true, 'ready'],
+      ['opencode', 'OpenCode', true, 'ready'],
+      ['grok-build', 'Grok Build', true, 'ready'],
+      ['hermes', 'Hermes', false, 'detectedUnsupported'],
+      ['openclaw', 'OpenClaw', false, 'detectedUnsupported'],
+    ].map(([toolId, displayName, exact, diagnosticStatus]) => ({
+      toolId,
+      displayName,
+      installed: Boolean(exact),
+      formatVersion: 'test-v1',
+      exactTaskCount: Boolean(exact),
+      exactDuration: Boolean(exact),
+      exactConcurrency: Boolean(exact),
+      diagnosticStatus: exact ? diagnosticStatus : 'notInstalled',
+    })),
   },
 }
 
@@ -75,7 +91,7 @@ describe('provider activity adapter', () => {
   it('requires the versioned consent and diagnostic envelope', () => {
     expect(() => parseProviderActivitySnapshot({
       ...wire,
-      consent: { ...wire.consent, version: 2 },
+      consent: { ...wire.consent, version: 1 },
     })).toThrow()
     expect(() => parseProviderActivitySnapshot({
       ...wire,

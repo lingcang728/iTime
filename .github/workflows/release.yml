@@ -21,6 +21,9 @@ jobs:
       CI: "true"
       GH_TOKEN: ${{ github.token }}
       ITIME_BROWSER_CHANNEL: chrome
+      ITIME_TELEMETRY_ENDPOINT: ${{ secrets.ITIME_TELEMETRY_ENDPOINT }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       - name: Check out tagged source
@@ -56,6 +59,10 @@ jobs:
       - name: Validate immutable tag and versions
         shell: pwsh
         run: |
+          if ([string]::IsNullOrWhiteSpace($env:ITIME_TELEMETRY_ENDPOINT) -or
+              $env:ITIME_TELEMETRY_ENDPOINT -notmatch '^https://') {
+            throw 'ITIME_TELEMETRY_ENDPOINT secret is missing or is not HTTPS.'
+          }
           ./scripts/verify-release-tag.ps1 `
             -TagName '${{ github.ref_name }}' `
             -RequireTagAtHead `
@@ -97,14 +104,15 @@ jobs:
             --title "iTime ${{ github.ref_name }}" `
             --generate-notes `
             'release/iTime.exe' `
-            $installer
+            $installer `
+            'release/latest.json'
 
       - name: Re-download and verify published assets
         shell: pwsh
         run: |
           $download = 'output/release-download'
           New-Item -ItemType Directory -Force -Path $download | Out-Null
-          gh release download '${{ github.ref_name }}' --pattern '*.exe' --dir $download
+          gh release download '${{ github.ref_name }}' --pattern '*.exe' --pattern 'latest.json' --dir $download
           ./scripts/verify-release-assets.ps1 `
             -ManifestPath 'release/release-manifest.json' `
             -AssetsDirectory $download `

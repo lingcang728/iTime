@@ -1,5 +1,6 @@
 use crate::settings::{self, ProviderConsent};
 use chrono::DateTime;
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -18,32 +19,109 @@ const MAX_PROVIDER_FILES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ProviderKind {
+    Cursor,
+    Antigravity,
     Codex,
     Claude,
+    OpenCode,
+    GrokBuild,
+    Hermes,
+    OpenClaw,
+}
+
+impl ProviderKind {
+    const ALL: [Self; 8] = [
+        Self::Cursor,
+        Self::Antigravity,
+        Self::Codex,
+        Self::Claude,
+        Self::OpenCode,
+        Self::GrokBuild,
+        Self::Hermes,
+        Self::OpenClaw,
+    ];
+
+    const fn id(self) -> &'static str {
+        match self {
+            Self::Cursor => "cursor",
+            Self::Antigravity => "antigravity",
+            Self::Codex => "codex",
+            Self::Claude => "claude-code",
+            Self::OpenCode => "opencode",
+            Self::GrokBuild => "grok-build",
+            Self::Hermes => "hermes",
+            Self::OpenClaw => "openclaw",
+        }
+    }
+
+    const fn display_name(self) -> &'static str {
+        match self {
+            Self::Cursor => "Cursor",
+            Self::Antigravity => "Antigravity",
+            Self::Codex => "Codex",
+            Self::Claude => "Claude Code",
+            Self::OpenCode => "OpenCode",
+            Self::GrokBuild => "Grok Build",
+            Self::Hermes => "Hermes",
+            Self::OpenClaw => "OpenClaw",
+        }
+    }
+
+    const fn format_version(self) -> &'static str {
+        match self {
+            Self::Cursor => "local-state-unverified",
+            Self::Antigravity => "local-state-unverified",
+            Self::Codex => "rollout-jsonl-v1",
+            Self::Claude => "projects-jsonl-v1",
+            Self::OpenCode => "sqlite-message-time-v1",
+            Self::GrokBuild => "updates-jsonl-v1",
+            Self::Hermes => "sessions-unverified",
+            Self::OpenClaw => "sessions-unverified",
+        }
+    }
+
+    const fn supports_exact_intervals(self) -> bool {
+        matches!(
+            self,
+            Self::Codex | Self::Claude | Self::OpenCode | Self::GrokBuild
+        )
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ProviderInterval {
-    version: u8,
-    start: u64,
-    end: u64,
-    provider: &'static str,
-    tool_id: &'static str,
-    tool_name: &'static str,
-    agent_id: String,
-    task_id: String,
-    status: &'static str,
-    basis: &'static str,
-    confidence: f64,
+    pub(crate) version: u8,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+    pub(crate) provider: &'static str,
+    pub(crate) tool_id: &'static str,
+    pub(crate) tool_name: &'static str,
+    pub(crate) agent_id: String,
+    pub(crate) task_id: String,
+    pub(crate) status: &'static str,
+    pub(crate) basis: &'static str,
+    pub(crate) confidence: f64,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProviderCapabilities {
     content_captured: bool,
-    codex_task_events: bool,
-    claude_turn_events: bool,
+    tools: Vec<AgentToolCapability>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentToolCapability {
+    tool_id: &'static str,
+    display_name: &'static str,
+    installed: bool,
+    format_version: &'static str,
+    exact_task_count: bool,
+    exact_duration: bool,
+    exact_concurrency: bool,
+    diagnostic_status: &'static str,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -105,7 +183,7 @@ struct ParsedFileFacts {
     open: Option<OpenInterval>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct ParsedFile {
     facts: ParsedFileFacts,
     diagnostics: ParseDiagnostics,
@@ -154,7 +232,7 @@ impl ProviderActivityService {
             .consent
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = consent.clone();
-        if !consent.codex_enabled && !consent.claude_enabled {
+        if !consent.ai_agent_tools_enabled {
             self.cache
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -170,7 +248,7 @@ impl ProviderActivityService {
         }
 
         // This gate intentionally runs before USERPROFILE is resolved or any provider path is read.
-        if !consent.codex_enabled && !consent.claude_enabled {
+        if !consent.ai_agent_tools_enabled {
             return Ok(disabled_snapshot(consent));
         }
 
@@ -191,33 +269,47 @@ impl ProviderActivityService {
         if end <= start {
             return Err("Provider 活动查询区间无效".into());
         }
-        if !consent.codex_enabled && !consent.claude_enabled {
+        if !consent.ai_agent_tools_enabled {
             return Ok(disabled_snapshot(consent));
         }
 
-        let codex_root = home.join(r".codex\sessions");
-        let claude_root = home.join(r".claude\projects");
+        let codex_root = provider_root(home, ProviderKind::Codex);
+        let claude_root = provider_root(home, ProviderKind::Claude);
+        let opencode_db = provider_root(home, ProviderKind::OpenCode);
+        let grok_root = provider_root(home, ProviderKind::GrokBuild);
         let cutoff = start.saturating_sub(2 * DAY_MILLIS);
         let mut diagnostics = ProviderDiagnostics::default();
         let mut candidates = Vec::new();
-        let codex_available = consent.codex_enabled
-            && collect_candidates(
-                &codex_root,
-                ProviderKind::Codex,
-                cutoff,
-                6,
-                &mut candidates,
-                &mut diagnostics,
-            );
-        let claude_available = consent.claude_enabled
-            && collect_candidates(
-                &claude_root,
-                ProviderKind::Claude,
-                cutoff,
-                6,
-                &mut candidates,
-                &mut diagnostics,
-            );
+        let codex_available = collect_candidates(
+            &codex_root,
+            ProviderKind::Codex,
+            cutoff,
+            6,
+            &mut candidates,
+            &mut diagnostics,
+        );
+        let claude_available = collect_candidates(
+            &claude_root,
+            ProviderKind::Claude,
+            cutoff,
+            6,
+            &mut candidates,
+            &mut diagnostics,
+        );
+        let grok_available = collect_candidates(
+            &grok_root,
+            ProviderKind::GrokBuild,
+            cutoff,
+            6,
+            &mut candidates,
+            &mut diagnostics,
+        );
+        let opencode_available = collect_file_candidate(
+            &opencode_db,
+            ProviderKind::OpenCode,
+            &mut candidates,
+            &mut diagnostics,
+        );
         diagnostics.candidate_files = candidates.len();
         select_newest_candidates(&mut candidates);
         diagnostics.selected_files = candidates.len();
@@ -274,20 +366,33 @@ impl ProviderActivityService {
         });
         intervals.sort_by_key(|interval| (interval.start, interval.end));
 
-        let any_enabled_root = (consent.codex_enabled && codex_available)
-            || (consent.claude_enabled && claude_available);
-        let enabled_root_missing = (consent.codex_enabled && !codex_available)
-            || (consent.claude_enabled && !claude_available);
-        let status = if !any_enabled_root {
+        let exact_roots = [
+            codex_available,
+            claude_available,
+            opencode_available,
+            grok_available,
+        ];
+        let any_exact_root = exact_roots.into_iter().any(|available| available);
+        let tools = tool_capabilities(
+            home,
+            &[
+                (ProviderKind::Codex, codex_available),
+                (ProviderKind::Claude, claude_available),
+                (ProviderKind::OpenCode, opencode_available),
+                (ProviderKind::GrokBuild, grok_available),
+            ],
+        );
+        let any_installed = tools.iter().any(|tool| tool.installed);
+        let status = if !any_installed {
             "unavailable"
-        } else if enabled_root_missing || diagnostics.has_degradation() {
+        } else if !any_exact_root || diagnostics.has_degradation() {
             "partial"
         } else {
             "ready"
         };
 
         Ok(ProviderActivitySnapshot {
-            source: "已授权的 Codex 与 Claude Code 本机会话时间事件",
+            source: "已授权的 AI Agent 编程工具本机会话结构元数据",
             status,
             updated_at: u128::from(now),
             scanned_files: candidates.len(),
@@ -297,8 +402,7 @@ impl ProviderActivityService {
             diagnostics,
             capabilities: ProviderCapabilities {
                 content_captured: false,
-                codex_task_events: codex_available,
-                claude_turn_events: claude_available,
+                tools,
             },
         })
     }
@@ -306,39 +410,51 @@ impl ProviderActivityService {
     fn load_file(&self, candidate: &Candidate) -> io::Result<(ParsedFile, bool)> {
         let metadata = fs::metadata(&candidate.path)?;
         let modified_at = metadata_modified(&metadata);
-        if let Some(cached) = self
-            .cache
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get(&candidate.path)
-            .filter(|cached| cached.length == metadata.len() && cached.modified_at == modified_at)
-            .cloned()
-        {
-            return Ok((cached.parsed, true));
+        if candidate.kind != ProviderKind::OpenCode {
+            if let Some(cached) = self
+                .cache
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get(&candidate.path)
+                .filter(|cached| {
+                    cached.length == metadata.len() && cached.modified_at == modified_at
+                })
+                .cloned()
+            {
+                return Ok((cached.parsed, true));
+            }
         }
 
         let parsed = match candidate.kind {
             ProviderKind::Codex => parse_codex_file(&candidate.path),
             ProviderKind::Claude => parse_claude_file(&candidate.path),
+            ProviderKind::OpenCode => parse_opencode_db(&candidate.path),
+            ProviderKind::GrokBuild => parse_grok_file(&candidate.path),
+            ProviderKind::Cursor
+            | ProviderKind::Antigravity
+            | ProviderKind::Hermes
+            | ProviderKind::OpenClaw => Ok(ParsedFile::default()),
         }?;
-        self.cache
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(
-                candidate.path.clone(),
-                CachedFile {
-                    length: metadata.len(),
-                    modified_at,
-                    parsed: parsed.clone(),
-                },
-            );
+        if candidate.kind != ProviderKind::OpenCode {
+            self.cache
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(
+                    candidate.path.clone(),
+                    CachedFile {
+                        length: metadata.len(),
+                        modified_at,
+                        parsed: parsed.clone(),
+                    },
+                );
+        }
         Ok((parsed, false))
     }
 }
 
 fn disabled_snapshot(consent: ProviderConsent) -> ProviderActivitySnapshot {
     ProviderActivitySnapshot {
-        source: "Provider 本机会话读取未授权",
+        source: "AI Agent 编程工具读取与匿名上报未授权",
         status: "disabled",
         updated_at: u128::from(unix_millis()),
         scanned_files: 0,
@@ -348,8 +464,19 @@ fn disabled_snapshot(consent: ProviderConsent) -> ProviderActivitySnapshot {
         diagnostics: ProviderDiagnostics::default(),
         capabilities: ProviderCapabilities {
             content_captured: false,
-            codex_task_events: false,
-            claude_turn_events: false,
+            tools: ProviderKind::ALL
+                .into_iter()
+                .map(|kind| AgentToolCapability {
+                    tool_id: kind.id(),
+                    display_name: kind.display_name(),
+                    installed: false,
+                    format_version: kind.format_version(),
+                    exact_task_count: false,
+                    exact_duration: false,
+                    exact_concurrency: false,
+                    diagnostic_status: "disabled",
+                })
+                .collect(),
         },
     }
 }
@@ -370,18 +497,110 @@ pub(crate) fn get_provider_consent(
 #[tauri::command]
 pub(crate) fn set_provider_consent(
     providers: State<'_, ProviderActivityService>,
+    telemetry: State<'_, crate::telemetry::TelemetryService>,
     consent: ProviderConsent,
 ) -> Result<ProviderConsent, String> {
-    providers.set_consent(consent)
+    if !consent.ai_agent_tools_enabled {
+        telemetry.set_enabled(false)?;
+    }
+    let saved = providers.set_consent(consent)?;
+    if saved.ai_agent_tools_enabled {
+        telemetry.set_enabled(true)?;
+    }
+    Ok(saved)
 }
 
 #[tauri::command]
 pub(crate) fn get_provider_activity_snapshot(
     providers: State<'_, ProviderActivityService>,
+    telemetry: State<'_, crate::telemetry::TelemetryService>,
     start: u64,
     end: u64,
 ) -> Result<ProviderActivitySnapshot, String> {
-    providers.snapshot(start, end)
+    let began = std::time::Instant::now();
+    let snapshot = providers.snapshot(start, end);
+    telemetry
+        .performance()
+        .record_agent_scan(began.elapsed(), snapshot.is_err());
+    if let Ok(snapshot) = snapshot.as_ref() {
+        telemetry.record_agent_intervals(&snapshot.intervals);
+    }
+    snapshot
+}
+
+fn provider_root(home: &Path, kind: ProviderKind) -> PathBuf {
+    match kind {
+        ProviderKind::Cursor => home.join(".cursor"),
+        ProviderKind::Antigravity => home.join(r".gemini\antigravity"),
+        ProviderKind::Codex => home.join(r".codex\sessions"),
+        ProviderKind::Claude => home.join(r".claude\projects"),
+        ProviderKind::OpenCode => home.join(r".local\share\opencode\opencode.db"),
+        ProviderKind::GrokBuild => home.join(r".grok\sessions"),
+        ProviderKind::Hermes => home.join(".hermes"),
+        ProviderKind::OpenClaw => home.join(".openclaw"),
+    }
+}
+
+fn tool_capabilities(
+    home: &Path,
+    exact_availability: &[(ProviderKind, bool)],
+) -> Vec<AgentToolCapability> {
+    ProviderKind::ALL
+        .into_iter()
+        .map(|kind| {
+            let installed = provider_root(home, kind).exists()
+                || (kind == ProviderKind::Antigravity
+                    && home.join(r"AppData\Roaming\Antigravity").exists())
+                || (kind == ProviderKind::Hermes && home.join(".hermes-agent").exists());
+            let exact_available = exact_availability
+                .iter()
+                .find_map(|(candidate, available)| (*candidate == kind).then_some(*available))
+                .unwrap_or(false);
+            let diagnostic_status = if !installed {
+                "notInstalled"
+            } else if exact_available {
+                "ready"
+            } else if kind.supports_exact_intervals() {
+                "schemaChanged"
+            } else {
+                "detectedUnsupported"
+            };
+            AgentToolCapability {
+                tool_id: kind.id(),
+                display_name: kind.display_name(),
+                installed,
+                format_version: kind.format_version(),
+                exact_task_count: exact_available,
+                exact_duration: exact_available,
+                exact_concurrency: exact_available,
+                diagnostic_status,
+            }
+        })
+        .collect()
+}
+
+fn collect_file_candidate(
+    path: &Path,
+    kind: ProviderKind,
+    output: &mut Vec<Candidate>,
+    diagnostics: &mut ProviderDiagnostics,
+) -> bool {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => metadata,
+        Ok(_) => return false,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return false,
+        Err(error) => {
+            record_io_error(diagnostics, &error);
+            return false;
+        }
+    };
+    output.push(Candidate {
+        path: path.to_path_buf(),
+        kind,
+        modified_at: metadata_modified(&metadata),
+        length: metadata.len(),
+    });
+    true
 }
 
 fn collect_candidates(
@@ -457,6 +676,15 @@ fn provider_file_name(path: &Path, kind: ProviderKind) -> bool {
             .extension()
             .and_then(|value| value.to_str())
             .is_some_and(|extension| extension.eq_ignore_ascii_case("jsonl")),
+        ProviderKind::GrokBuild => path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("updates.jsonl")),
+        ProviderKind::OpenCode
+        | ProviderKind::Cursor
+        | ProviderKind::Antigravity
+        | ProviderKind::Hermes
+        | ProviderKind::OpenClaw => false,
     }
 }
 
@@ -637,6 +865,142 @@ fn parse_claude_file(path: &Path) -> io::Result<ParsedFile> {
     Ok(ParsedFile { facts, diagnostics })
 }
 
+fn parse_opencode_db(path: &Path) -> io::Result<ParsedFile> {
+    let connection = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(sqlite_io_error)?;
+    connection
+        .busy_timeout(std::time::Duration::from_millis(750))
+        .map_err(sqlite_io_error)?;
+    let mut statement = connection
+        .prepare(
+            "SELECT time_created, json_extract(data, '$.time.completed') \
+             FROM message \
+             WHERE json_extract(data, '$.role') = 'assistant' \
+               AND json_extract(data, '$.time.completed') IS NOT NULL",
+        )
+        .map_err(sqlite_io_error)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?)))
+        .map_err(sqlite_io_error)?;
+    let mut facts = ParsedFileFacts::default();
+    let mut diagnostics = ParseDiagnostics::default();
+    for row in rows {
+        match row {
+            Ok((start, end)) if end > start && end - start <= 7 * DAY_MILLIS => {
+                facts.completed.push(opencode_interval(path, start, end));
+            }
+            Ok(_) => diagnostics.bad_events += 1,
+            Err(_) => diagnostics.bad_lines += 1,
+        }
+    }
+    Ok(ParsedFile { facts, diagnostics })
+}
+
+fn sqlite_io_error(error: rusqlite::Error) -> io::Error {
+    let kind = match &error {
+        rusqlite::Error::SqliteFailure(code, _)
+            if code.code == rusqlite::ErrorCode::ReadOnly
+                || code.code == rusqlite::ErrorCode::PermissionDenied =>
+        {
+            io::ErrorKind::PermissionDenied
+        }
+        _ => io::ErrorKind::InvalidData,
+    };
+    io::Error::new(kind, error.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrokUpdateLine {
+    params: Option<GrokParams>,
+}
+
+#[derive(Deserialize)]
+struct GrokParams {
+    update: Option<GrokUpdate>,
+    #[serde(rename = "_meta")]
+    metadata: Option<GrokMetadata>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrokUpdate {
+    session_update: Option<String>,
+    #[serde(alias = "prompt_id")]
+    prompt_id: Option<String>,
+    #[serde(rename = "_meta")]
+    metadata: Option<GrokMetadata>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrokMetadata {
+    prompt_id: Option<String>,
+    turn_start_ms: Option<u64>,
+    agent_timestamp_ms: Option<u64>,
+}
+
+fn parse_grok_file(path: &Path) -> io::Result<ParsedFile> {
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut line = Vec::new();
+    let mut starts = HashMap::<String, u64>::new();
+    let mut facts = ParsedFileFacts::default();
+    let mut diagnostics = ParseDiagnostics::default();
+    while reader.read_until(b'\n', &mut line)? > 0 {
+        let relevant =
+            contains_bytes(&line, b"turnStartMs") || contains_bytes(&line, b"turn_completed");
+        if !relevant {
+            line.clear();
+            continue;
+        }
+        match serde_json::from_slice::<GrokUpdateLine>(&line) {
+            Ok(event) => {
+                let Some(params) = event.params else {
+                    line.clear();
+                    continue;
+                };
+                let update = params.update;
+                let update_meta = update.as_ref().and_then(|item| item.metadata.as_ref());
+                let prompt_id = update_meta
+                    .and_then(|meta| meta.prompt_id.as_ref())
+                    .or_else(|| update.as_ref().and_then(|item| item.prompt_id.as_ref()))
+                    .cloned();
+                if let (Some(prompt_id), Some(start)) = (
+                    prompt_id.clone(),
+                    update_meta.and_then(|meta| meta.turn_start_ms),
+                ) {
+                    starts.entry(prompt_id).or_insert(start);
+                }
+                let completed = update
+                    .as_ref()
+                    .and_then(|item| item.session_update.as_deref())
+                    == Some("turn_completed");
+                if completed {
+                    let end = params
+                        .metadata
+                        .as_ref()
+                        .and_then(|meta| meta.agent_timestamp_ms)
+                        .or_else(|| update_meta.and_then(|meta| meta.agent_timestamp_ms));
+                    match (prompt_id.and_then(|id| starts.remove(&id)), end) {
+                        (Some(start), Some(end))
+                            if end > start && end - start <= 7 * DAY_MILLIS =>
+                        {
+                            facts.completed.push(grok_interval(path, start, end));
+                        }
+                        _ => diagnostics.bad_events += 1,
+                    }
+                }
+            }
+            Err(_) => diagnostics.bad_lines += 1,
+        }
+        line.clear();
+    }
+    Ok(ParsedFile { facts, diagnostics })
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WireEvent {
@@ -712,12 +1076,52 @@ fn materialize_facts(
                     "Codex 本机会话 task_started 进行中时间事件",
                 ),
                 ProviderKind::Claude => claude_interval(path, open.start, now, "running", 0.9),
+                ProviderKind::Cursor
+                | ProviderKind::Antigravity
+                | ProviderKind::OpenCode
+                | ProviderKind::GrokBuild
+                | ProviderKind::Hermes
+                | ProviderKind::OpenClaw => return intervals,
             });
         } else if open.start > future_limit {
             diagnostics.bad_events += 1;
         }
     }
     intervals
+}
+
+fn opencode_interval(path: &Path, start: u64, end: u64) -> ProviderInterval {
+    let id = stable_id("opencode", path, start);
+    ProviderInterval {
+        version: 1,
+        start,
+        end,
+        provider: "opencode",
+        tool_id: "opencode",
+        tool_name: "OpenCode",
+        agent_id: id.clone(),
+        task_id: id,
+        status: "completed",
+        basis: "OpenCode 本地 SQLite assistant time.created/time.completed 时间事件",
+        confidence: 0.99,
+    }
+}
+
+fn grok_interval(path: &Path, start: u64, end: u64) -> ProviderInterval {
+    let id = stable_id("grok-build", path, start);
+    ProviderInterval {
+        version: 1,
+        start,
+        end,
+        provider: "grok-build",
+        tool_id: "grok-build",
+        tool_name: "Grok Build",
+        agent_id: id.clone(),
+        task_id: id,
+        status: "completed",
+        basis: "Grok Build 本机会话 turnStartMs/turn_completed 时间事件",
+        confidence: 0.99,
+    }
 }
 
 fn codex_interval(
@@ -750,13 +1154,13 @@ fn claude_interval(
     status: &'static str,
     confidence: f64,
 ) -> ProviderInterval {
-    let id = stable_id("claude", path, start);
+    let id = stable_id("claude-code", path, start);
     ProviderInterval {
         version: 1,
         start,
         end,
-        provider: "claude",
-        tool_id: "claude",
+        provider: "claude-code",
+        tool_id: "claude-code",
         tool_name: "Claude Code",
         agent_id: id.clone(),
         task_id: id,
@@ -866,8 +1270,7 @@ mod tests {
     fn enabled_consent(codex: bool, claude: bool) -> ProviderConsent {
         ProviderConsent {
             notice_seen: true,
-            codex_enabled: codex,
-            claude_enabled: claude,
+            ai_agent_tools_enabled: codex || claude,
             ..ProviderConsent::default()
         }
     }
@@ -919,6 +1322,78 @@ mod tests {
         );
         let json = serde_json::to_string(&parsed.facts.completed[0]).unwrap();
         assert!(!json.contains("content"));
+    }
+
+    #[test]
+    fn reads_opencode_completed_assistant_times_without_message_content() {
+        let path = fixture_path("opencode.db");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    time_created INTEGER NOT NULL,
+                    time_updated INTEGER NOT NULL,
+                    data TEXT NOT NULL
+                );
+                INSERT INTO message VALUES (
+                    'private-message-id',
+                    'private-session-id',
+                    1752800000000,
+                    1752800120000,
+                    '{\"role\":\"assistant\",\"time\":{\"created\":1752800000000,\"completed\":1752800120000},\"content\":\"must-not-escape\"}'
+                );",
+            )
+            .unwrap();
+        drop(connection);
+
+        let parsed = parse_opencode_db(&path).unwrap();
+        let _ = fs::remove_file(path);
+        assert_eq!(parsed.facts.completed.len(), 1);
+        let json = serde_json::to_string(&parsed.facts.completed[0]).unwrap();
+        assert!(!json.contains("must-not-escape"));
+        assert!(!json.contains("private-message-id"));
+        assert!(!json.contains("private-session-id"));
+    }
+
+    #[test]
+    fn reads_grok_turn_boundaries_without_prompt_or_response_content() {
+        let path = fixture_path("updates.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"method":"session/update","params":{"update":{"sessionUpdate":"agent_thought_chunk","content":{"text":"private prompt and response"},"_meta":{"promptId":"safe-prompt-key","turnStartMs":1752800000000}}}}"#,
+                "\n",
+                r#"{"method":"_x.ai/session/update","params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"safe-prompt-key"},"_meta":{"agentTimestampMs":1752800120000}}}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_grok_file(&path).unwrap();
+        let _ = fs::remove_file(path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        let json = serde_json::to_string(&parsed.facts.completed[0]).unwrap();
+        assert!(!json.contains("private prompt"));
+        assert!(!json.contains("safe-prompt-key"));
+    }
+
+    #[test]
+    fn registry_declares_all_eight_stable_tool_ids() {
+        let ids = ProviderKind::ALL.map(ProviderKind::id);
+        assert_eq!(
+            ids,
+            [
+                "cursor",
+                "antigravity",
+                "codex",
+                "claude-code",
+                "opencode",
+                "grok-build",
+                "hermes",
+                "openclaw",
+            ]
+        );
     }
 
     #[test]

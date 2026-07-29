@@ -167,7 +167,7 @@ function durationParts(value: number | null): DurationPart[] {
           <Transition name="popover">
             <aside v-if="notesOpen" id="timeline-notes" class="timeline-popover" role="dialog" aria-label="统计口径与轨道说明">
               <button type="button" aria-label="关闭说明" @click="notesOpen = false"><PhX :size="14" /></button>
-              <div><span>统计口径</span><strong>总覆盖按自然时间并集计算</strong><p>前台活动与 Provider 执行重叠时只计一次；当前总覆盖为 {{ formatDuration(store.day.value.totalDuration.value, true) }}。</p></div>
+              <div><span>统计口径</span><strong>总覆盖按自然时间并集计算</strong><p>前台活动与 AI Agent 执行重叠时只计一次；当前总覆盖为 {{ formatDuration(store.day.value.totalDuration.value, true) }}。</p></div>
               <div><span>轨道说明</span><strong>上下对齐表示同时发生</strong><p>设备、应用、AI 与媒体各自保留来源，并行时段不会重复计入总时长。</p></div>
             </aside>
           </Transition>

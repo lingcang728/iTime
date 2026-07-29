@@ -40,7 +40,7 @@ function sourceStateTitle(label: string, status: ActivityDataStatus): string {
   return label
 }
 const activitySourceTitle = computed(() => sourceStateTitle('AI 前台活动', store.state.activityDataStatus))
-const providerSourceTitle = computed(() => sourceStateTitle('Provider 执行', store.state.providerDataStatus))
+const providerSourceTitle = computed(() => sourceStateTitle('AI Agent 执行', store.state.providerDataStatus))
 const aiWork = computed(() => store.day.value.events
   .filter((event): event is AiWorkInterval => event.type === 'aiWork')
   .sort((first, second) => first.start - second.start))
@@ -51,7 +51,7 @@ const activityRows = computed(() => {
   if (aiWork.value.length) {
     return aiWork.value.slice(0, 8).map((event) => ({
       ...event,
-      title: `${event.toolName} Provider 执行`,
+      title: `${event.toolName} AI Agent 执行`,
       detail: event.basis,
       provider: true,
       icon: null,
@@ -134,7 +134,7 @@ function toolDuration(tool: AiToolSummary): number {
 
 function toolEvidence(tool: AiToolSummary): string {
   return tool.taskCount
-    ? `${tool.taskCount} 个 Provider 执行 · ${statusLabels[tool.status]}`
+    ? `${tool.taskCount} 个 AI Agent 执行 · ${statusLabels[tool.status]}`
     : `仅前台观察 · ${Math.round(tool.confidence * 100)}% 置信度`
 }
 
@@ -144,14 +144,14 @@ const insight = computed(() => {
     return {
       title: `记录到 ${interaction} 的 AI 前台活跃`,
       detail: providerDataAvailable.value
-        ? 'Provider 会话已连接，但今天尚未检测到执行事件；此处仅呈现可验证的前台活动。'
-        : '当前仅呈现可验证的前台活动；Provider 不可用时不会推算后台执行或并发。',
+        ? 'AI Agent 编程工具已连接，但今天尚未检测到执行事件；此处仅呈现可验证的前台活动。'
+        : '当前仅呈现可验证的前台活动；AI Agent 编程工具不可用时不会推算后台执行或并发。',
     }
   }
   const effective = formatDuration(store.day.value.aiEffective.value, true)
   const coverage = formatDuration(store.day.value.aiCoverage.value, true)
   return {
-    title: `Provider 累计执行 ${effective}，覆盖 ${coverage}`,
+    title: `AI Agent 累计执行 ${effective}，覆盖 ${coverage}`,
     detail: concurrencyWindow.value
       ? `峰值并发 ${concurrencyWindow.value.concurrency} 个；执行证据按自然时间去重后计算。`
       : '执行证据已按自然时间去重。',
@@ -161,7 +161,7 @@ const insight = computed(() => {
 
 <template>
   <section class="page ai-page">
-    <PageHeader title="AI 代理" subtitle="查看可验证的 AI 前台活动与获授权 Provider 时间事件。" />
+    <PageHeader title="AI 代理" subtitle="查看可验证的 AI 前台活动与获授权 AI Agent 编程工具时间事件。" />
 
     <div class="ai-metrics">
       <MetricCard :label="metricDefinitions.aiInteraction.name" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="activityDataAvailable ? interactionComparison : store.state.activityDataMessage" :icon="PhUser" visual="bars" :trend="interactionTrend" :info="metricInfo('aiInteraction')" />
@@ -196,7 +196,7 @@ const insight = computed(() => {
             <div><strong>{{ row.title }}</strong><small>{{ row.toolName }} · {{ row.detail }}</small></div>
             <span class="ai-activity-meta"><b>{{ formatDuration(row.end - row.start, true) }}</b><small>置信度 {{ Math.round(row.confidence * 100) }}%</small></span>
           </article>
-          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '执行区间来自已授权的 Codex/Claude Code 本机会话时间与事件类型元数据。' : '今天没有 Provider 执行事件，当前展示可验证的 AI 前台活跃。' }}</p>
+          <p class="ai-activity-note"><PhInfo :size="15" />{{ aiWork.length ? '执行区间来自已授权 AI Agent 编程工具的本机会话时间与事件类型元数据。' : '今天没有 AI Agent 执行事件，当前展示可验证的 AI 前台活跃。' }}</p>
         </div>
         <div v-else class="ai-tool-list__empty">今天尚未检测到 AI 工具活动。</div>
       </section>

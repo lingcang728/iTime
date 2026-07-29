@@ -17,30 +17,28 @@ afterEach(() => {
   store.state.recordingMessage = originalRecordingMessage
 })
 
-describe('Provider consent surface', () => {
-  it('shows the one-time boundary before exposing independent source switches', async () => {
+describe('AI Agent tool consent surface', () => {
+  it('shows the complete boundary and exactly one authorization switch', async () => {
     store.state.providerConsent = {
-      version: 1,
+      version: 2,
       noticeSeen: false,
-      codexEnabled: false,
-      claudeEnabled: false,
+      aiAgentToolsEnabled: false,
     }
     const wrapper = mount(SettingsPage, {
       global: { stubs: { PageHeader: true } },
     })
 
-    expect(wrapper.text()).toContain('先了解读取边界，再选择是否启用')
-    expect(wrapper.text()).toContain('不会访问、保存或显示消息正文')
-    expect(wrapper.findAll('.provider-list input[type="checkbox"]')).toHaveLength(0)
+    expect(wrapper.text()).toContain('启用前请了解读取与上报边界')
+    expect(wrapper.text()).toContain('不会读取、保存、哈希或上传提示词')
+    expect(wrapper.text()).toContain('Cursor、Antigravity、Codex、Claude Code、OpenCode、Grok Build、Hermes 与 OpenClaw')
+    expect(wrapper.findAll('.provider-list input[type="checkbox"]')).toHaveLength(1)
 
     store.state.providerConsent.noticeSeen = true
     await nextTick()
     const switches = wrapper.findAll('.provider-list input[type="checkbox"]')
-    expect(switches).toHaveLength(2)
-    expect(wrapper.text()).toContain('%USERPROFILE%\\.codex\\sessions')
-    expect(wrapper.text()).toContain('%USERPROFILE%\\.claude\\projects')
+    expect(switches).toHaveLength(1)
+    expect(wrapper.text()).toContain('匿名硬件、性能与每日工具汇总')
     expect(switches[0].attributes('checked')).toBeUndefined()
-    expect(switches[1].attributes('checked')).toBeUndefined()
     wrapper.unmount()
   })
 

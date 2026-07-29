@@ -37,7 +37,7 @@ interface NativeResponse {
 }
 
 const DEFAULT_SIZE = 64
-const ICON_RESOLVER_VERSION = 2
+const ICON_RESOLVER_VERSION = 3
 const MAX_MEMORY_ENTRIES = 256
 const iconSources: ReadonlySet<string> = new Set([
   'cache', 'shell_item', 'sh_get_file_info', 'extract_icon', 'package_asset', 'shortcut', 'fallback', 'embedded',
