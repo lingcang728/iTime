@@ -17,73 +17,172 @@ const DAY_MILLIS: u64 = 24 * 60 * 60 * 1_000;
 const ACTIVE_GRACE_MILLIS: u64 = 5 * 60 * 1_000;
 const MAX_PROVIDER_FILES: usize = 2_048;
 
+/// Coding agents aligned with Open Design / CC Switch style discovery.
+/// Exact session parsers exist only for a subset; others are detect-only when installed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ProviderKind {
-    Cursor,
-    Antigravity,
-    Codex,
     Claude,
+    Codex,
     OpenCode,
     GrokBuild,
+    Copilot,
+    Cursor,
+    Antigravity,
     Hermes,
     OpenClaw,
+    Gemini,
+    Qwen,
+    Kimi,
+    Trae,
+    Devin,
+    Pi,
+    Aider,
+    DeepSeek,
+    Kiro,
+    Qoder,
+    Vibe,
+    Amp,
+    Reasonix,
+    Kilo,
+    CodeBuddy,
+    AtomCode,
 }
 
 impl ProviderKind {
-    const ALL: [Self; 8] = [
-        Self::Cursor,
-        Self::Antigravity,
-        Self::Codex,
+    const ALL: [Self; 25] = [
         Self::Claude,
+        Self::Codex,
         Self::OpenCode,
         Self::GrokBuild,
+        Self::Copilot,
+        Self::Cursor,
+        Self::Antigravity,
         Self::Hermes,
         Self::OpenClaw,
+        Self::Gemini,
+        Self::Qwen,
+        Self::Kimi,
+        Self::Trae,
+        Self::Devin,
+        Self::Pi,
+        Self::Aider,
+        Self::DeepSeek,
+        Self::Kiro,
+        Self::Qoder,
+        Self::Vibe,
+        Self::Amp,
+        Self::Reasonix,
+        Self::Kilo,
+        Self::CodeBuddy,
+        Self::AtomCode,
     ];
 
     const fn id(self) -> &'static str {
         match self {
-            Self::Cursor => "cursor",
-            Self::Antigravity => "antigravity",
-            Self::Codex => "codex",
             Self::Claude => "claude-code",
+            Self::Codex => "codex",
             Self::OpenCode => "opencode",
             Self::GrokBuild => "grok-build",
+            Self::Copilot => "copilot",
+            Self::Cursor => "cursor",
+            Self::Antigravity => "antigravity",
             Self::Hermes => "hermes",
             Self::OpenClaw => "openclaw",
+            Self::Gemini => "gemini",
+            Self::Qwen => "qwen",
+            Self::Kimi => "kimi",
+            Self::Trae => "trae",
+            Self::Devin => "devin",
+            Self::Pi => "pi",
+            Self::Aider => "aider",
+            Self::DeepSeek => "deepseek",
+            Self::Kiro => "kiro",
+            Self::Qoder => "qoder",
+            Self::Vibe => "vibe",
+            Self::Amp => "amp",
+            Self::Reasonix => "reasonix",
+            Self::Kilo => "kilo",
+            Self::CodeBuddy => "codebuddy",
+            Self::AtomCode => "atomcode",
         }
     }
 
     const fn display_name(self) -> &'static str {
         match self {
-            Self::Cursor => "Cursor",
-            Self::Antigravity => "Antigravity",
-            Self::Codex => "Codex",
             Self::Claude => "Claude Code",
+            Self::Codex => "Codex",
             Self::OpenCode => "OpenCode",
             Self::GrokBuild => "Grok Build",
+            Self::Copilot => "GitHub Copilot CLI",
+            Self::Cursor => "Cursor Agent",
+            Self::Antigravity => "Antigravity",
             Self::Hermes => "Hermes",
             Self::OpenClaw => "OpenClaw",
+            Self::Gemini => "Gemini CLI",
+            Self::Qwen => "Qwen Code",
+            Self::Kimi => "Kimi CLI",
+            Self::Trae => "Trae CLI",
+            Self::Devin => "Devin for Terminal",
+            Self::Pi => "Pi",
+            Self::Aider => "Aider",
+            Self::DeepSeek => "DeepSeek TUI",
+            Self::Kiro => "Kiro CLI",
+            Self::Qoder => "Qoder CLI",
+            Self::Vibe => "Mistral Vibe",
+            Self::Amp => "Amp",
+            Self::Reasonix => "Reasonix",
+            Self::Kilo => "Kilo",
+            Self::CodeBuddy => "CodeBuddy",
+            Self::AtomCode => "AtomCode",
+        }
+    }
+
+    /// PATH / launcher names (Open Design style).
+    const fn binaries(self) -> &'static [&'static str] {
+        match self {
+            Self::Claude => &["claude"],
+            Self::Codex => &["codex"],
+            Self::OpenCode => &["opencode"],
+            Self::GrokBuild => &["grok"],
+            Self::Copilot => &["copilot"],
+            Self::Cursor => &["cursor-agent", "cursor"],
+            Self::Antigravity => &["antigravity"],
+            Self::Hermes => &["hermes"],
+            Self::OpenClaw => &["openclaw"],
+            Self::Gemini => &["gemini"],
+            Self::Qwen => &["qwen"],
+            Self::Kimi => &["kimi"],
+            Self::Trae => &["traecli", "trae"],
+            Self::Devin => &["devin"],
+            Self::Pi => &["pi"],
+            Self::Aider => &["aider"],
+            Self::DeepSeek => &["deepseek"],
+            Self::Kiro => &["kiro"],
+            Self::Qoder => &["qoder"],
+            Self::Vibe => &["vibe"],
+            Self::Amp => &["amp"],
+            Self::Reasonix => &["reasonix"],
+            Self::Kilo => &["kilo"],
+            Self::CodeBuddy => &["codebuddy"],
+            Self::AtomCode => &["atomcode"],
         }
     }
 
     const fn format_version(self) -> &'static str {
         match self {
-            Self::Cursor => "local-state-unverified",
-            Self::Antigravity => "local-state-unverified",
-            Self::Codex => "rollout-jsonl-v1",
             Self::Claude => "projects-jsonl-v1",
+            Self::Codex => "rollout-jsonl-v1",
             Self::OpenCode => "sqlite-message-time-v1",
             Self::GrokBuild => "updates-jsonl-v1",
-            Self::Hermes => "sessions-unverified",
-            Self::OpenClaw => "sessions-unverified",
+            Self::Copilot => "session-events-jsonl-v1",
+            _ => "detect-only",
         }
     }
 
     const fn supports_exact_intervals(self) -> bool {
         matches!(
             self,
-            Self::Codex | Self::Claude | Self::OpenCode | Self::GrokBuild
+            Self::Codex | Self::Claude | Self::OpenCode | Self::GrokBuild | Self::Copilot
         )
     }
 }
@@ -273,15 +372,12 @@ impl ProviderActivityService {
             return Ok(disabled_snapshot(consent));
         }
 
-        let codex_root = provider_root(home, ProviderKind::Codex);
-        let claude_root = provider_root(home, ProviderKind::Claude);
-        let opencode_db = provider_root(home, ProviderKind::OpenCode);
-        let grok_root = provider_root(home, ProviderKind::GrokBuild);
+        let path_bins = discover_path_binaries();
         let cutoff = start.saturating_sub(2 * DAY_MILLIS);
         let mut diagnostics = ProviderDiagnostics::default();
         let mut candidates = Vec::new();
         let codex_available = collect_candidates(
-            &codex_root,
+            &provider_root(home, ProviderKind::Codex),
             ProviderKind::Codex,
             cutoff,
             6,
@@ -289,7 +385,7 @@ impl ProviderActivityService {
             &mut diagnostics,
         );
         let claude_available = collect_candidates(
-            &claude_root,
+            &provider_root(home, ProviderKind::Claude),
             ProviderKind::Claude,
             cutoff,
             6,
@@ -297,7 +393,7 @@ impl ProviderActivityService {
             &mut diagnostics,
         );
         let grok_available = collect_candidates(
-            &grok_root,
+            &provider_root(home, ProviderKind::GrokBuild),
             ProviderKind::GrokBuild,
             cutoff,
             6,
@@ -305,8 +401,16 @@ impl ProviderActivityService {
             &mut diagnostics,
         );
         let opencode_available = collect_file_candidate(
-            &opencode_db,
+            &provider_root(home, ProviderKind::OpenCode),
             ProviderKind::OpenCode,
+            &mut candidates,
+            &mut diagnostics,
+        );
+        let copilot_available = collect_candidates(
+            &provider_root(home, ProviderKind::Copilot),
+            ProviderKind::Copilot,
+            cutoff,
+            4,
             &mut candidates,
             &mut diagnostics,
         );
@@ -366,35 +470,33 @@ impl ProviderActivityService {
         });
         intervals.sort_by_key(|interval| (interval.start, interval.end));
 
-        let exact_roots = [
-            codex_available,
-            claude_available,
-            opencode_available,
-            grok_available,
-        ];
-        let any_exact_root = exact_roots.into_iter().any(|available| available);
         let tools = tool_capabilities(
             home,
+            &path_bins,
             &[
                 (ProviderKind::Codex, codex_available),
                 (ProviderKind::Claude, claude_available),
                 (ProviderKind::OpenCode, opencode_available),
                 (ProviderKind::GrokBuild, grok_available),
+                (ProviderKind::Copilot, copilot_available),
             ],
         );
+        // Only installed agents affect aggregate status. Uninstalled registry
+        // entries stay silent (CC Switch / Open Design style).
         let any_installed = tools.iter().any(|tool| tool.installed);
-        // Unsupported tools (Cursor / Antigravity / …) may be "installed" for
-        // discovery only — they must not force partial when exact sources work.
+        let any_exact_installed = tools
+            .iter()
+            .any(|tool| tool.installed && tool.exact_duration);
         let status = if !any_installed {
             "unavailable"
-        } else if any_exact_root {
+        } else if any_exact_installed {
             if diagnostics.has_degradation() {
                 "partial"
             } else {
                 "ready"
             }
         } else {
-            // Only detected-but-unparsed tools (or empty exact roots).
+            // Installed agents exist but none expose exact session intervals yet.
             "partial"
         };
 
@@ -437,10 +539,8 @@ impl ProviderActivityService {
             ProviderKind::Claude => parse_claude_file(&candidate.path),
             ProviderKind::OpenCode => parse_opencode_db(&candidate.path),
             ProviderKind::GrokBuild => parse_grok_file(&candidate.path),
-            ProviderKind::Cursor
-            | ProviderKind::Antigravity
-            | ProviderKind::Hermes
-            | ProviderKind::OpenClaw => Ok(ParsedFile::default()),
+            ProviderKind::Copilot => parse_copilot_file(&candidate.path),
+            _ => Ok(ParsedFile::default()),
         }?;
         if candidate.kind != ProviderKind::OpenCode {
             self.cache
@@ -538,31 +638,158 @@ pub(crate) fn get_provider_activity_snapshot(
 fn provider_root(home: &Path, kind: ProviderKind) -> PathBuf {
     match kind {
         ProviderKind::Cursor => home.join(".cursor"),
-        ProviderKind::Antigravity => home.join(r".gemini\antigravity"),
+        ProviderKind::Antigravity => home.join(r".gemini\antigravity-cli"),
         ProviderKind::Codex => home.join(r".codex\sessions"),
         ProviderKind::Claude => home.join(r".claude\projects"),
         ProviderKind::OpenCode => home.join(r".local\share\opencode\opencode.db"),
         ProviderKind::GrokBuild => home.join(r".grok\sessions"),
         ProviderKind::Hermes => home.join(".hermes"),
         ProviderKind::OpenClaw => home.join(".openclaw"),
+        ProviderKind::Copilot => home.join(r".copilot\session-state"),
+        ProviderKind::Gemini => home.join(".gemini"),
+        ProviderKind::Qwen => home.join(".qwen"),
+        ProviderKind::Kimi => home.join(".kimi"),
+        ProviderKind::Trae => home.join(".trae"),
+        ProviderKind::Devin => home.join(".devin"),
+        ProviderKind::Pi => home.join(".pi"),
+        ProviderKind::Aider => home.join(".aider"),
+        ProviderKind::DeepSeek => home.join(".deepseek"),
+        ProviderKind::Kiro => home.join(".kiro"),
+        ProviderKind::Qoder => home.join(".qoder"),
+        ProviderKind::Vibe => home.join(".vibe"),
+        ProviderKind::Amp => home.join(".amp"),
+        ProviderKind::Reasonix => home.join(".reasonix"),
+        ProviderKind::Kilo => home.join(".kilo"),
+        ProviderKind::CodeBuddy => home.join(".codebuddy"),
+        ProviderKind::AtomCode => home.join(".atomcode"),
     }
+}
+
+fn discover_path_binaries() -> HashSet<String> {
+    let mut found = HashSet::new();
+    let Some(path) = std::env::var_os("PATH") else {
+        return found;
+    };
+    let names: Vec<&str> = ProviderKind::ALL
+        .into_iter()
+        .flat_map(ProviderKind::binaries)
+        .copied()
+        .collect();
+    for dir in std::env::split_paths(&path) {
+        for name in &names {
+            for ext in ["", ".exe", ".cmd", ".bat", ".ps1"] {
+                let candidate = dir.join(format!("{name}{ext}"));
+                if candidate.is_file() {
+                    found.insert((*name).to_ascii_lowercase());
+                    break;
+                }
+            }
+        }
+    }
+    found
+}
+
+fn has_path_binary(path_bins: &HashSet<String>, kind: ProviderKind) -> bool {
+    kind.binaries()
+        .iter()
+        .any(|name| path_bins.contains(&name.to_ascii_lowercase()))
+}
+
+/// Prefer PATH (like CC Switch / Open Design). Fall back only when real session
+/// evidence exists — empty leftover config folders do not count as installed.
+fn is_agent_installed(home: &Path, path_bins: &HashSet<String>, kind: ProviderKind) -> bool {
+    if has_path_binary(path_bins, kind) {
+        return true;
+    }
+    has_session_evidence(home, kind)
+}
+
+fn has_session_evidence(home: &Path, kind: ProviderKind) -> bool {
+    match kind {
+        ProviderKind::Codex => directory_has_matching_file(&provider_root(home, kind), 6, |path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("rollout-") && n.ends_with(".jsonl"))
+        }),
+        ProviderKind::Claude => {
+            directory_has_matching_file(&provider_root(home, kind), 6, |path| {
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("jsonl"))
+            })
+        }
+        ProviderKind::GrokBuild => {
+            directory_has_matching_file(&provider_root(home, kind), 6, |path| {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.eq_ignore_ascii_case("updates.jsonl"))
+            })
+        }
+        ProviderKind::OpenCode => provider_root(home, kind).is_file(),
+        ProviderKind::Copilot => {
+            directory_has_matching_file(&provider_root(home, kind), 4, |path| {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.eq_ignore_ascii_case("events.jsonl"))
+            })
+        }
+        ProviderKind::Cursor => {
+            directory_has_matching_file(&home.join(".cursor").join("projects"), 6, |path| {
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("jsonl"))
+            })
+        }
+        ProviderKind::Antigravity => {
+            directory_has_matching_file(&provider_root(home, kind), 5, |_| true)
+                || home.join(r"AppData\Roaming\Antigravity").exists()
+        }
+        ProviderKind::Hermes => {
+            home.join(".hermes").exists() || home.join(".hermes-agent").exists()
+        }
+        // Empty leftover folders (e.g. .openclaw) must not mark installed.
+        _ => false,
+    }
+}
+
+fn directory_has_matching_file(
+    root: &Path,
+    depth: u8,
+    predicate: impl Fn(&Path) -> bool + Copy,
+) -> bool {
+    if depth == 0 || !root.is_dir() {
+        return false;
+    }
+    let Ok(entries) = fs::read_dir(root) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if directory_has_matching_file(&path, depth - 1, predicate) {
+                return true;
+            }
+        } else if predicate(&path) {
+            return true;
+        }
+    }
+    false
 }
 
 fn tool_capabilities(
     home: &Path,
+    path_bins: &HashSet<String>,
     exact_availability: &[(ProviderKind, bool)],
 ) -> Vec<AgentToolCapability> {
     ProviderKind::ALL
         .into_iter()
         .map(|kind| {
-            let installed = provider_root(home, kind).exists()
-                || (kind == ProviderKind::Antigravity
-                    && home.join(r"AppData\Roaming\Antigravity").exists())
-                || (kind == ProviderKind::Hermes && home.join(".hermes-agent").exists());
+            let installed = is_agent_installed(home, path_bins, kind);
             let exact_available = exact_availability
                 .iter()
                 .find_map(|(candidate, available)| (*candidate == kind).then_some(*available))
-                .unwrap_or(false);
+                .unwrap_or(false)
+                && installed;
             let diagnostic_status = if !installed {
                 "notInstalled"
             } else if exact_available {
@@ -687,11 +914,12 @@ fn provider_file_name(path: &Path, kind: ProviderKind) -> bool {
             .file_name()
             .and_then(|value| value.to_str())
             .is_some_and(|name| name.eq_ignore_ascii_case("updates.jsonl")),
-        ProviderKind::OpenCode
-        | ProviderKind::Cursor
-        | ProviderKind::Antigravity
-        | ProviderKind::Hermes
-        | ProviderKind::OpenClaw => false,
+        ProviderKind::Copilot => path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("events.jsonl")),
+        ProviderKind::OpenCode => false,
+        _ => false,
     }
 }
 
@@ -1103,12 +1331,8 @@ fn materialize_facts(
                     "Codex 本机会话 task_started 进行中时间事件",
                 ),
                 ProviderKind::Claude => claude_interval(path, open.start, now, "running", 0.9),
-                ProviderKind::Cursor
-                | ProviderKind::Antigravity
-                | ProviderKind::OpenCode
-                | ProviderKind::GrokBuild
-                | ProviderKind::Hermes
-                | ProviderKind::OpenClaw => return intervals,
+                ProviderKind::Copilot => copilot_interval(path, open.start, now, "running"),
+                _ => return intervals,
             });
         } else if open.start > future_limit {
             diagnostics.bad_events += 1;
@@ -1132,6 +1356,90 @@ fn opencode_interval(path: &Path, start: u64, end: u64) -> ProviderInterval {
         basis: "OpenCode 本地 SQLite assistant time.created/time.completed 时间事件",
         confidence: 0.99,
     }
+}
+
+fn copilot_interval(path: &Path, start: u64, end: u64, status: &'static str) -> ProviderInterval {
+    let id = stable_id("copilot", path, start);
+    ProviderInterval {
+        version: 1,
+        start,
+        end,
+        provider: "copilot",
+        tool_id: "copilot",
+        tool_name: "GitHub Copilot CLI",
+        agent_id: id.clone(),
+        task_id: id,
+        status,
+        basis: "Copilot CLI 本机会话 assistant.turn_start/turn_end 时间事件",
+        confidence: 0.98,
+    }
+}
+
+fn parse_copilot_file(path: &Path) -> io::Result<ParsedFile> {
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut line = Vec::new();
+    let mut open_start = None;
+    let mut facts = ParsedFileFacts::default();
+    let mut diagnostics = ParseDiagnostics::default();
+    while reader.read_until(b'\n', &mut line)? > 0 {
+        let relevant = contains_bytes(&line, b"assistant.turn_start")
+            || contains_bytes(&line, b"assistant.turn_end")
+            || contains_bytes(&line, b"session.shutdown");
+        if !relevant {
+            line.clear();
+            continue;
+        }
+        match serde_json::from_slice::<CopilotEvent>(&line) {
+            Ok(event) => {
+                let Some(timestamp) = parse_timestamp(event.timestamp.as_deref()) else {
+                    line.clear();
+                    continue;
+                };
+                match event.record_type.as_deref() {
+                    Some("assistant.turn_start") => open_start = Some(timestamp),
+                    Some("assistant.turn_end") | Some("session.shutdown") => {
+                        if let Some(start) = open_start.take().filter(|start| timestamp > *start) {
+                            if timestamp - start <= 7 * DAY_MILLIS {
+                                facts.completed.push(copilot_interval(
+                                    path,
+                                    start,
+                                    timestamp,
+                                    "completed",
+                                ));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Err(_) => {
+                if looks_like_copilot_turn_line(&line) {
+                    diagnostics.bad_lines += 1;
+                }
+            }
+        }
+        line.clear();
+    }
+    if let Some(start) = open_start {
+        facts.open = Some(OpenInterval {
+            start,
+            provider: ProviderKind::Copilot,
+        });
+    }
+    Ok(ParsedFile { facts, diagnostics })
+}
+
+fn looks_like_copilot_turn_line(line: &[u8]) -> bool {
+    contains_bytes(line, b"assistant.turn_start")
+        || contains_bytes(line, b"assistant.turn_end")
+        || contains_bytes(line, b"session.shutdown")
+}
+
+#[derive(Deserialize)]
+struct CopilotEvent {
+    timestamp: Option<String>,
+    #[serde(rename = "type")]
+    record_type: Option<String>,
 }
 
 fn grok_interval(path: &Path, start: u64, end: u64) -> ProviderInterval {
@@ -1406,21 +1714,56 @@ mod tests {
     }
 
     #[test]
-    fn registry_declares_all_eight_stable_tool_ids() {
+    fn registry_covers_open_design_style_agents() {
         let ids = ProviderKind::ALL.map(ProviderKind::id);
-        assert_eq!(
-            ids,
-            [
-                "cursor",
-                "antigravity",
-                "codex",
-                "claude-code",
-                "opencode",
-                "grok-build",
-                "hermes",
-                "openclaw",
-            ]
+        assert!(ids.contains(&"claude-code"));
+        assert!(ids.contains(&"codex"));
+        assert!(ids.contains(&"opencode"));
+        assert!(ids.contains(&"grok-build"));
+        assert!(ids.contains(&"copilot"));
+        assert!(ids.contains(&"cursor"));
+        assert!(ids.contains(&"gemini"));
+        assert!(ids.contains(&"qwen"));
+        assert!(ids.contains(&"hermes"));
+        assert_eq!(ProviderKind::ALL.len(), 25);
+    }
+
+    #[test]
+    fn uninstalled_agents_do_not_count_as_installed_from_empty_folders() {
+        let home = fixture_path("empty-openclaw");
+        fs::create_dir_all(home.join(".openclaw")).unwrap();
+        let path_bins = HashSet::new();
+        assert!(!is_agent_installed(
+            &home,
+            &path_bins,
+            ProviderKind::OpenClaw
+        ));
+        assert!(!is_agent_installed(&home, &path_bins, ProviderKind::Hermes));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn copilot_turn_start_end_forms_interval() {
+        let path = fixture_path("copilot-events.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"type":"assistant.turn_start","timestamp":"2026-07-18T01:00:00.000Z"}"#,
+                "\n",
+                r#"{"type":"assistant.message","timestamp":"2026-07-18T01:01:00.000Z"}"#,
+                "\n",
+                r#"{"type":"assistant.turn_end","timestamp":"2026-07-18T01:05:00.000Z"}"#,
+                "\n"
+            ),
         );
+        let parsed = parse_copilot_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            5 * 60_000
+        );
+        assert_eq!(parsed.diagnostics.bad_events, 0);
     }
 
     #[test]

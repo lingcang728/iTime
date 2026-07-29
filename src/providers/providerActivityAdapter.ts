@@ -17,16 +17,8 @@ export const defaultProviderConsent: ProviderConsent = {
   aiAgentToolsEnabled: false,
 }
 
-export const agentToolIdSchema = z.enum([
-  'cursor',
-  'antigravity',
-  'codex',
-  'claude-code',
-  'opencode',
-  'grok-build',
-  'hermes',
-  'openclaw',
-])
+// Keep tool ids open-ended so the Rust agent catalog can grow with Open Design / CC Switch.
+export const agentToolIdSchema = z.string().min(1)
 export type AgentToolId = z.infer<typeof agentToolIdSchema>
 
 const providerIntervalSchema = z.object({

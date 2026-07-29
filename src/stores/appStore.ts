@@ -427,23 +427,22 @@ async function refreshProviderData(): Promise<void> {
     providerDates.value = [...new Set(result.dataset.events.map((event) => localDate(new Date(event.start))))].sort()
     updateAvailableDates()
     state.providerConsent = result.snapshot.consent
+    const installedTools = result.snapshot.capabilities.tools.filter((tool) => tool.installed)
+    const readyTools = installedTools.filter((tool) => tool.exactDuration)
     if (result.snapshot.status === 'disabled') {
       state.providerDataStatus = 'disabled'
       state.providerDataMessage = '未授权；不扫描、不上报'
     } else if (result.snapshot.status === 'unavailable') {
-      const detected = result.snapshot.capabilities.tools
-        .filter((tool) => tool.installed)
-        .map((tool) => tool.displayName)
-        .join('、')
-      state.providerDataStatus = 'error'
+      // Uninstalled catalog entries are silent — never list them as "不可用".
+      state.providerDataStatus = 'empty'
       if (result.snapshot.diagnostics.permissionFailures > 0) {
+        state.providerDataStatus = 'error'
         state.providerDataMessage = '无读取权限'
       } else if (result.snapshot.diagnostics.readFailures > 0) {
+        state.providerDataStatus = 'error'
         state.providerDataMessage = '目录读取失败'
-      } else if (detected) {
-        state.providerDataMessage = `已检测 ${detected}，暂无法精确统计`
       } else {
-        state.providerDataMessage = '未检测到支持的工具'
+        state.providerDataMessage = '未安装支持的 Coding Agent'
       }
     } else if (result.snapshot.status === 'partial') {
       const { diagnostics } = result.snapshot
@@ -454,21 +453,26 @@ async function refreshProviderData(): Promise<void> {
         state.providerDataMessage = `部分可用；${diagnostics.readFailures} 处读取失败`
       } else if (diagnostics.badLines + diagnostics.badEvents > 0) {
         state.providerDataMessage = `部分可用；忽略 ${diagnostics.badLines + diagnostics.badEvents} 条异常`
+      } else if (readyTools.length) {
+        state.providerDataMessage = `${readyTools.map((t) => t.displayName).join('、')} 可用`
       } else {
-        const unsupported = result.snapshot.capabilities.tools
-          .filter((tool) => tool.installed && !tool.exactDuration)
-          .map((tool) => tool.displayName)
-          .join('、')
-        state.providerDataMessage = unsupported
-          ? `已检测 ${unsupported}，暂无法精确统计`
-          : '部分会话暂不可用'
+        // Installed but no exact parser yet — not "broken", just not timed.
+        const names = installedTools.map((tool) => tool.displayName).join('、')
+        state.providerDataMessage = names
+          ? `已安装 ${names}；会话计时待接入`
+          : '已安装；会话计时待接入'
       }
     } else if (result.snapshot.intervals.length) {
       state.providerDataStatus = 'ready'
-      state.providerDataMessage = `${result.snapshot.intervals.length} 个执行区间`
+      const readyLabel = readyTools.length
+        ? ` · ${readyTools.map((t) => t.displayName).join('、')}`
+        : ''
+      state.providerDataMessage = `${result.snapshot.intervals.length} 个执行区间${readyLabel}`
     } else {
       state.providerDataStatus = 'empty'
-      state.providerDataMessage = '已连接；当日无执行区间'
+      state.providerDataMessage = readyTools.length
+        ? `${readyTools.map((t) => t.displayName).join('、')} 已连接；当日无执行区间`
+        : '已连接；当日无执行区间'
     }
     state.lastDataRefreshAt = Date.now()
   } catch (error) {
