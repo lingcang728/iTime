@@ -383,12 +383,19 @@ impl ProviderActivityService {
             ],
         );
         let any_installed = tools.iter().any(|tool| tool.installed);
+        // Unsupported tools (Cursor / Antigravity / …) may be "installed" for
+        // discovery only — they must not force partial when exact sources work.
         let status = if !any_installed {
             "unavailable"
-        } else if !any_exact_root || diagnostics.has_degradation() {
-            "partial"
+        } else if any_exact_root {
+            if diagnostics.has_degradation() {
+                "partial"
+            } else {
+                "ready"
+            }
         } else {
-            "ready"
+            // Only detected-but-unparsed tools (or empty exact roots).
+            "partial"
         };
 
         Ok(ProviderActivitySnapshot {
@@ -935,12 +942,23 @@ struct GrokUpdate {
     metadata: Option<GrokMetadata>,
 }
 
+/// Shared by `params._meta` and `update._meta`. Current Grok Build puts
+/// `turnStartMs` / `promptId` / `agentTimestampMs` on **params._meta**.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GrokMetadata {
+    #[serde(alias = "prompt_id")]
     prompt_id: Option<String>,
+    #[serde(alias = "turn_start_ms")]
     turn_start_ms: Option<u64>,
+    #[serde(alias = "agent_timestamp_ms")]
     agent_timestamp_ms: Option<u64>,
+}
+
+fn looks_like_grok_turn_line(line: &[u8]) -> bool {
+    contains_bytes(line, b"turn_completed")
+        || contains_bytes(line, b"\"turnStartMs\"")
+        || contains_bytes(line, b"\"turn_start_ms\"")
 }
 
 fn parse_grok_file(path: &Path) -> io::Result<ParsedFile> {
@@ -950,8 +968,10 @@ fn parse_grok_file(path: &Path) -> io::Result<ParsedFile> {
     let mut facts = ParsedFileFacts::default();
     let mut diagnostics = ParseDiagnostics::default();
     while reader.read_until(b'\n', &mut line)? > 0 {
-        let relevant =
-            contains_bytes(&line, b"turnStartMs") || contains_bytes(&line, b"turn_completed");
+        // Prefer the live Grok Build markers; keep snake_case for older files.
+        let relevant = contains_bytes(&line, b"turnStartMs")
+            || contains_bytes(&line, b"turn_start_ms")
+            || contains_bytes(&line, b"turn_completed");
         if !relevant {
             line.clear();
             continue;
@@ -962,26 +982,28 @@ fn parse_grok_file(path: &Path) -> io::Result<ParsedFile> {
                     line.clear();
                     continue;
                 };
-                let update = params.update;
-                let update_meta = update.as_ref().and_then(|item| item.metadata.as_ref());
-                let prompt_id = update_meta
-                    .and_then(|meta| meta.prompt_id.as_ref())
-                    .or_else(|| update.as_ref().and_then(|item| item.prompt_id.as_ref()))
-                    .cloned();
-                if let (Some(prompt_id), Some(start)) = (
-                    prompt_id.clone(),
-                    update_meta.and_then(|meta| meta.turn_start_ms),
-                ) {
+                let params_meta = params.metadata.as_ref();
+                let update = params.update.as_ref();
+                let update_meta = update.and_then(|item| item.metadata.as_ref());
+
+                // Current Grok Build stores prompt/turn clocks on params._meta;
+                // fall back to update fields for older session layouts.
+                let prompt_id = params_meta
+                    .and_then(|meta| meta.prompt_id.clone())
+                    .or_else(|| update_meta.and_then(|meta| meta.prompt_id.clone()))
+                    .or_else(|| update.and_then(|item| item.prompt_id.clone()));
+                let turn_start = params_meta
+                    .and_then(|meta| meta.turn_start_ms)
+                    .or_else(|| update_meta.and_then(|meta| meta.turn_start_ms));
+
+                if let (Some(prompt_id), Some(start)) = (prompt_id.clone(), turn_start) {
                     starts.entry(prompt_id).or_insert(start);
                 }
-                let completed = update
-                    .as_ref()
-                    .and_then(|item| item.session_update.as_deref())
+
+                let completed = update.and_then(|item| item.session_update.as_deref())
                     == Some("turn_completed");
                 if completed {
-                    let end = params
-                        .metadata
-                        .as_ref()
+                    let end = params_meta
                         .and_then(|meta| meta.agent_timestamp_ms)
                         .or_else(|| update_meta.and_then(|meta| meta.agent_timestamp_ms));
                     match (prompt_id.and_then(|id| starts.remove(&id)), end) {
@@ -990,11 +1012,16 @@ fn parse_grok_file(path: &Path) -> io::Result<ParsedFile> {
                         {
                             facts.completed.push(grok_interval(path, start, end));
                         }
-                        _ => diagnostics.bad_events += 1,
+                        // Orphan / incomplete pairs (resume, truncated files, mid-session
+                        // open) are incomplete evidence, not parse anomalies.
+                        _ => {}
                     }
                 }
             }
-            Err(_) => diagnostics.bad_lines += 1,
+            // Broad prefilter can hit tool payloads; only count broken JSON that
+            // still looks like a real turn boundary row.
+            Err(_) if looks_like_grok_turn_line(&line) => diagnostics.bad_lines += 1,
+            Err(_) => {}
         }
         line.clear();
     }
@@ -1641,6 +1668,57 @@ mod tests {
         assert_eq!(parsed.facts.completed.len(), 1);
         assert_eq!(parsed.diagnostics.bad_events, 0);
         assert_eq!(parsed.diagnostics.bad_lines, 0);
+    }
+
+    #[test]
+    fn grok_reads_turn_clocks_from_params_meta() {
+        // Live Grok Build puts turnStartMs / promptId / agentTimestampMs on params._meta.
+        let path = fixture_path("grok-params-meta.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk"},"_meta":{"promptId":"p1","turnStartMs":1000,"agentTimestampMs":1500}}}"#,
+                "\n",
+                r#"{"method":"session/update","params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p1"},"_meta":{"agentTimestampMs":61000}}}"#,
+                "\n",
+                // Orphan complete without a matching start — incomplete, not anomalous.
+                r#"{"method":"session/update","params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p-missing"},"_meta":{"agentTimestampMs":90000}}}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_grok_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            60_000
+        );
+        assert_eq!(parsed.diagnostics.bad_events, 0);
+        assert_eq!(parsed.diagnostics.bad_lines, 0);
+    }
+
+    #[test]
+    fn grok_legacy_update_meta_layout_still_parses() {
+        let path = fixture_path("grok-update-meta.jsonl");
+        write_provider_file(
+            &path,
+            concat!(
+                r#"{"params":{"update":{"sessionUpdate":"agent_message_chunk","_meta":{"promptId":"legacy","turnStartMs":2000}},"_meta":{"agentTimestampMs":2500}}}"#,
+                "\n",
+                r#"{"params":{"update":{"sessionUpdate":"turn_completed","promptId":"legacy","_meta":{}},"_meta":{"agentTimestampMs":32000}}}"#,
+                "\n"
+            ),
+        );
+        let parsed = parse_grok_file(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            30_000
+        );
+        assert_eq!(parsed.diagnostics.bad_events, 0);
     }
 
     #[test]

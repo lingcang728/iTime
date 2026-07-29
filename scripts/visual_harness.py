@@ -448,7 +448,7 @@ with sync_playwright() as playwright:
         page.locator(".ai-tool-item button").first.click()
         page.wait_for_selector(".ai-drawer")
         report["interactions"]["aiDetailDrawer"] = all(page.locator(".ai-drawer").get_by_text(label, exact=True).count() for label in ["AI Agent 执行", "静默等待", "并行重叠", "检测依据", "检测置信度"])
-        report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("不是工具的“知性度”", exact=False).count() == 1
+        report["interactions"]["aiMetricDefinitions"] = page.locator(".ai-drawer").get_by_text("非能力评分", exact=False).count() == 1
         page.locator(".ai-drawer__close").click()
 
         page.goto(url("input"))
@@ -608,8 +608,8 @@ with sync_playwright() as playwright:
         page.get_by_role("button", name="查看统计口径与轨道说明").click()
         timeline_notes = page.get_by_role("dialog", name="统计口径与轨道说明")
         report["interactions"]["timelineNotesPopover"] = (
-            timeline_notes.get_by_text("总覆盖按自然时间并集计算", exact=True).count() == 1
-            and timeline_notes.get_by_text("上下对齐表示同时发生", exact=True).count() == 1
+            timeline_notes.get_by_text("重叠只计一次", exact=True).count() == 1
+            and timeline_notes.get_by_text("上下对齐 = 同时发生", exact=True).count() == 1
         )
         timeline_notes.get_by_role("button", name="关闭说明").click()
 
@@ -702,7 +702,7 @@ with sync_playwright() as playwright:
         wait_ready(page)
         learning_goal = page.locator('.target-form input').first
         learning_goal.fill("135")
-        page.get_by_role("button", name="保存").click()
+        page.locator(".save-button").click()
         report["interactions"]["editableGoals"] = page.get_by_text("目标已保存", exact=False).count() > 0
 
         page.goto(url("settings"))
