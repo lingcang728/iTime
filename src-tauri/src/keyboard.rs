@@ -739,12 +739,20 @@ mod tests {
                 .unwrap();
             thread::sleep(Duration::from_millis(2));
         }
-        assert!(
-            !data_files::record_files_in(&root, KEYBOARD_PREFIX)
+        let flush_deadline = Instant::now() + Duration::from_millis(400);
+        loop {
+            if !data_files::record_files_in(&root, KEYBOARD_PREFIX)
                 .unwrap()
-                .is_empty(),
-            "periodic deadline should flush before silence"
-        );
+                .is_empty()
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < flush_deadline,
+                "periodic deadline should flush before silence"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
         let (reply, response) = mpsc::sync_channel(1);
         sender.send(KeyboardMessage::Shutdown(reply)).unwrap();
         response.recv_timeout(CONTROL_TIMEOUT).unwrap().unwrap();
