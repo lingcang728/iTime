@@ -1,7 +1,7 @@
 {
   "name": "itime",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420",
@@ -48,6 +48,8 @@
   "overrides": {
     "@vue/test-utils": {
       "js-beautify": "2.0.3"
-    }
+    },
+    "nanoid": "3.3.18",
+    "postcss": "8.5.26"
   }
 }
