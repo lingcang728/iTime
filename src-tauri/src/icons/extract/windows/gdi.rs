@@ -136,10 +136,10 @@ fn checked_bitmap_byte_len(width: u32, height: u32) -> Result<usize, String> {
 }
 
 fn bgra_to_rgba(pixels: &[u8]) -> Vec<u8> {
-    let has_alpha = pixels.chunks_exact(4).any(|pixel| pixel[3] != 0);
-    let mut rgba = Vec::with_capacity(pixels.len());
-    for pixel in pixels.chunks_exact(4) {
-        let [blue, green, red, source_alpha] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+    let (pixels, _) = pixels.as_chunks::<4>();
+    let has_alpha = pixels.iter().any(|pixel| pixel[3] != 0);
+    let mut rgba = Vec::with_capacity(pixels.len() * 4);
+    for &[blue, green, red, source_alpha] in pixels {
         let alpha = if has_alpha {
             source_alpha
         } else if red == 0 && green == 0 && blue == 0 {

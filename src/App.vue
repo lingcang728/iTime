@@ -20,7 +20,7 @@ import { useAppStore } from './stores/appStore'
 import {
   configureDesktopReminders,
   hideWindow, isTauriRuntime, isWindowMaximized, listenDesktop, listenWindowResize, minimizeWindow,
-  markDesktopUiReady, quitApplication, startWindowDragging, toggleMaximizeWindow,
+  quitApplication, startWindowDragging, toggleMaximizeWindow,
 } from './platform/desktop'
 import AiDetailDrawer from './components/AiDetailDrawer.vue'
 import AppMark from './components/AppMark.vue'
@@ -145,7 +145,6 @@ watch(
 onMounted(async () => {
   store.applyTheme(requestedTheme === 'light' || requestedTheme === 'dark' ? requestedTheme : undefined)
   await nextTick()
-  await markDesktopUiReady()
   void checkForDesktopUpdate(false)
   window.addEventListener('keydown', handleKeydown)
   const listenerError = (error: unknown) => {

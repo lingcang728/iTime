@@ -24,7 +24,6 @@ jobs:
       RUST_BACKTRACE: "1"
       RUST_TEST_THREADS: "1"
       ITIME_CI_VISUAL_RELAXED: "1"
-      ITIME_TELEMETRY_ENDPOINT: ${{ secrets.ITIME_TELEMETRY_ENDPOINT }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
@@ -67,10 +66,6 @@ jobs:
         id: validate
         shell: pwsh
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:ITIME_TELEMETRY_ENDPOINT) -or
-              $env:ITIME_TELEMETRY_ENDPOINT -notmatch '^https://') {
-            throw 'ITIME_TELEMETRY_ENDPOINT secret is missing or is not HTTPS.'
-          }
           ./scripts/verify-release-tag.ps1 `
             -TagName '${{ github.ref_name }}' `
             -RequireTagAtHead `

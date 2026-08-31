@@ -411,7 +411,7 @@ async function refreshProviderData(): Promise<void> {
     providerDates.value = []
     updateAvailableDates()
     state.providerDataStatus = 'disabled'
-    state.providerDataMessage = '未授权；不扫描、不上报'
+    state.providerDataMessage = '未授权；不扫描'
     return
   }
   const request = ++providerRequest
@@ -431,7 +431,7 @@ async function refreshProviderData(): Promise<void> {
     const readyTools = installedTools.filter((tool) => tool.exactDuration)
     if (result.snapshot.status === 'disabled') {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权；不扫描、不上报'
+      state.providerDataMessage = '未授权；不扫描'
     } else if (result.snapshot.status === 'unavailable') {
       // Uninstalled catalog entries are silent — never list them as "不可用".
       state.providerDataStatus = 'empty'
@@ -487,7 +487,7 @@ async function syncProviderConsent(): Promise<void> {
       state.providerDataMessage = '读取中'
     } else {
       state.providerDataStatus = 'disabled'
-      state.providerDataMessage = '未授权；不扫描、不上报'
+      state.providerDataMessage = '未授权；不扫描'
     }
   } catch (error) {
     state.providerConsentStatus = 'error'

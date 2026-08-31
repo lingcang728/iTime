@@ -604,35 +604,18 @@ pub(crate) fn get_provider_consent(
 #[tauri::command]
 pub(crate) fn set_provider_consent(
     providers: State<'_, ProviderActivityService>,
-    telemetry: State<'_, crate::telemetry::TelemetryService>,
     consent: ProviderConsent,
 ) -> Result<ProviderConsent, String> {
-    if !consent.ai_agent_tools_enabled {
-        telemetry.set_enabled(false)?;
-    }
-    let saved = providers.set_consent(consent)?;
-    if saved.ai_agent_tools_enabled {
-        telemetry.set_enabled(true)?;
-    }
-    Ok(saved)
+    providers.set_consent(consent)
 }
 
 #[tauri::command]
 pub(crate) fn get_provider_activity_snapshot(
     providers: State<'_, ProviderActivityService>,
-    telemetry: State<'_, crate::telemetry::TelemetryService>,
     start: u64,
     end: u64,
 ) -> Result<ProviderActivitySnapshot, String> {
-    let began = std::time::Instant::now();
-    let snapshot = providers.snapshot(start, end);
-    telemetry
-        .performance()
-        .record_agent_scan(began.elapsed(), snapshot.is_err());
-    if let Ok(snapshot) = snapshot.as_ref() {
-        telemetry.record_agent_intervals(&snapshot.intervals);
-    }
-    snapshot
+    providers.snapshot(start, end)
 }
 
 fn provider_root(home: &Path, kind: ProviderKind) -> PathBuf {

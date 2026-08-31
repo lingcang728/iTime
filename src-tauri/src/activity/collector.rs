@@ -7,7 +7,6 @@ use super::{
 };
 use crate::icons::IconService;
 use crate::reminders::ReminderService;
-use crate::telemetry::PerformanceRecorder;
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -15,7 +14,7 @@ use std::{
         Arc, Mutex,
     },
     thread::{self, JoinHandle},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 const MAX_CONTIGUOUS_MILLIS: u64 = SAMPLE_INTERVAL_SECONDS * 2 * 1_000;
@@ -27,7 +26,6 @@ struct CaptureServices<'a> {
     health: &'a HealthState,
     icons: &'a IconService,
     reminders: &'a ReminderService,
-    performance: &'a PerformanceRecorder,
     app: &'a tauri::AppHandle,
 }
 
@@ -134,26 +132,21 @@ fn capture_sample(
     now: u64,
     services: &CaptureServices<'_>,
 ) -> Result<(), String> {
-    let began = Instant::now();
-    let result = (|| {
-        let current = capture_observation();
-        if let Some((identity, path)) = current.icon_hint.clone() {
-            services
-                .icons
-                .register_executable_hint(services.app, identity, path);
-        }
-        services.reminders.observe(
-            services.app,
-            now,
-            current.observation.device_state == DeviceState::Active,
-        );
-        let boundary = observation_boundary(previous, &current, now);
-        write_previous(previous, boundary, services.health)?;
-        *previous = Some((boundary, current.observation, generation));
-        Ok(())
-    })();
-    services.performance.record_activity_loop(began.elapsed());
-    result
+    let current = capture_observation();
+    if let Some((identity, path)) = current.icon_hint.clone() {
+        services
+            .icons
+            .register_executable_hint(services.app, identity, path);
+    }
+    services.reminders.observe(
+        services.app,
+        now,
+        current.observation.device_state == DeviceState::Active,
+    );
+    let boundary = observation_boundary(previous, &current, now);
+    write_previous(previous, boundary, services.health)?;
+    *previous = Some((boundary, current.observation, generation));
+    Ok(())
 }
 
 fn send_reply(reply: SyncSender<Result<(), String>>, result: Result<(), String>) {
@@ -166,7 +159,6 @@ impl ActivityCollector {
         generation: u64,
         icons: IconService,
         reminders: ReminderService,
-        performance: PerformanceRecorder,
         app: tauri::AppHandle,
     ) -> Self {
         let health = Arc::new(HealthState {
@@ -187,7 +179,6 @@ impl ActivityCollector {
                     health: &thread_health,
                     icons: &icons,
                     reminders: &reminders,
-                    performance: &performance,
                     app: &app,
                 };
 

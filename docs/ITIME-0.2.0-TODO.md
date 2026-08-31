@@ -1,5 +1,7 @@
 # iTime 0.2.0 实施与发布清单
 
+> 历史清单。`0.2.6` 已拆除匿名遥测、观测台 Worker/D1/Pages，以及 `iTime-observability` 私有仓；后续排障改为用户手动报备。
+
 ## 目标
 
 - [x] Windows 本地图标解析 v3：快捷方式、包资源、EXE/DLL/ICO 资源优先，拒绝通用默认图标。

@@ -1,6 +1,6 @@
 use crate::{
     activity::ActivityCollector, atomic_json, data_management, keyboard::KeyboardCollector,
-    settings, telemetry::TelemetryService, transition_recording_locked, unix_millis, RuntimeState,
+    settings, transition_recording_locked, unix_millis, RuntimeState,
 };
 use serde::Serialize;
 use std::{
@@ -58,7 +58,6 @@ pub(crate) fn prepare_for_update(
     runtime: State<'_, RuntimeState>,
     activity: State<'_, ActivityCollector>,
     keyboard: State<'_, KeyboardCollector>,
-    telemetry: State<'_, TelemetryService>,
 ) -> Result<UpdatePreparation, String> {
     let mut prepared = update
         .was_recording
@@ -80,7 +79,6 @@ pub(crate) fn prepare_for_update(
     let operation = (|| {
         keyboard.flush()?;
         settings::sync_settings()?;
-        telemetry.prepare_for_update()?;
         let preparation = UpdatePreparation {
             schema_version: 1,
             prepared_at: unix_millis()?,
