@@ -32,11 +32,12 @@ pub(super) fn append_slice(slice: &ActivitySlice) -> Result<(), ActivityError> {
     Err(last_error.unwrap_or_else(|| ActivityError::io("活动记录写入失败")))
 }
 
-pub(crate) fn read_all_records_from(
+pub(crate) fn visit_records_from(
     root: &Path,
-) -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
+    mut visitor: impl FnMut(&ActivitySlice) -> Result<(), String>,
+) -> Result<(usize, usize, u64), ActivityError> {
     let paths = data_files::record_files_in(root, ACTIVITY_PREFIX).map_err(ActivityError::io)?;
-    let mut records = Vec::new();
+    let mut records = 0;
     let mut skipped = 0;
     let mut updated_at = 0;
     for path in paths {
@@ -55,9 +56,21 @@ pub(crate) fn read_all_records_from(
                 skipped += 1;
                 continue;
             }
-            records.push(slice);
+            visitor(&slice).map_err(ActivityError::io)?;
+            records += 1;
         }
     }
+    Ok((records, skipped, updated_at))
+}
+
+pub(crate) fn read_all_records_from(
+    root: &Path,
+) -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
+    let mut records = Vec::new();
+    let (_, skipped, updated_at) = visit_records_from(root, |slice| {
+        records.push(slice.clone());
+        Ok(())
+    })?;
     records.sort_by_key(|slice| (slice.start, slice.end, slice.generation));
     Ok((records, skipped, updated_at))
 }
@@ -180,5 +193,30 @@ mod tests {
         assert_eq!(records.len(), 2);
         assert_eq!(skipped, 1);
         assert_eq!((records[0].start, records[1].start), (0, 10));
+    }
+
+    #[test]
+    fn visitor_streams_valid_records_and_preserves_skip_count() {
+        let root = fixture_root("visitor");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("activity-v1.jsonl"),
+            format!(
+                "{}\nbad-line\n{}\n",
+                serde_json::to_string(&slice(10, 20)).unwrap(),
+                serde_json::to_string(&slice(20, 30)).unwrap()
+            ),
+        )
+        .unwrap();
+        let mut starts = Vec::new();
+        let (records, skipped, _) = visit_records_from(&root, |slice| {
+            starts.push(slice.start);
+            Ok(())
+        })
+        .unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(records, 2);
+        assert_eq!(skipped, 1);
+        assert_eq!(starts, vec![10, 20]);
     }
 }

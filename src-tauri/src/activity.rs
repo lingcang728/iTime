@@ -24,3 +24,10 @@ pub(crate) fn read_all_records_from(
 ) -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
     storage::read_all_records_from(root)
 }
+
+pub(crate) fn visit_records_from(
+    root: &std::path::Path,
+    visitor: impl FnMut(&ActivitySlice) -> Result<(), String>,
+) -> Result<(usize, usize, u64), ActivityError> {
+    storage::visit_records_from(root, visitor)
+}

@@ -8,7 +8,7 @@ use chrono::Local;
 use serde::Serialize;
 use std::{
     fs::{self, File},
-    io::Write,
+    io::{BufWriter, Write},
     path::Path,
     process::Command,
 };
@@ -45,13 +45,31 @@ pub(crate) struct ExportResult {
     end_at: Option<u64>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct JsonExport<'a> {
-    version: u8,
-    exported_at: u64,
-    activity: &'a [ActivitySlice],
-    keyboard: &'a [KeyboardRecord],
+#[derive(Default)]
+struct ExportStats {
+    activity_records: usize,
+    keyboard_records: usize,
+    skipped_records: usize,
+    start_at: Option<u64>,
+    end_at: Option<u64>,
+}
+
+impl ExportStats {
+    fn include_range(&mut self, start: u64, end: u64) {
+        self.start_at = Some(self.start_at.map_or(start, |value| value.min(start)));
+        self.end_at = Some(self.end_at.map_or(end, |value| value.max(end)));
+    }
+
+    fn observe_activity(&mut self, record: &ActivitySlice) {
+        self.include_range(record.start, record.end);
+    }
+
+    fn observe_keyboard(&mut self, record: &KeyboardRecord) {
+        self.include_range(
+            record.start,
+            record.start.saturating_add(KEYBOARD_BUCKET_MILLIS),
+        );
+    }
 }
 
 fn record_range(
@@ -157,26 +175,108 @@ pub(crate) fn open_local_data_directory() -> Result<(), String> {
 }
 
 fn csv_escape(value: &str) -> String {
-    if value.contains([',', '"', '\r', '\n']) {
-        format!("\"{}\"", value.replace('"', "\"\""))
+    let safe = if value
+        .chars()
+        .next()
+        .is_some_and(|character| matches!(character, '=' | '+' | '-' | '@' | '\t' | '\r'))
+    {
+        format!("'{value}")
     } else {
         value.to_string()
+    };
+    if safe.contains([',', '"', '\r', '\n']) {
+        format!("\"{}\"", safe.replace('"', "\"\""))
+    } else {
+        safe
     }
 }
 
-fn csv_bytes(activity: &[ActivitySlice], keyboard: &[KeyboardRecord]) -> Vec<u8> {
-    let mut output = String::from(
-        "recordType,start,end,generation,deviceState,appId,appName,aiTool,keyStrokes\r\n",
-    );
-    for record in activity {
+fn write_json_stream(root: &Path, writer: &mut impl Write) -> Result<ExportStats, String> {
+    let mut stats = ExportStats::default();
+    write!(
+        writer,
+        "{{\n  \"version\": 1,\n  \"exportedAt\": {},\n  \"activity\": [",
+        data_files::unix_millis()
+    )
+    .map_err(|error| error.to_string())?;
+
+    let mut first = true;
+    let (activity_records, activity_skipped, _) = activity::visit_records_from(root, |record| {
+        if first {
+            writer.write_all(b"\n").map_err(|error| error.to_string())?;
+            first = false;
+        } else {
+            writer
+                .write_all(b",\n")
+                .map_err(|error| error.to_string())?;
+        }
+        writer
+            .write_all(b"    ")
+            .map_err(|error| error.to_string())?;
+        serde_json::to_writer(&mut *writer, record).map_err(|error| error.to_string())?;
+        stats.observe_activity(record);
+        Ok(())
+    })
+    .map_err(|error| error.message)?;
+    if !first {
+        writer
+            .write_all(b"\n  ")
+            .map_err(|error| error.to_string())?;
+    }
+    writer
+        .write_all(b"],\n  \"keyboard\": [")
+        .map_err(|error| error.to_string())?;
+
+    first = true;
+    let (keyboard_records, keyboard_skipped, _) = keyboard::visit_records_from(root, |record| {
+        if first {
+            writer.write_all(b"\n").map_err(|error| error.to_string())?;
+            first = false;
+        } else {
+            writer
+                .write_all(b",\n")
+                .map_err(|error| error.to_string())?;
+        }
+        writer
+            .write_all(b"    ")
+            .map_err(|error| error.to_string())?;
+        serde_json::to_writer(&mut *writer, record).map_err(|error| error.to_string())?;
+        stats.observe_keyboard(record);
+        Ok(())
+    })?;
+    if !first {
+        writer
+            .write_all(b"\n  ")
+            .map_err(|error| error.to_string())?;
+    }
+    writer
+        .write_all(b"]\n}\n")
+        .map_err(|error| error.to_string())?;
+
+    stats.activity_records = activity_records;
+    stats.keyboard_records = keyboard_records;
+    stats.skipped_records = activity_skipped + keyboard_skipped;
+    Ok(stats)
+}
+
+fn write_csv_stream(root: &Path, writer: &mut impl Write) -> Result<ExportStats, String> {
+    let mut stats = ExportStats::default();
+    writer
+        .write_all(
+            b"recordType,start,end,generation,deviceState,appId,appName,aiTool,keyStrokes\r\n",
+        )
+        .map_err(|error| error.to_string())?;
+
+    let (activity_records, activity_skipped, _) = activity::visit_records_from(root, |record| {
         let device_state = match record.observation.device_state {
             activity::DeviceState::Active => "active",
             activity::DeviceState::Idle => "idle",
             activity::DeviceState::Locked => "locked",
             activity::DeviceState::Unknown => "unknown",
         };
-        output.push_str(&format!(
-            "activity,{},{},{},{},{},{},{},\r\n",
+        writeln!(
+            writer,
+            "activity,{},{},{},{},{},{},{},\r",
             record.start,
             record.end,
             record.generation,
@@ -184,57 +284,84 @@ fn csv_bytes(activity: &[ActivitySlice], keyboard: &[KeyboardRecord]) -> Vec<u8>
             csv_escape(record.observation.app_id.as_deref().unwrap_or("")),
             csv_escape(record.observation.app_name.as_deref().unwrap_or("")),
             record.observation.ai_tool
-        ));
-    }
-    for record in keyboard {
-        output.push_str(&format!(
-            "keyboard,{},{},{},,,,,{}\r\n",
+        )
+        .map_err(|error| error.to_string())?;
+        stats.observe_activity(record);
+        Ok(())
+    })
+    .map_err(|error| error.message)?;
+
+    let (keyboard_records, keyboard_skipped, _) = keyboard::visit_records_from(root, |record| {
+        writeln!(
+            writer,
+            "keyboard,{},{},{},,,,,{}\r",
             record.start,
             record.start.saturating_add(KEYBOARD_BUCKET_MILLIS),
             record.generation,
             record.key_strokes
-        ));
-    }
-    output.into_bytes()
+        )
+        .map_err(|error| error.to_string())?;
+        stats.observe_keyboard(record);
+        Ok(())
+    })?;
+
+    stats.activity_records = activity_records;
+    stats.keyboard_records = keyboard_records;
+    stats.skipped_records = activity_skipped + keyboard_skipped;
+    Ok(stats)
 }
 
 fn write_export_from(root: &Path, format: &str) -> Result<ExportResult, String> {
-    let (activity, keyboard, skipped_records, _) = read_records_from(root)?;
-    let (start_at, end_at) = record_range(&activity, &keyboard);
-    let bytes = match format {
-        "json" => {
-            let mut bytes = serde_json::to_vec_pretty(&JsonExport {
-                version: 1,
-                exported_at: data_files::unix_millis(),
-                activity: &activity,
-                keyboard: &keyboard,
-            })
-            .map_err(|error| error.to_string())?;
-            bytes.push(b'\n');
-            bytes
-        }
-        "csv" => csv_bytes(&activity, &keyboard),
-        _ => return Err("导出格式只支持 JSON 或 CSV".into()),
-    };
+    if !matches!(format, "json" | "csv") {
+        return Err("导出格式只支持 JSON 或 CSV".into());
+    }
     let exports = root.join("Exports");
     fs::create_dir_all(&exports).map_err(|error| error.to_string())?;
     let stamp = Local::now().format("%Y%m%d-%H%M%S-%3f");
     let path = exports.join(format!("iTime-export-{stamp}.{format}"));
     let temp = path.with_extension(format!("{format}.tmp"));
-    let mut file = File::create(&temp).map_err(|error| error.to_string())?;
-    file.write_all(&bytes).map_err(|error| error.to_string())?;
-    file.flush().map_err(|error| error.to_string())?;
-    file.sync_all().map_err(|error| error.to_string())?;
-    fs::rename(&temp, &path).map_err(|error| error.to_string())?;
+
+    let write_result = (|| -> Result<(ExportStats, u64), String> {
+        let file = File::create(&temp).map_err(|error| error.to_string())?;
+        let mut writer = BufWriter::new(file);
+        let stats = match format {
+            "json" => write_json_stream(root, &mut writer)?,
+            "csv" => write_csv_stream(root, &mut writer)?,
+            _ => unreachable!(),
+        };
+        writer.flush().map_err(|error| error.to_string())?;
+        writer
+            .get_ref()
+            .sync_all()
+            .map_err(|error| error.to_string())?;
+        let bytes = writer
+            .get_ref()
+            .metadata()
+            .map_err(|error| error.to_string())?
+            .len();
+        Ok((stats, bytes))
+    })();
+
+    let (stats, bytes) = match write_result {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
+        }
+    };
+    if let Err(error) = fs::rename(&temp, &path) {
+        let _ = fs::remove_file(&temp);
+        return Err(error.to_string());
+    }
     Ok(ExportResult {
         format: format.to_string(),
         path: path.display().to_string(),
-        bytes: bytes.len() as u64,
-        activity_records: activity.len(),
-        keyboard_records: keyboard.len(),
-        skipped_records,
-        start_at,
-        end_at,
+        bytes,
+        activity_records: stats.activity_records,
+        keyboard_records: stats.keyboard_records,
+        skipped_records: stats.skipped_records,
+        start_at: stats.start_at,
+        end_at: stats.end_at,
     })
 }
 
@@ -320,6 +447,15 @@ mod tests {
     }
 
     #[test]
+    fn csv_escape_neutralizes_spreadsheet_formula_prefixes() {
+        assert_eq!(csv_escape("=2+2"), "'=2+2");
+        assert_eq!(csv_escape("@SUM(A1)"), "'@SUM(A1)");
+        assert_eq!(csv_escape("-1+1"), "'-1+1");
+        assert_eq!(csv_escape("normal"), "normal");
+        assert_eq!(csv_escape("+SUM(1,2)"), "\"'+SUM(1,2)\"");
+    }
+
+    #[test]
     fn json_and_csv_exports_can_be_read_back_with_matching_counts() {
         let root = fixture_root("export");
         write_fixture(&root);
@@ -342,12 +478,31 @@ mod tests {
             .sum::<u64>();
         assert_eq!(exported_duration, 1_000);
         assert_eq!(exported_key_strokes, 3);
+        assert_eq!(json.activity_records, 1);
+        assert_eq!(json.keyboard_records, 1);
+        assert_eq!(json.skipped_records, 1);
+        assert_eq!(json.start_at, Some(1_000));
+        assert_eq!(json.end_at, Some(120_000));
 
         let csv = write_export_from(&root, "csv").unwrap();
         let csv_text = fs::read_to_string(&csv.path).unwrap();
         assert_eq!(csv_text.lines().count(), 3);
         assert!(csv_text.contains("activity,1000,2000"));
         assert!(csv_text.contains("keyboard,60000,120000"));
+        assert_eq!(csv.activity_records, 1);
+        assert_eq!(csv.keyboard_records, 1);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn failed_export_removes_partial_temp_file() {
+        let root = fixture_root("failed-export");
+        write_fixture(&root);
+        assert!(write_export_from(&root, "xml").is_err());
+        let exports = root.join("Exports");
+        if exports.is_dir() {
+            assert!(fs::read_dir(exports).unwrap().next().is_none());
+        }
         let _ = fs::remove_dir_all(root);
     }
 

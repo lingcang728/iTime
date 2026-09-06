@@ -48,6 +48,16 @@ fn launched_from_autostart(args: &[String]) -> bool {
     args.iter().any(|arg| arg == AUTOSTART_ARG)
 }
 
+fn startup_recording(result: Result<bool, String>) -> bool {
+    match result {
+        Ok(recording) => recording,
+        Err(error) => {
+            eprintln!("iTime 记录设置读取失败，启动时保持暂停：{error}");
+            false
+        }
+    }
+}
+
 fn fitted_window_size(work_width: f64, work_height: f64) -> (LogicalSize<f64>, LogicalSize<f64>) {
     let width = DEFAULT_WINDOW_WIDTH.min((work_width - WORK_AREA_MARGIN).max(1.0));
     let height = DEFAULT_WINDOW_HEIGHT.min((work_height - WORK_AREA_MARGIN).max(1.0));
@@ -262,20 +272,54 @@ fn clear_local_data(
     data_management::get_local_data_status()
 }
 
-#[tauri::command]
-fn quit_app(app: AppHandle) -> Result<(), String> {
-    app.state::<ActivityCollector>().shutdown(unix_millis()?)?;
-    app.state::<KeyboardCollector>().shutdown()?;
+fn request_exit(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<RuntimeState>();
+    let activity = app.state::<ActivityCollector>();
+    let keyboard = app.state::<KeyboardCollector>();
+    let _transition = state
+        .recording_transition
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let was_recording = state.recording.load(Ordering::Acquire);
+
+    if was_recording {
+        transition_recording_locked(app, &state, &activity, false, false)?;
+    }
+
+    if let Err(error) = keyboard.flush() {
+        if was_recording {
+            return match transition_recording_locked(app, &state, &activity, true, false) {
+                Ok(_) => Err(error),
+                Err(restore_error) => Err(format!("{error}；恢复采集失败：{restore_error}")),
+            };
+        }
+        return Err(error);
+    }
+
     app.exit(0);
     Ok(())
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle) -> Result<(), String> {
+    request_exit(&app)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let launch_args = std::env::args().collect::<Vec<_>>();
-    let recording = Arc::new(AtomicBool::new(settings::load_recording().unwrap_or(true)));
+    let recording = Arc::new(AtomicBool::new(startup_recording(
+        settings::load_recording(),
+    )));
     let provider_consent = settings::load_provider_consent().unwrap_or_default();
     let recording_generation = Arc::new(AtomicU64::new(0));
+    let keyboard_service = match KeyboardService::new() {
+        Ok(service) => service,
+        Err(error) => {
+            eprintln!("iTime 本地数据目录不可用，无法安全启动：{error}");
+            return;
+        }
+    };
     tauri::Builder::default()
         .manage(RuntimeState {
             recording: recording.clone(),
@@ -286,7 +330,7 @@ pub fn run() {
             maximize_on_first_show: launched_from_autostart(&launch_args),
         })
         .manage(IconService::new())
-        .manage(KeyboardService::new())
+        .manage(keyboard_service)
         .manage(ProviderActivityService::new(provider_consent))
         .manage(ReminderService::new())
         .manage(updates::UpdatePreparationState::default())
@@ -398,13 +442,8 @@ pub fn run() {
                         let _ = app.emit("toggle-reminders", ());
                     }
                     "quit" => {
-                        let result = unix_millis()
-                            .and_then(|at| app.state::<ActivityCollector>().shutdown(at))
-                            .and_then(|()| app.state::<KeyboardCollector>().shutdown());
-                        if let Err(error) = result {
+                        if let Err(error) = request_exit(app) {
                             let _ = app.emit("recording-error", error);
-                        } else {
-                            app.exit(0);
                         }
                     }
                     _ => {}
@@ -488,5 +527,12 @@ mod tests {
             AUTOSTART_ARG.into(),
         ]));
         assert!(!launched_from_autostart(&["iTime.exe".into()]));
+    }
+
+    #[test]
+    fn recording_startup_fails_closed_on_settings_error() {
+        assert!(startup_recording(Ok(true)));
+        assert!(!startup_recording(Ok(false)));
+        assert!(!startup_recording(Err("corrupt settings".into())));
     }
 }
