@@ -99,18 +99,19 @@ pub(crate) fn record_files_in(root: &Path, prefix: &str) -> Result<Vec<PathBuf>,
     if !root.is_dir() {
         return Ok(Vec::new());
     }
-    let mut paths = fs::read_dir(root)
-        .map_err(|error| error.to_string())?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.is_file()
-                && path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| is_record_name(name, prefix))
-        })
-        .collect::<Vec<_>>();
+    let mut paths = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if path.is_file()
+            && path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| is_record_name(name, prefix))
+        {
+            paths.push(path);
+        }
+    }
     paths.sort();
     Ok(paths)
 }
@@ -139,7 +140,7 @@ pub(crate) fn cleanup_expired_in(
     let Some(retention_days) = retention_days else {
         return Ok(0);
     };
-    let cutoff = today - chrono::Duration::days(i64::from(retention_days));
+    let cutoff = today - chrono::Duration::days(i64::from(retention_days.saturating_sub(1)));
     let mut removed = 0;
     for prefix in [ACTIVITY_PREFIX, KEYBOARD_PREFIX] {
         for path in record_files_in(root, prefix)? {
@@ -314,6 +315,28 @@ mod tests {
         assert!(root.join("activity-v1.jsonl").is_file());
         assert!(root.join("activity-2026-07-27-v1.jsonl").is_file());
         assert!(root.join("keyboard-2026-07-27-part2-v1.jsonl").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn retention_keeps_exactly_the_requested_calendar_window() {
+        let root = fixture_root("retention-boundary");
+        fs::create_dir_all(&root).unwrap();
+        let expired = root.join("activity-2026-04-28-v1.jsonl");
+        let oldest_kept = root.join("activity-2026-04-29-v1.jsonl");
+        fs::write(&expired, b"{}\n").unwrap();
+        fs::write(&oldest_kept, b"{}\n").unwrap();
+
+        let removed = cleanup_expired_in(
+            &root,
+            Some(90),
+            NaiveDate::from_ymd_opt(2026, 7, 27).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(removed, 1);
+        assert!(!expired.exists());
+        assert!(oldest_kept.exists());
         let _ = fs::remove_dir_all(root);
     }
 

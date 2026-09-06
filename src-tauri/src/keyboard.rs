@@ -206,22 +206,15 @@ pub(crate) struct KeyboardService {
 }
 
 impl KeyboardService {
-    pub(crate) fn new() -> Self {
-        Self {
-            root: data_files::data_dir()
-                .unwrap_or_else(|_| std::env::temp_dir().join("iTime").join("Data")),
+    pub(crate) fn new() -> Result<Self, String> {
+        Ok(Self {
+            root: data_files::data_dir()?,
             health: Arc::new(KeyboardHealth::default()),
-        }
+        })
     }
 
     fn snapshot(&self, start: u64, end: u64) -> Result<KeyboardSnapshot, String> {
         read_snapshot(&self.root, start, end, &self.health)
-    }
-}
-
-impl Default for KeyboardService {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -567,11 +560,12 @@ fn flush_pending(
     Ok(())
 }
 
-pub(crate) fn read_all_records_from(
+pub(crate) fn visit_records_from(
     root: &Path,
-) -> Result<(Vec<KeyboardRecord>, usize, u64), String> {
+    mut visitor: impl FnMut(&KeyboardRecord) -> Result<(), String>,
+) -> Result<(usize, usize, u64), String> {
     let paths = data_files::record_files_in(root, KEYBOARD_PREFIX)?;
-    let mut records = Vec::new();
+    let mut records = 0;
     let mut skipped_records = 0;
     let mut updated_at = 0;
     for path in paths {
@@ -583,11 +577,25 @@ pub(crate) fn read_all_records_from(
                 continue;
             };
             match serde_json::from_str::<KeyboardRecord>(&line) {
-                Ok(record) if record.version == 1 && record.key_strokes > 0 => records.push(record),
+                Ok(record) if record.version == 1 && record.key_strokes > 0 => {
+                    visitor(&record)?;
+                    records += 1;
+                }
                 _ => skipped_records += 1,
             }
         }
     }
+    Ok((records, skipped_records, updated_at))
+}
+
+pub(crate) fn read_all_records_from(
+    root: &Path,
+) -> Result<(Vec<KeyboardRecord>, usize, u64), String> {
+    let mut records = Vec::new();
+    let (_, skipped_records, updated_at) = visit_records_from(root, |record| {
+        records.push(record.clone());
+        Ok(())
+    })?;
     records.sort_by_key(|record| (record.start, record.generation));
     Ok((records, skipped_records, updated_at))
 }
@@ -854,5 +862,33 @@ mod tests {
         let json = serde_json::to_string(&snapshot).unwrap();
         assert!(!json.contains("vkCode"));
         assert!(!json.contains("\"content\":"));
+    }
+
+    #[test]
+    fn visitor_streams_valid_records_and_preserves_skip_count() {
+        let root = fixture_root("visitor");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("keyboard-v1.jsonl");
+        fs::write(
+            &path,
+            concat!(
+                r#"{"version":1,"start":60000,"generation":1,"keyStrokes":3}"#,
+                "\n",
+                "bad-line\n",
+                r#"{"version":1,"start":120000,"generation":1,"keyStrokes":2}"#,
+                "\n"
+            ),
+        )
+        .unwrap();
+        let mut starts = Vec::new();
+        let (records, skipped, _) = visit_records_from(&root, |record| {
+            starts.push(record.start);
+            Ok(())
+        })
+        .unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(records, 2);
+        assert_eq!(skipped, 1);
+        assert_eq!(starts, vec![60_000, 120_000]);
     }
 }
