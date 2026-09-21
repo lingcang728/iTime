@@ -1,0 +1,3 @@
+# CI-only Python dependencies. Referenced by actions/setup-python pip cache
+# (cache-dependency-path) and installed in the dependency step.
+playwright==1.58.0
