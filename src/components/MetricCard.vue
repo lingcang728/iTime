@@ -19,6 +19,8 @@ const props = withDefaults(defineProps<{
   visual?: 'bars' | 'ring'
   trend?: readonly number[]
   progress?: number | null
+  /** 数据为估算口径时在标签旁挂小徽标，避免把估算值读作精确值（F3）。 */
+  estimated?: boolean
 }>(), { tone: 'neutral' })
 
 const trendHeights = computed<number[]>(() => {
@@ -106,10 +108,10 @@ onBeforeUnmount(() => {
     }"
     :data-tone="tone"
   >
-    <span v-if="icon" class="metric-icon"><component :is="icon" :size="24" weight="regular" /></span>
+    <span v-if="icon" class="metric-icon" aria-hidden="true"><component :is="icon" :size="24" weight="regular" /></span>
     <div class="metric-card__body">
       <div class="metric-card__header">
-        <span>{{ label }}</span>
+        <span>{{ label }}<em v-if="estimated" class="metric-est-badge">估算</em></span>
         <button
           v-if="info"
           ref="infoButtonRef"
@@ -124,7 +126,7 @@ onBeforeUnmount(() => {
           @blur="closeTooltip"
           @keydown.escape.prevent="closeTooltip"
         >
-          <PhInfo :size="13" weight="regular" />
+          <PhInfo :size="13" weight="regular" aria-hidden="true" />
           <span
             ref="tooltipRef"
             class="metric-info__tooltip"
@@ -203,7 +205,7 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
   font-family: var(--font-data);
   font-size: var(--text-metric);
-  font-weight: 700;
+  font-weight: 680;
   line-height: 1;
   letter-spacing: -0.8px;
 }
@@ -216,8 +218,20 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 560;
   letter-spacing: 0;
+}
+
+.metric-est-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-radius: 99px;
+  color: var(--warning);
+  font-size: var(--text-micro);
+  font-style: normal;
+  font-weight: 560;
+  vertical-align: 1px;
 }
 
 .metric-info {
@@ -248,7 +262,7 @@ onBeforeUnmount(() => {
  */
 .metric-info__tooltip {
   position: fixed;
-  z-index: 1200;
+  z-index: var(--z-tooltip);
   box-sizing: border-box;
   max-width: min(240px, calc(100vw - 16px));
   padding: 9px 10px;
@@ -258,7 +272,7 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-popover);
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 450;
   line-height: 1.55;
   text-align: left;
   white-space: normal;

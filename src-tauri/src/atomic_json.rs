@@ -11,16 +11,42 @@ pub(crate) fn write(path: &Path, value: &impl Serialize) -> Result<(), String> {
     };
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&temporary)
-        .map_err(|error| error.to_string())?;
-    serde_json::to_writer(&mut file, value).map_err(|error| error.to_string())?;
-    file.write_all(b"\n").map_err(|error| error.to_string())?;
-    file.sync_all().map_err(|error| error.to_string())?;
-    replace_file(&temporary, path)
+    // Any failure leaves the half-written tmp behind; remove it here so the
+    // startup sweep is only a backstop for crash-killed writes.
+    let result = (|| -> Result<(), String> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|error| error.to_string())?;
+        serde_json::to_writer(&mut file, value).map_err(|error| error.to_string())?;
+        file.write_all(b"\n").map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        replace_file(&temporary, path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+/// 删除 `write` 崩溃/被强杀后遗留的 `*.tmp-<pid>` 半成品文件。
+/// 仅在启动早期、尚无并发写入时调用（单实例下安全）。
+pub(crate) fn cleanup_stale_temp(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_stale_temp = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.starts_with("tmp-"));
+        if is_stale_temp {
+            let _ = fs::remove_file(&path);
+        }
+    }
 }
 
 #[cfg(windows)]

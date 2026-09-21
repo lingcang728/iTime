@@ -4,7 +4,6 @@ mod windows;
 #[cfg(all(test, windows))]
 mod windows_tests;
 
-use super::identity::AppIdentityKind;
 use std::path::PathBuf;
 
 pub use pipeline::{extract_and_cache, try_cache_hit};
@@ -15,7 +14,6 @@ pub enum IconSource {
     ShellItem,
     ShGetFileInfo,
     ExtractIcon,
-    PackageAsset,
     Shortcut,
     Fallback,
 }
@@ -27,7 +25,6 @@ impl IconSource {
             Self::ShellItem => "shell_item",
             Self::ShGetFileInfo => "sh_get_file_info",
             Self::ExtractIcon => "extract_icon",
-            Self::PackageAsset => "package_asset",
             Self::Shortcut => "shortcut",
             Self::Fallback => "fallback",
         }
@@ -42,16 +39,13 @@ pub struct ExtractedIcon {
     pub height: u32,
 }
 
+/// Internal extraction request. `executable_path` is populated only from
+/// collector-registered `path_hints` (foreground processes the collector
+/// actually observed); it is never deserialized from IPC input.
 #[derive(Debug, Clone)]
 pub struct ExtractRequest {
     pub app_identity: String,
-    #[allow(dead_code)]
-    pub identity_kind: AppIdentityKind,
     pub executable_path: Option<String>,
-    pub process_id: Option<u32>,
-    pub aumid: Option<String>,
-    pub package_full_name: Option<String>,
-    pub package_family_name: Option<String>,
     pub size: u32,
 }
 

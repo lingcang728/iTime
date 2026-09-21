@@ -12,8 +12,13 @@
   background: var(--bg-elevated);
   box-shadow: var(--shadow-popover);
   font-size: var(--text-sm);
-  font-weight: 550;
+  font-weight: 560;
   line-height: 1.45;
+}
+
+.toast[data-tone='error'] {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--danger-soft) 42%, var(--bg-elevated));
 }
 
 .page-enter-active,

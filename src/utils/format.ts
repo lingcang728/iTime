@@ -13,6 +13,11 @@ export function formatRatio(value: number | null): string {
   return value === null ? '暂无数据' : `${value.toFixed(1)}×`
 }
 
+// 占比类指标（0–1）显示为百分比；倍率类指标才使用 formatRatio 的 ×。
+export function formatPercent(value: number | null): string {
+  return value === null ? '暂无数据' : `${Math.round(value * 100)}%`
+}
+
 export function formatNumber(value: number | null): string {
   return value === null ? '暂无数据' : Math.round(value).toLocaleString('zh-CN')
 }

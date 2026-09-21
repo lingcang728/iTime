@@ -22,7 +22,8 @@ describe('InputTrendChart', () => {
       props: { points, mode: 'bar', ariaLabel: '七天输入柱状图' },
     })
 
-    expect(wrapper.get('.trend-y-axis span').text()).toBe('15k')
+    // 紧凑轴标签用中文「万」（InputTrendChart.vue formatCompact，F21 决策）。
+    expect(wrapper.get('.trend-y-axis span').text()).toBe('1.5万')
     const barNodes = wrapper.findAll<HTMLElement>('.trend-bar-node')
     expect(barNodes).toHaveLength(7)
     for (const node of barNodes) {
@@ -36,7 +37,7 @@ describe('InputTrendChart', () => {
     expect(wrapper.findAll('.trend-bar-value').map((label) => label.text())).toEqual([
       '3,000',
       '3,600',
-      '11,007',
+      '1.1万',
       '4,800',
       '900',
       '5,200',

@@ -1,89 +1,32 @@
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, Prefix};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AppIdentityKind {
-    ExecutablePath,
-    Package,
-    BrowserSite,
-    Logical,
-}
+/// Maximum accepted length for a caller-supplied identity seed.
+/// Longer strings are truncated before normalization so the IPC surface stays bounded.
+const MAX_IDENTITY_SEED_CHARS: usize = 160;
 
-/// Build a stable application identity string.
-/// Prefer package / AUMID, then normalized absolute exe path, then logical key.
-pub fn normalize_app_identity(
-    app_identity: Option<&str>,
-    executable_path: Option<&str>,
-    aumid: Option<&str>,
-    package_full_name: Option<&str>,
-    package_family_name: Option<&str>,
-    site_host: Option<&str>,
-) -> (String, AppIdentityKind) {
-    if let Some(host) = site_host.map(str::trim).filter(|v| !v.is_empty()) {
-        let browser = normalize_path_key(executable_path)
-            .map(|path| private_path_key(&path))
-            .or_else(|| normalize_logical_key(app_identity))
-            .unwrap_or_else(|| "browser".to_string());
-        return (
-            format!("site:{}@{}", host.to_ascii_lowercase(), browser),
-            AppIdentityKind::BrowserSite,
-        );
+/// Build a stable, opaque application identity string from the caller-supplied
+/// logical name / previously issued `app:` identity.
+///
+/// The IPC boundary only accepts logical identities: the resolver derives real
+/// executable paths exclusively from collector-registered `path_hints`, so a
+/// compromised WebView can never turn this command into a file-existence oracle,
+/// a PID probe, or a UNC/SMB authentication trigger.
+///
+/// Normalization rules (shared with `domain/appIdentity.ts`):
+/// - a leading `app:` prefix is treated as an already-normalized identity
+/// - ASCII alphanumerics are kept lowercased
+/// - every run of other characters collapses to a single `-`
+/// - leading/trailing `-` are trimmed
+pub fn normalize_app_identity(app_identity: Option<&str>) -> String {
+    let raw = app_identity.map(str::trim).filter(|v| !v.is_empty());
+    let Some(seed) = raw else {
+        return "app:unknown".to_string();
+    };
+    let seed = seed.strip_prefix("app:").unwrap_or(seed);
+    match normalize_logical_key(Some(seed)) {
+        Some(logical) => format!("app:{logical}"),
+        None => "app:unknown".to_string(),
     }
-
-    if let Some(aumid) = aumid.map(str::trim).filter(|v| !v.is_empty()) {
-        return (format!("aumid:{}", aumid), AppIdentityKind::Package);
-    }
-    if let Some(full) = package_full_name.map(str::trim).filter(|v| !v.is_empty()) {
-        return (format!("pkg:{}", full), AppIdentityKind::Package);
-    }
-    if let Some(family) = package_family_name.map(str::trim).filter(|v| !v.is_empty()) {
-        return (format!("pkgfamily:{}", family), AppIdentityKind::Package);
-    }
-
-    if let Some(path_key) = normalize_path_key(executable_path) {
-        return (
-            format!("exe:{}", private_path_key(&path_key)),
-            AppIdentityKind::ExecutablePath,
-        );
-    }
-
-    if let Some(logical) = normalize_logical_key(app_identity) {
-        return (format!("app:{}", logical), AppIdentityKind::Logical);
-    }
-
-    ("app:unknown".to_string(), AppIdentityKind::Logical)
-}
-
-fn private_path_key(value: &str) -> String {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in value.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    format!("{hash:016x}")
-}
-
-pub fn normalize_path_key(path: Option<&str>) -> Option<String> {
-    let raw = path?.trim();
-    if raw.is_empty() {
-        return None;
-    }
-    let path = PathBuf::from(raw);
-    let canonical = path
-        .canonicalize()
-        .unwrap_or_else(|_| normalize_slashes(&path));
-    Some(
-        canonical
-            .to_string_lossy()
-            .trim_start_matches(r"\\?\")
-            .to_ascii_lowercase()
-            .replace('/', "\\"),
-    )
-}
-
-fn normalize_slashes(path: &Path) -> PathBuf {
-    PathBuf::from(path.to_string_lossy().replace('/', "\\"))
 }
 
 fn normalize_logical_key(value: Option<&str>) -> Option<String> {
@@ -91,75 +34,89 @@ fn normalize_logical_key(value: Option<&str>) -> Option<String> {
     if raw.is_empty() {
         return None;
     }
-    Some(
-        raw.chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() {
-                    c.to_ascii_lowercase()
-                } else {
-                    '-'
-                }
-            })
-            .collect::<String>()
-            .trim_matches('-')
-            .to_string(),
-    )
-    .filter(|s| !s.is_empty())
+    let mut output = String::with_capacity(raw.len());
+    let mut pending_separator = false;
+    for character in raw.chars().take(MAX_IDENTITY_SEED_CHARS) {
+        if character.is_ascii_alphanumeric() {
+            if pending_separator && !output.is_empty() {
+                output.push('-');
+            }
+            pending_separator = false;
+            output.push(character.to_ascii_lowercase());
+        } else {
+            pending_separator = true;
+        }
+    }
+    (!output.is_empty()).then_some(output)
+}
+
+/// Icon extraction must never touch network or device-namespace paths: probing a
+/// `\\host\share\…` UNC path through `is_file`/Shell APIs would trigger SMB and
+/// leak NTLMv2 hashes. Only plain `X:\…` drive paths are acceptable.
+pub(crate) fn is_safe_local_path(path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    match path.components().next() {
+        Some(Component::Prefix(prefix)) => matches!(prefix.kind(), Prefix::Disk(_)),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
-    fn prefers_aumid_over_path() {
-        let (id, kind) = normalize_app_identity(
-            Some("chrome"),
-            Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-            Some("Chrome.App"),
-            None,
-            None,
-            None,
-        );
-        assert_eq!(kind, AppIdentityKind::Package);
-        assert_eq!(id, "aumid:Chrome.App");
+    fn collapses_separator_runs_like_the_frontend() {
+        // Frontend normalizeLogicalKey folds runs; the collector's logical_key
+        // does the same — the icon identity must agree so path hints hit.
+        assert_eq!(normalize_app_identity(Some("QQ 音乐")), "app:qq");
+        assert_eq!(normalize_app_identity(Some("VS Code")), "app:vs-code");
+        assert_eq!(normalize_app_identity(Some("app - x")), "app:app-x");
     }
 
     #[test]
-    fn builds_browser_site_identity() {
-        let (id, kind) = normalize_app_identity(
-            Some("chrome"),
-            Some(r"C:\Chrome\chrome.exe"),
-            None,
-            None,
-            None,
-            Some("github.com"),
-        );
-        assert_eq!(kind, AppIdentityKind::BrowserSite);
-        assert!(id.starts_with("site:github.com@"));
+    fn keeps_issued_app_identities_idempotent() {
+        assert_eq!(normalize_app_identity(Some("app:vscode")), "app:vscode");
     }
 
     #[test]
-    fn executable_identity_never_exposes_the_source_path() {
-        let (id, kind) = normalize_app_identity(
-            None,
-            Some(r"C:\Users\person\Apps\Secret\tool.exe"),
-            None,
-            None,
-            None,
-            None,
+    fn sanitizes_hostile_identity_input() {
+        // `\`/`:`/`/` all collapse — the result can never be reparsed as a path.
+        assert_eq!(
+            normalize_app_identity(Some(r"\\evil.example\share\x.exe")),
+            "app:evil-example-share-x-exe"
         );
-        assert_eq!(kind, AppIdentityKind::ExecutablePath);
-        assert!(id.starts_with("exe:"));
-        assert_eq!(id.len(), 20);
-        assert!(!id.to_ascii_lowercase().contains("users"));
-        assert!(!id.to_ascii_lowercase().contains("secret"));
+        assert_eq!(
+            normalize_app_identity(Some("site:host@browser")),
+            "app:site-host-browser"
+        );
     }
 
     #[test]
-    fn falls_back_to_logical_key() {
-        let (id, kind) = normalize_app_identity(Some("VS Code"), None, None, None, None, None);
-        assert_eq!(kind, AppIdentityKind::Logical);
-        assert_eq!(id, "app:vs-code");
+    fn falls_back_to_unknown() {
+        assert_eq!(normalize_app_identity(None), "app:unknown");
+        assert_eq!(normalize_app_identity(Some("   ")), "app:unknown");
+        assert_eq!(normalize_app_identity(Some("中文应用")), "app:unknown");
+    }
+
+    #[test]
+    fn caps_identity_seed_length() {
+        let long = "a".repeat(10_000);
+        let identity = normalize_app_identity(Some(&long));
+        assert_eq!(identity.len(), 4 + MAX_IDENTITY_SEED_CHARS);
+    }
+
+    #[test]
+    fn rejects_unc_and_device_paths() {
+        assert!(!is_safe_local_path(Path::new(r"\\host\share\app.exe")));
+        assert!(!is_safe_local_path(Path::new(r"\\?\C:\Apps\app.exe")));
+        assert!(!is_safe_local_path(Path::new(r"\\.\pipe\x")));
+        assert!(!is_safe_local_path(Path::new("relative/app.exe")));
+        assert!(!is_safe_local_path(Path::new("//host/share/app.exe")));
+        assert!(is_safe_local_path(Path::new(r"C:\Apps\app.exe")));
+        assert!(is_safe_local_path(&PathBuf::from(r"D:\tools\x.exe")));
     }
 }

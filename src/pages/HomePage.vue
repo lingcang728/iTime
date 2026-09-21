@@ -16,6 +16,7 @@ import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metric
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
 import { formatClock, formatDuration } from '../utils/format'
+import { isSelectedLocalDay } from './timelineModel'
 
 interface DurationPart {
   amount: string
@@ -23,6 +24,9 @@ interface DurationPart {
 }
 
 const store = useAppStore()
+const isToday = computed(() => isSelectedLocalDay(store.state.selectedDate, Date.now()))
+const dayLabel = computed(() => isToday.value ? '今日' : '当日')
+const previousLabel = computed(() => isToday.value ? '昨日' : '前一日')
 const activityDataAvailable = computed(() => hasActivityData(store.state.activityDataStatus))
 const computerDuration = computed(() => store.day.value.computerActivity.value)
 const foregroundDuration = computed(() => store.day.value.foregroundActivity.value)
@@ -62,31 +66,48 @@ const computerComparison = computed(() => comparisonLabel(
   computerDuration.value,
   previousDay.value?.computerActivity.value ?? null,
   (value) => formatDuration(value, true),
+  previousLabel.value,
 ))
 const foregroundComparison = computed(() => comparisonLabel(
   foregroundDuration.value,
   previousDay.value?.foregroundActivity.value ?? null,
   (value) => formatDuration(value, true),
+  previousLabel.value,
 ))
 const focusComparison = computed(() => comparisonLabel(
   focusRatio.value,
   previousDay.value?.foregroundFocusRatio.value ?? null,
   (value) => `${Math.round(value * 100)} 个百分点`,
+  previousLabel.value,
 ))
 const switchComparison = computed(() => comparisonLabel(
   switchCount.value,
   previousDay.value?.foregroundSwitches.value ?? null,
   (value) => `${Math.round(value)} 次`,
+  previousLabel.value,
 ))
 
+// 空态按数据源状态分流：降级/失败要如实呈现，不能统一回落到"等待第一条"。
 const rankingEmptyTitle = computed(() => {
-  if (activityDataAvailable.value || store.state.activityDataStatus === 'empty') return '等待第一条应用活动'
-  if (store.state.activityDataStatus === 'loading') return '正在读取活动记录'
-  return '活动记录读取失败'
+  const status = store.state.activityDataStatus
+  if (status === 'loading') return '正在读取活动记录'
+  if (status === 'degraded') return '活动记录部分可用'
+  if (status === 'error') return '活动记录读取失败'
+  return '等待第一条应用活动'
 })
-const rankingEmptyDetail = computed(() => activityDataAvailable.value
-  ? 'iTime 已开始记录，新活动会自动出现在这里。'
-  : store.state.activityDataMessage)
+const rankingEmptyDetail = computed(() => {
+  if (store.state.activityDataStatus === 'degraded') {
+    return store.state.activityDataMessage
+      ? `${store.state.activityDataMessage}；已有记录仍会展示`
+      : '部分记录可能缺失，已有记录仍会展示'
+  }
+  return activityDataAvailable.value
+    ? 'iTime 已开始记录，新活动会自动出现在这里。'
+    : store.state.activityDataMessage
+})
+const activityEmptyTitle = computed(() => rankingEmptyTitle.value === '等待第一条应用活动'
+  ? `${dayLabel.value}暂无活动区间`
+  : rankingEmptyTitle.value)
 const reminderVisible = computed(() => store.state.currentReminder !== null)
 
 function durationParts(value: number | null): DurationPart[] {
@@ -105,7 +126,7 @@ function dismissReminder(): void {
 
 <template>
   <section class="page home-page">
-    <PageHeader title="首页" subtitle="今日概览" />
+    <PageHeader title="首页" :subtitle="`${dayLabel}概览`" />
 
     <div class="metrics-grid metrics-grid--home">
       <MetricCard :label="metricDefinitions.computerActivity.name" :value-parts="durationParts(computerDuration)" :detail="computerComparison" :icon="PhClock" visual="bars" :trend="computerTrend" :info="metricInfo('computerActivity')" />
@@ -133,17 +154,17 @@ function dismissReminder(): void {
             <span class="rank-value"><b>{{ Math.round(app.share * 100) }}%</b></span>
           </div>
         </div>
-        <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
+        <div v-else class="section-state" :data-state="store.state.activityDataStatus"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
       </article>
 
       <article class="today-timeline">
         <div class="section-heading">
-          <h2>今日活动</h2>
+          <h2>{{ isToday ? '今日活动' : '当日活动' }}</h2>
           <span class="section-meta">最近 8 段</span>
         </div>
-        <div v-if="timelineRows.length" class="home-activity-list" aria-label="今日应用活动时间线">
+        <div v-if="timelineRows.length" class="home-activity-list" :aria-label="`${dayLabel}应用活动时间线`">
           <div v-for="event in timelineRows" :key="event.id" class="home-activity-row">
-            <time>{{ formatClock(event.start) }}</time>
+            <time :datetime="formatClock(event.start)">{{ formatClock(event.start) }}</time>
             <span class="home-activity-dot" aria-hidden="true"></span>
             <div class="home-activity-card">
               <ApplicationIcon :app-identity="event.appId" :app-name="event.appName" :size="22" />
@@ -152,15 +173,15 @@ function dismissReminder(): void {
             </div>
           </div>
         </div>
-        <div v-else class="section-state"><strong>{{ rankingEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
+        <div v-else class="section-state" :data-state="store.state.activityDataStatus"><strong>{{ activityEmptyTitle }}</strong><span>{{ rankingEmptyDetail }}</span></div>
       </article>
     </div>
 
     <article class="home-summary-bar home-insight-card">
-      <span class="insight-mark"><PhSparkle :size="22" weight="fill" /></span>
+      <span class="insight-mark"><PhSparkle :size="22" weight="fill" aria-hidden="true" /></span>
       <div class="insight-copy">
-        <strong>今日</strong>
-        <p v-if="foregroundDuration !== null && focusPercent !== null">前台 {{ formatDuration(foregroundDuration, true) }} · 占比 {{ focusPercent }}%</p>
+        <strong>{{ dayLabel }}</strong>
+        <p v-if="foregroundDuration !== null && focusPercent !== null">前台专注 {{ formatDuration(foregroundDuration, true) }} · 专注占比 {{ focusPercent }}%</p>
         <p v-else>数据不足，暂无结论</p>
         <small>{{ longestInterval ? `最长连续：${formatClock(longestInterval.start)}–${formatClock(longestInterval.end)}` : '继续记录后显示节奏' }}</small>
       </div>
@@ -168,7 +189,7 @@ function dismissReminder(): void {
       <div class="insight-stat"><small>最长应用</small><strong>{{ topApp?.appName ?? '—' }}<template v-if="topApp">（{{ formatDuration(topApp.duration, true) }}）</template></strong></div>
       <div class="insight-stat"><small>区间时长</small><strong>{{ longestInterval ? formatDuration(longestInterval.end - longestInterval.start, true) : '—' }}</strong></div>
       <div v-if="reminderVisible" class="wellbeing-card">
-        <PhEye :size="18" />
+        <PhEye :size="18" aria-hidden="true" />
         <span>已连续使用 {{ store.state.currentReminder?.continuousMinutes }} 分钟</span>
         <button class="button secondary" type="button" @click="dismissReminder">知道了</button>
       </div>

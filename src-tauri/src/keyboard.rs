@@ -16,19 +16,25 @@ use std::{
 use tauri::State;
 use windows::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+    System::SystemInformation::GetTickCount64,
     System::Threading::GetCurrentThreadId,
     UI::WindowsAndMessaging::{
         CallNextHookEx, GetMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
-        HHOOK, KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_QUIT,
-        WM_SYSKEYDOWN, WM_SYSKEYUP,
+        HHOOK, KBDLLHOOKSTRUCT, LLKHF_INJECTED, LLKHF_LOWER_IL_INJECTED, MSG, WH_KEYBOARD_LL,
+        WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
     },
 };
 
 const MINUTE_MILLIS: u64 = 60_000;
+const MAX_QUERY_MILLIS: u64 = 32 * 24 * 60 * 60 * 1_000;
 const FLUSH_INTERVAL: Duration = Duration::from_secs(3);
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(2);
 const EVENT_QUEUE_CAPACITY: usize = 4_096;
 const WRITE_ATTEMPTS: usize = 3;
+/// Secure-desktop transitions (UAC, Ctrl+Alt+Del, lock) can swallow the keyup
+/// that would clear a modifier bit; resync the mask from the OS whenever
+/// events resume after this much silence.
+const MODIFIER_RESYNC_TICKS: u64 = 30_000;
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -52,6 +58,27 @@ const MOD_LSHIFT: u8 = 1 << 6;
 const MOD_RSHIFT: u8 = 1 << 7;
 const BLOCKING_MODIFIERS: u8 = MOD_LCTRL | MOD_RCTRL | MOD_LALT | MOD_RALT | MOD_LWIN | MOD_RWIN;
 
+/// std `SyncSender` has no stable `send_timeout`; poll `try_send` with short
+/// sleeps until the deadline so control messages cannot park the caller on a
+/// wedged writer thread.
+fn send_control_with_timeout(
+    sender: &SyncSender<KeyboardMessage>,
+    message: KeyboardMessage,
+    timeout: Duration,
+) -> Result<(), TrySendError<KeyboardMessage>> {
+    let deadline = Instant::now() + timeout;
+    let mut pending = message;
+    loop {
+        match sender.try_send(pending) {
+            Err(TrySendError::Full(returned)) if Instant::now() < deadline => {
+                pending = returned;
+                thread::sleep(Duration::from_millis(5));
+            }
+            result => return result.map(|_| ()),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum KeyboardMessage {
     Key { timestamp: u64, generation: u64 },
@@ -62,6 +89,7 @@ enum KeyboardMessage {
 #[derive(Default)]
 struct ModifierTracker {
     mask: AtomicU8,
+    last_event_ticks: AtomicU64,
 }
 
 impl ModifierTracker {
@@ -78,9 +106,47 @@ impl ModifierTracker {
         true
     }
 
+    /// Resyncs the mask from the OS after a long event silence, so a modifier
+    /// keyup lost during a secure desktop cannot suppress character counting
+    /// until the next real modifier event.
+    fn refresh(&self, event_ticks: u64) {
+        let previous = self.last_event_ticks.swap(event_ticks, Ordering::AcqRel);
+        if event_ticks.saturating_sub(previous) > MODIFIER_RESYNC_TICKS {
+            self.mask.store(system_modifier_mask(), Ordering::Release);
+        }
+    }
+
     fn snapshot(&self) -> u8 {
         self.mask.load(Ordering::Acquire)
     }
+}
+
+#[cfg(windows)]
+fn system_modifier_mask() -> u8 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    let pairs: [(u32, u8); 8] = [
+        (VK_LCONTROL, MOD_LCTRL),
+        (VK_RCONTROL, MOD_RCTRL),
+        (VK_LMENU, MOD_LALT),
+        (VK_RMENU, MOD_RALT),
+        (VK_LWIN, MOD_LWIN),
+        (VK_RWIN, MOD_RWIN),
+        (VK_LSHIFT, MOD_LSHIFT),
+        (VK_RSHIFT, MOD_RSHIFT),
+    ];
+    let mut mask = 0u8;
+    for (virtual_key, bit) in pairs {
+        // SAFETY: GetAsyncKeyState is a pure state query with no preconditions.
+        if unsafe { GetAsyncKeyState(virtual_key as i32) } as u16 & 0x8000 != 0 {
+            mask |= bit;
+        }
+    }
+    mask
+}
+
+#[cfg(not(windows))]
+fn system_modifier_mask() -> u8 {
+    0
 }
 
 struct KeyboardRuntime {
@@ -317,7 +383,15 @@ impl KeyboardCollector {
             drop(hook_thread);
 
             let (reply, response) = mpsc::sync_channel(1);
-            if self.sender.send(KeyboardMessage::Shutdown(reply)).is_err() {
+            // Bounded send: a wedged writer thread with a full queue must not
+            // park the caller (main thread / exit path) forever.
+            if send_control_with_timeout(
+                &self.sender,
+                KeyboardMessage::Shutdown(reply),
+                CONTROL_TIMEOUT,
+            )
+            .is_err()
+            {
                 let mut writer_thread = self
                     .writer_thread
                     .lock()
@@ -359,9 +433,11 @@ impl KeyboardCollector {
             return Err("键盘写入线程已经停止".into());
         }
         let (reply, response) = mpsc::sync_channel(1);
-        self.sender
-            .send(KeyboardMessage::Flush(reply))
-            .map_err(|_| "键盘写入队列不可用".to_string())?;
+        send_control_with_timeout(&self.sender, KeyboardMessage::Flush(reply), CONTROL_TIMEOUT)
+            .map_err(|error| match error {
+                TrySendError::Full(_) => "键盘写入队列已满，刷新超时".to_string(),
+                TrySendError::Disconnected(_) => "键盘写入队列不可用".to_string(),
+            })?;
         response
             .recv_timeout(CONTROL_TIMEOUT)
             .map_err(|_| "键盘写入线程未及时完成刷新".to_string())?
@@ -374,7 +450,9 @@ impl Drop for KeyboardCollector {
     }
 }
 
-#[tauri::command]
+// Snapshot reads do full-directory file I/O; `command(async)` keeps them off
+// the main thread.
+#[tauri::command(async)]
 pub(crate) fn get_keyboard_snapshot(
     keyboard: State<'_, KeyboardService>,
     start: u64,
@@ -394,20 +472,31 @@ unsafe extern "system" fn low_level_keyboard_callback(
         let released = matches!(message, WM_KEYUP | WM_SYSKEYUP);
         if pressed || released {
             let key = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+            // Injected keystrokes (both flags) are dropped *before* the modifier
+            // tracker sees them — a local process must not be able to synthesize
+            // modifier events that mask or fake real keystrokes.
+            if key.flags.0 & (LLKHF_INJECTED.0 | LLKHF_LOWER_IL_INJECTED.0) != 0 {
+                return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
+            }
             if let Some(runtime) = KEYBOARD_RUNTIME.get() {
+                // SAFETY: GetTickCount64 has no preconditions.
+                runtime.modifiers.refresh(unsafe { GetTickCount64() });
                 if runtime.modifiers.update(key.vkCode, pressed) {
                     return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
                 }
                 if pressed
-                    && key.flags.0 & LLKHF_INJECTED.0 == 0
                     && should_count_key(key.vkCode, runtime.modifiers.snapshot())
                     && runtime.recording.load(Ordering::Acquire)
                 {
-                    send_key_event(
-                        runtime,
-                        unix_millis(),
-                        runtime.generation.load(Ordering::Acquire),
-                    );
+                    // A pre-epoch clock is unusable; skip the event like the
+                    // activity collector does instead of writing a 1970 shard.
+                    if let Some(timestamp) = unix_millis_opt() {
+                        send_key_event(
+                            runtime,
+                            timestamp,
+                            runtime.generation.load(Ordering::Acquire),
+                        );
+                    }
                 }
             }
         }
@@ -560,18 +649,22 @@ fn flush_pending(
     Ok(())
 }
 
-pub(crate) fn visit_records_from(
-    root: &Path,
+fn visit_records(
+    paths: &[PathBuf],
     mut visitor: impl FnMut(&KeyboardRecord) -> Result<(), String>,
 ) -> Result<(usize, usize, u64), String> {
-    let paths = data_files::record_files_in(root, KEYBOARD_PREFIX)?;
     let mut records = 0;
     let mut skipped_records = 0;
     let mut updated_at = 0;
     for path in paths {
-        updated_at = updated_at.max(data_files::modified_millis(&path));
-        let reader = BufReader::new(File::open(&path).map_err(|error| error.to_string())?);
-        for line in reader.lines() {
+        updated_at = updated_at.max(data_files::modified_millis(path));
+        // A shard that cannot be opened (AV lock, deleted between enumeration
+        // and open) is counted as skipped instead of failing the whole query.
+        let Ok(file) = File::open(path) else {
+            skipped_records += 1;
+            continue;
+        };
+        for line in BufReader::new(file).lines() {
             let Ok(line) = line else {
                 skipped_records += 1;
                 continue;
@@ -588,16 +681,22 @@ pub(crate) fn visit_records_from(
     Ok((records, skipped_records, updated_at))
 }
 
-pub(crate) fn read_all_records_from(
+pub(crate) fn visit_records_from(
     root: &Path,
-) -> Result<(Vec<KeyboardRecord>, usize, u64), String> {
-    let mut records = Vec::new();
-    let (_, skipped_records, updated_at) = visit_records_from(root, |record| {
-        records.push(record.clone());
-        Ok(())
-    })?;
-    records.sort_by_key(|record| (record.start, record.generation));
-    Ok((records, skipped_records, updated_at))
+    visitor: impl FnMut(&KeyboardRecord) -> Result<(), String>,
+) -> Result<(usize, usize, u64), String> {
+    let paths = data_files::record_files_in(root, KEYBOARD_PREFIX)?;
+    visit_records(&paths, visitor)
+}
+
+fn visit_records_in_range(
+    root: &Path,
+    start: u64,
+    end: u64,
+    visitor: impl FnMut(&KeyboardRecord) -> Result<(), String>,
+) -> Result<(usize, usize, u64), String> {
+    let paths = data_files::record_files_covering(root, KEYBOARD_PREFIX, start, end)?;
+    visit_records(&paths, visitor)
 }
 
 fn read_snapshot(
@@ -606,23 +705,24 @@ fn read_snapshot(
     end: u64,
     health: &KeyboardHealth,
 ) -> Result<KeyboardSnapshot, String> {
-    if end <= start {
+    if end <= start || end - start > MAX_QUERY_MILLIS {
         return Err("键盘统计查询区间无效".into());
     }
     let mut counts = BTreeMap::<u64, u64>::new();
-    let (records, skipped_records, updated_at) = match read_all_records_from(root) {
-        Ok(result) => result,
-        Err(error) => {
-            health.read_failures.fetch_add(1, Ordering::AcqRel);
-            health.set_error(format!("键盘字符键计数读取失败：{error}"));
-            return Err(error);
-        }
-    };
-    for record in records {
-        if record.start < end && record.start.saturating_add(MINUTE_MILLIS) > start {
-            *counts.entry(record.start).or_default() += record.key_strokes;
-        }
-    }
+    let (_, skipped_records, updated_at) =
+        match visit_records_in_range(root, start, end, |record| {
+            if record.start < end && record.start.saturating_add(MINUTE_MILLIS) > start {
+                *counts.entry(record.start).or_default() += record.key_strokes;
+            }
+            Ok(())
+        }) {
+            Ok(result) => result,
+            Err(error) => {
+                health.read_failures.fetch_add(1, Ordering::AcqRel);
+                health.set_error(format!("键盘字符键计数读取失败：{error}"));
+                return Err(error);
+            }
+        };
     let buckets = counts
         .into_iter()
         .map(|(bucket_start, key_strokes)| KeyboardBucket {
@@ -653,6 +753,11 @@ fn read_snapshot(
 
 fn unix_millis() -> u64 {
     data_files::unix_millis()
+}
+
+fn unix_millis_opt() -> Option<u64> {
+    let millis = unix_millis();
+    (millis > 0).then_some(millis)
 }
 
 #[cfg(test)]

@@ -111,12 +111,12 @@ function focusPoint(index: number, event: FocusEvent): void {
 
 <style scoped>
 .trend { min-width: 0; margin-top: 12px; }
-.trend__legend { display: flex; align-items: center; gap: 14px; color: var(--text-secondary); font-size: 10px; }
+.trend__legend { display: flex; align-items: center; gap: 14px; color: var(--text-secondary); font-size: var(--text-micro); }
 .trend__legend span { display: inline-flex; align-items: center; gap: 6px; }
 .trend__legend i { width: 18px; height: 3px; border-radius: 99px; }
 .trend__legend i.attention { background: var(--accent-green); }
 .trend__legend i.ai { background: var(--accent-strong); }
-.trend__legend small { margin-left: auto; color: var(--text-muted); font-size: 10px; }
+.trend__legend small { margin-left: auto; color: var(--text-muted); font-size: var(--text-micro); }
 .trend__plot { position: relative; width: 100%; min-height: 172px; aspect-ratio: 700 / 220; margin-top: 6px; }
 .trend__plot svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .trend__grid { stroke: color-mix(in srgb, var(--border-soft) 76%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -131,10 +131,10 @@ function focusPoint(index: number, event: FocusEvent): void {
 .trend g:hover circle,
 .trend g:focus-visible circle { r: 8; }
 .trend g:focus-visible circle { stroke: var(--border-focus); stroke-width: 4; }
-.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 2px; transform: translate(-50%, -112%); padding: 7px 9px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-popover); font-size: 10px; pointer-events: none; white-space: nowrap; }
+.trend__tooltip { position: absolute; z-index: 3; display: grid; gap: 2px; transform: translate(-50%, -112%); padding: 7px 9px; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 96%, transparent); box-shadow: var(--shadow-popover); font-size: var(--text-micro); pointer-events: none; white-space: nowrap; }
 .trend__tooltip span { color: var(--text-secondary); }
-.trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 2px; color: var(--text-muted); font-size: 10px; text-align: center; }
-.trend__empty { min-height: 172px; display: grid; place-items: center; margin-top: 6px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: 10px; }
+.trend__labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 2px; color: var(--text-muted); font-size: var(--text-micro); text-align: center; }
+.trend__empty { min-height: 172px; display: grid; place-items: center; margin-top: 6px; border-radius: 9px; color: var(--text-muted); background: var(--bg-subtle); font-size: var(--text-micro); }
 
 /* P3-1: entrance animation */
 @keyframes trend-dot-pop {

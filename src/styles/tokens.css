@@ -3,7 +3,6 @@
 
   --font-ui: "Segoe UI Variable Text", "Segoe UI Variable", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --font-data: "Segoe UI Variable Display", "Segoe UI Variable", "Microsoft YaHei UI", sans-serif;
-  --font-sans: var(--font-ui);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -13,6 +12,7 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  --text-micro: 11px;
   --text-xs: 12px;
   --text-sm: 13px;
   --text-body: 14px;
@@ -51,32 +51,23 @@
   --danger: #a94d55;
   --danger-soft: #f5e4e6;
 
-  --accent-blue: var(--accent);
-  --accent-blue-soft: var(--accent-soft);
-  --accent-blue-strong: var(--accent-strong);
-  --accent-green: var(--accent);
-  --accent-green-soft: var(--accent-soft);
-  --accent-green-strong: var(--accent-strong);
-  --accent-violet: var(--accent);
-  --accent-violet-soft: var(--accent-soft);
-  --accent-violet-strong: var(--accent-strong);
-  --accent-cyan: var(--accent);
-  --accent-cyan-soft: var(--accent-soft);
-  --accent-cyan-strong: var(--accent-strong);
+  --accent-green: #5f9a83;
+  --accent-green-soft: #e2ede8;
+  --accent-green-strong: #4b7a67;
+  --accent-violet: #7c7fbd;
+  --accent-violet-soft: #e7e8f3;
+  --accent-violet-strong: #605e96;
   --accent-orange: var(--warning);
   --accent-orange-soft: var(--warning-soft);
   --accent-orange-strong: var(--warning);
   --accent-red: var(--danger);
   --accent-red-soft: var(--danger-soft);
 
-  --heatmap-0: #edf0f3;
-  --heatmap-1: #dfe4e9;
-  --heatmap-2: #cbd3dc;
-  --heatmap-3: #aebac6;
-  --heatmap-4: #8999aa;
-  --heatmap-5: #60758b;
+  --input-chart-accent: #2f86df;
+  --input-chart-accent-deep: #2574c7;
+  --input-chart-point-fill: #f7f9fb;
 
-  --radius-sm: 7px;
+  --radius-sm: 8px;
   --radius-md: 9px;
   --radius-lg: 12px;
   --radius-xl: 14px;
@@ -92,10 +83,7 @@
   --z-drawer: 30;
   --z-modal: 40;
   --z-toast: 50;
-
-  --icon-glyph-sat: 20%;
-  --icon-glyph-bg-l: 91%;
-  --icon-glyph-fg-l: 31%;
+  --z-tooltip: 60;
 }
 
 :root[data-theme="dark"] {
@@ -131,19 +119,19 @@
   --danger: #e3979d;
   --danger-soft: rgba(227, 151, 157, 0.14);
 
-  --heatmap-0: #242b33;
-  --heatmap-1: #303943;
-  --heatmap-2: #3d4854;
-  --heatmap-3: #536170;
-  --heatmap-4: #718293;
-  --heatmap-5: #9aabba;
+  --accent-green: #77b39a;
+  --accent-green-soft: rgba(119, 179, 154, 0.15);
+  --accent-green-strong: #9cccb5;
+  --accent-violet: #9b9ed3;
+  --accent-violet-soft: rgba(155, 158, 211, 0.15);
+  --accent-violet-strong: #b9bce6;
+
+  --input-chart-accent: #7db0ea;
+  --input-chart-accent-deep: #4f83c9;
+  --input-chart-point-fill: #20262d;
 
   --shadow-card: 0 8px 24px rgba(3, 7, 12, 0.12);
   --shadow-soft: 0 4px 14px rgba(3, 7, 12, 0.16);
   --shadow-window: 0 24px 70px rgba(2, 5, 9, 0.48);
   --shadow-popover: 0 18px 44px rgba(2, 5, 9, 0.42);
-
-  --icon-glyph-sat: 16%;
-  --icon-glyph-bg-l: 24%;
-  --icon-glyph-fg-l: 82%;
 }

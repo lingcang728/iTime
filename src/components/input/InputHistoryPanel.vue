@@ -60,10 +60,10 @@ function dateKey(date: Date): string {
         </div>
         <div class="chart-mode" :data-active="chartMode" role="group" aria-label="图表样式">
           <button type="button" :aria-pressed="chartMode === 'line'" @click="chartMode = 'line'">
-            <PhChartLine :size="16" />折线
+            <PhChartLine :size="16" aria-hidden="true" />折线
           </button>
           <button type="button" :aria-pressed="chartMode === 'bar'" @click="chartMode = 'bar'">
-            <PhChartBar :size="16" />柱状
+            <PhChartBar :size="16" aria-hidden="true" />柱状
           </button>
         </div>
       </header>
@@ -73,7 +73,7 @@ function dateKey(date: Date): string {
           <button type="button" :aria-pressed="rangeDays === 7" @click="rangeDays = 7">7 天</button>
           <button type="button" :aria-pressed="rangeDays === 30" @click="rangeDays = 30">30 天</button>
         </div>
-        <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" />仅聚合计数</span>
+        <span class="privacy-mark"><PhShieldCheck :size="15" weight="regular" aria-hidden="true" />仅聚合计数</span>
       </div>
 
       <InputTrendChart :points="points" :mode="chartMode" :ariaLabel="`最近 ${rangeDays} 天键盘输入趋势`" />
@@ -94,7 +94,7 @@ function dateKey(date: Date): string {
     </section>
 
     <section v-else class="history-empty">
-      <PhChartLineUp :size="24" weight="regular" />
+      <PhChartLineUp :size="24" weight="regular" aria-hidden="true" />
       <div><strong>暂无汇总</strong><p>切换到有记录的日期查看</p></div>
     </section>
   </section>
@@ -112,10 +112,10 @@ function dateKey(date: Date): string {
 
 .trend-section { min-width: 0; }
 .trend-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.trend-eyebrow { color: #2369aa; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-:global(:root[data-theme="dark"]) .trend-eyebrow { color: #78baf2; }
-h2 { margin: 3px 0 0; color: var(--text-primary); font-size: 20px; font-weight: 700; letter-spacing: -.45px; }
-p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.55; }
+/* P3-10：eyebrow 不再硬编码两套色值，统一走 --accent-strong（亮暗主题已各配对比度）。 */
+.trend-eyebrow { color: var(--accent-strong); font-size: var(--text-micro); font-weight: 680; letter-spacing: .08em; text-transform: uppercase; }
+h2 { margin: 3px 0 0; color: var(--text-primary); font-size: var(--text-subtitle); font-weight: 680; letter-spacing: -.45px; }
+p { margin: 5px 0 0; color: var(--text-secondary); font-size: var(--text-micro); line-height: 1.55; }
 
 /* ── Segmented controls with sliding pill indicator ─────────────────────── */
 .chart-mode,
@@ -169,7 +169,7 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height:
   border-radius: 7px;
   color: var(--text-secondary);
   background: transparent;
-  font: 650 11px/1 var(--font-ui);
+  font: 560 var(--text-micro)/1 var(--font-ui);
   cursor: pointer;
   transition: color 180ms ease, transform 180ms var(--ease-out);
 }
@@ -193,7 +193,7 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height:
   margin: 18px 0 8px;
 }
 
-.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--text-muted); font-size: 10px; font-weight: 600; }
+.privacy-mark { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--text-muted); font-size: var(--text-micro); font-weight: 560; }
 
 .trend-summary {
   display: grid;
@@ -205,16 +205,16 @@ p { margin: 5px 0 0; color: var(--text-secondary); font-size: 11px; line-height:
   border-top: 1px solid var(--border-soft);
 }
 
-.trend-total > span { display: block; color: var(--text-secondary); font-size: 11px; }
-.trend-total strong { display: inline-block; margin-top: 4px; color: var(--text-primary); font: 700 30px/1 var(--font-data); font-variant-numeric: tabular-nums; letter-spacing: -.8px; }
-.trend-total small { margin-left: 7px; color: var(--text-muted); font-size: 10px; }
+.trend-total > span { display: block; color: var(--text-secondary); font-size: var(--text-micro); }
+.trend-total strong { display: inline-block; margin-top: 4px; color: var(--text-primary); font: 680 var(--text-metric)/1 var(--font-data); font-variant-numeric: tabular-nums; letter-spacing: -.8px; }
+.trend-total small { margin-left: 7px; color: var(--text-muted); font-size: var(--text-micro); }
 
 dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; }
 dl div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
-dt { color: var(--text-muted); font-size: 10px; }
-dd { overflow: hidden; margin: 0; color: var(--text-primary); font: 650 10px/1.2 var(--font-data); font-variant-numeric: tabular-nums; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+dt { color: var(--text-muted); font-size: var(--text-micro); }
+dd { overflow: hidden; margin: 0; color: var(--text-primary); font: 560 var(--text-micro)/1.2 var(--font-data); font-variant-numeric: tabular-nums; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .history-empty { min-height: 300px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
-.history-empty strong { color: var(--text-primary); font-size: 12px; }
+.history-empty strong { color: var(--text-primary); font-size: var(--text-xs); }
 
 @media (max-width: 760px) {
   .input-history-panel { padding: 18px; }

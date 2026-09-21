@@ -1,6 +1,6 @@
 use crate::{
     activity::{self, ActivitySlice},
-    data_files,
+    atomic_json, data_files,
     keyboard::{self, KeyboardRecord},
     settings,
 };
@@ -9,11 +9,22 @@ use serde::Serialize;
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
+    sync::Mutex,
 };
 
 const KEYBOARD_BUCKET_MILLIS: u64 = 60_000;
+
+/// Startup retention runs before any UI exists, so a failure there is kept
+/// here and surfaced through `get_local_data_status` instead of only stderr.
+static RETENTION_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+fn record_retention_error(error: Option<String>) {
+    *RETENTION_ERROR
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = error;
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,55 +83,55 @@ impl ExportStats {
     }
 }
 
-fn record_range(
-    activity: &[ActivitySlice],
-    keyboard: &[KeyboardRecord],
-) -> (Option<u64>, Option<u64>) {
-    let activity_start = activity.iter().map(|record| record.start).min();
-    let keyboard_start = keyboard.iter().map(|record| record.start).min();
-    let activity_end = activity.iter().map(|record| record.end).max();
-    let keyboard_end = keyboard
-        .iter()
-        .map(|record| record.start.saturating_add(KEYBOARD_BUCKET_MILLIS))
-        .max();
-    (
-        activity_start.into_iter().chain(keyboard_start).min(),
-        activity_end.into_iter().chain(keyboard_end).max(),
-    )
-}
-
-fn read_records_from(
-    root: &Path,
-) -> Result<(Vec<ActivitySlice>, Vec<KeyboardRecord>, usize, u64), String> {
-    let (activity, activity_skipped, activity_updated) =
-        activity::read_all_records_from(root).map_err(|error| error.message)?;
-    let (keyboard, keyboard_skipped, keyboard_updated) = keyboard::read_all_records_from(root)?;
-    Ok((
-        activity,
-        keyboard,
-        activity_skipped + keyboard_skipped,
-        activity_updated.max(keyboard_updated),
-    ))
-}
-
 fn status_from(root: &Path, retention_days: Option<u16>) -> Result<LocalDataStatus, String> {
     let files = data_files::all_record_files(root)?;
-    let size_bytes = files.iter().try_fold(0u64, |total, path| {
-        fs::metadata(path)
-            .map(|metadata| total.saturating_add(metadata.len()))
-            .map_err(|error| error.to_string())
-    })?;
-    let (activity, keyboard, skipped_records, last_write_at) = read_records_from(root)?;
-    let (start_at, end_at) = record_range(&activity, &keyboard);
+    // Stream the statistics: records are visited per line instead of building
+    // full-history vectors, so status stays cheap as the data dir grows.
+    let mut size_bytes = 0u64;
+    let mut skipped_records = 0usize;
+    for path in &files {
+        match fs::metadata(path) {
+            Ok(metadata) => size_bytes = size_bytes.saturating_add(metadata.len()),
+            // A file deleted between enumeration and stat is not fatal.
+            Err(_) => skipped_records += 1,
+        }
+    }
+    let mut stats = ExportStats::default();
+    let (activity_records, activity_skipped, activity_updated) =
+        activity::visit_records_from(root, |record| {
+            stats.observe_activity(record);
+            Ok(())
+        })
+        .map_err(|error| error.message)?;
+    let (keyboard_records, keyboard_skipped, keyboard_updated) =
+        keyboard::visit_records_from(root, |record| {
+            stats.observe_keyboard(record);
+            Ok(())
+        })?;
+    skipped_records += activity_skipped + keyboard_skipped;
+    let last_write_at = activity_updated.max(keyboard_updated);
     let (health, message) = if skipped_records > 0 {
         (
             "degraded",
             format!("数据可用；已跳过 {skipped_records} 条损坏或不兼容记录"),
         )
-    } else if activity.is_empty() && keyboard.is_empty() {
+    } else if activity_records == 0 && keyboard_records == 0 {
         ("empty", "数据目录已就绪，当前没有本地记录".to_string())
     } else {
         ("ready", "本地记录可读取并可导出".to_string())
+    };
+    // A failed startup retention pass must be visible instead of silently
+    // leaving expired shards in place forever.
+    let (health, message) = match RETENTION_ERROR
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+    {
+        Some(error) => (
+            "degraded",
+            format!("{message}；上次保留期清理失败：{error}"),
+        ),
+        None => (health, message),
     };
     Ok(LocalDataStatus {
         directory: root.display().to_string(),
@@ -128,31 +139,47 @@ fn status_from(root: &Path, retention_days: Option<u16>) -> Result<LocalDataStat
         file_count: files.len(),
         size_bytes,
         last_write_at: (last_write_at > 0).then_some(last_write_at),
-        activity_records: activity.len(),
-        keyboard_records: keyboard.len(),
+        activity_records,
+        keyboard_records,
         skipped_records,
-        start_at,
-        end_at,
+        start_at: stats.start_at,
+        end_at: stats.end_at,
         health,
         message,
     })
 }
 
-#[tauri::command]
+// Status walks every record file; `command(async)` keeps it off the main thread.
+#[tauri::command(async)]
 pub(crate) fn get_local_data_status() -> Result<LocalDataStatus, String> {
     status_from(&data_files::data_dir()?, settings::load_data_retention()?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn set_data_retention(retention_days: Option<u16>) -> Result<LocalDataStatus, String> {
     settings::save_data_retention(retention_days)?;
-    data_files::cleanup_expired(retention_days)?;
+    if let Err(error) = data_files::cleanup_expired(retention_days) {
+        record_retention_error(Some(error.clone()));
+        return Err(error);
+    }
+    record_retention_error(None);
     get_local_data_status()
 }
 
 pub(crate) fn apply_saved_retention() -> Result<usize, String> {
-    data_files::migrate_legacy_files()?;
-    data_files::cleanup_expired(settings::load_data_retention()?)
+    // Startup is the only moment with no atomic JSON writes in flight; sweep
+    // crash-killed `*.tmp-<pid>` debris from the config dir now.
+    if let Ok(config) = settings::config_dir() {
+        atomic_json::cleanup_stale_temp(&config);
+    }
+    let result = data_files::migrate_legacy_files()
+        .and_then(|_| data_files::cleanup_expired(settings::load_data_retention()?));
+    // Persist the outcome so status can report a silent startup failure.
+    match &result {
+        Ok(_) => record_retention_error(None),
+        Err(error) => record_retention_error(Some(error.clone())),
+    }
+    result
 }
 
 #[tauri::command]
@@ -371,17 +398,49 @@ pub(crate) fn export(format: &str) -> Result<ExportResult, String> {
 
 pub(crate) fn clear_records() -> Result<usize, String> {
     let root = data_files::data_dir()?;
-    clear_records_from(&root)
+    let removed = clear_records_from(&root)?;
+    // The icon cache file list is itself a persisted app-usage trace; "删除全部"
+    // must retire it along with the records.
+    crate::icons::purge_cache()
+        .map_err(|error| format!("记录已删除，但图标缓存清理失败：{error}"))?;
+    Ok(removed)
+}
+
+fn failure_label(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("未知文件")
+        .to_string()
 }
 
 fn clear_records_from(root: &Path) -> Result<usize, String> {
-    let files = data_files::all_record_files(root)?;
     let mut removed = 0;
-    let mut failures = Vec::new();
-    for path in files {
-        match fs::remove_file(&path) {
-            Ok(()) => removed += 1,
-            Err(error) => failures.push(format!("{}：{error}", path.display())),
+    let mut failures: Vec<String> = Vec::new();
+    let mut remove_file = |path: PathBuf| match fs::remove_file(&path) {
+        Ok(()) => removed += 1,
+        Err(error) => failures.push(format!("{}：{error}", failure_label(&path))),
+    };
+    for path in data_files::all_record_files(root)? {
+        remove_file(path);
+    }
+    // Files wearing a record prefix but no writer-produced name are planted or
+    // stale residue — "删除全部" must not leave forgeable material behind.
+    for path in data_files::foreign_record_files(root)? {
+        remove_file(path);
+    }
+    // Pending legacy-migration markers hold copies of records the user asked to
+    // delete; leaving them lets deleted data silently resurrect on next launch.
+    for prefix in [data_files::ACTIVITY_PREFIX, data_files::KEYBOARD_PREFIX] {
+        let pending = root.join(format!(".{prefix}-v1.migrating"));
+        if pending.is_file() {
+            remove_file(pending);
+        }
+    }
+    // Quarantined unreadable lines are still raw record content.
+    let recovery = root.join("Recovery");
+    if recovery.is_dir() {
+        if let Err(error) = fs::remove_dir_all(&recovery) {
+            failures.push(format!("Recovery：{error}"));
         }
     }
     if failures.is_empty() {
@@ -507,13 +566,29 @@ mod tests {
     }
 
     #[test]
-    fn clear_removes_records_but_preserves_exports() {
+    fn clear_removes_records_recovery_and_migration_residue_but_preserves_exports() {
         let root = fixture_root("clear");
         write_fixture(&root);
         let export = write_export_from(&root, "json").unwrap();
-        assert_eq!(clear_records_from(&root).unwrap(), 2);
+        // Pending migration + quarantined Recovery lines are still record
+        // content — "删除全部" must not let them resurrect or linger.
+        fs::write(root.join(".activity-v1.migrating"), b"{}\n").unwrap();
+        let recovery = root.join("Recovery");
+        fs::create_dir_all(&recovery).unwrap();
+        fs::write(
+            recovery.join("keyboard-legacy-unreadable-1.jsonl"),
+            b"bad\n",
+        )
+        .unwrap();
+        // A planted foreign file wearing the record prefix is residue too.
+        fs::write(root.join("activity-forged-v1.jsonl"), b"{}\n").unwrap();
+
+        assert_eq!(clear_records_from(&root).unwrap(), 4);
         assert!(Path::new(&export.path).is_file());
         assert!(data_files::all_record_files(&root).unwrap().is_empty());
+        assert!(!root.join(".activity-v1.migrating").exists());
+        assert!(!root.join("activity-forged-v1.jsonl").exists());
+        assert!(!recovery.exists());
         let _ = fs::remove_dir_all(root);
     }
 }

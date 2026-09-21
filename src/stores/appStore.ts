@@ -38,7 +38,6 @@ import { loadPersistedState, savePersistedState, type PersistedState } from './p
 import { applyDocumentTheme, observeSystemTheme, resolveTheme, systemPrefersDark, type ResolvedTheme, type ThemeMode } from './theme'
 
 export type { ThemeMode } from './theme'
-export type MigrationState = 'notFound' | 'partial' | 'ready' | 'imported'
 export type ClosePreference = 'ask' | 'hide' | 'quit'
 export interface ReminderOccurrence {
   occurrenceId: string
@@ -98,13 +97,18 @@ const state = reactive({
   selectedToolId: null as string | null,
   detailDrawerOpen: false,
   closeDialogOpen: false,
-  rememberCloseChoice: false,
   toast: '',
+  toastTone: 'default' as 'default' | 'error',
   ...persisted,
   recording: true,
   recordingStatus: (desktopRuntime ? 'loading' : 'ready') as 'loading' | 'ready' | 'error',
   recordingMessage: desktopRuntime ? '确认中' : '预览不写入',
   currentReminder: null as ReminderOccurrence | null,
+  // P3-26: reminder config sync runs at startup and on every toggle; a failed
+  // push leaves the backend out of sync with the toggle, so the failure must
+  // stay visible next to the control — not just a transient toast.
+  reminderSyncFailed: false,
+  reminderSyncMessage: '',
 })
 
 const liveActivityDataset = shallowRef<TimeDataset>({ version: 'itime-local-activity-v1', events: [] })
@@ -149,39 +153,71 @@ const week = computed(() => {
     return getCachedDay(localDateKey(d))
   })
 })
+/** Rolling 7 days ending the day before `week` starts — the previous-period baseline. */
+const previousWeek = computed(() => {
+  const end = new Date(`${state.selectedDate}T12:00:00`)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(end)
+    d.setDate(end.getDate() - (13 - i))
+    return getCachedDay(localDateKey(d))
+  })
+})
+const isToday = computed(() => state.selectedDate === localDate())
 const liveInputProvider = shallowRef<InputActivityProvider | null>(null)
 const inputDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
 const activityDates = shallowRef<string[]>(desktopRuntime ? [localDate()] : [...mockDates])
 const providerDates = shallowRef<string[]>(desktopRuntime ? [] : [...mockDates])
 
+/**
+ * Free date navigation bound. `localData.startAt` (epoch ms over all retained
+ * activity+keyboard shards) is the authoritative earliest recorded day — it
+ * moves forward when retention/clear actually deletes data, so dates do not
+ * linger in the switcher. AI-agent sessions live outside the Data directory,
+ * so provider dates join the range separately. Days without records stay
+ * navigable: "no data that day" is a page empty state, not unreachable UI.
+ */
+const MAX_NAVIGABLE_DAYS = 731
+
+function enumerateLocalDates(from: string, to: string): string[] {
+  const start = new Date(`${from}T00:00:00`)
+  const end = new Date(`${to}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return []
+  const dates: string[] = []
+  const cursor = new Date(start)
+  while (cursor <= end && dates.length < MAX_NAVIGABLE_DAYS) {
+    dates.push(localDate(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
+
 function updateAvailableDates(): void {
-  const dates = [...new Set([...inputDates.value, ...activityDates.value, ...providerDates.value])].sort()
-  state.availableDates = dates.length ? dates : [localDate()]
+  const known = new Set([...inputDates.value, ...activityDates.value, ...providerDates.value])
+  const today = localDate()
+  const sortedKnown = [...known].sort()
+  const recordedStart = state.localData.startAt
+  const recordedEarliest = recordedStart !== null && Number.isFinite(recordedStart)
+    ? localDate(new Date(recordedStart))
+    : null
+  const earliest = [recordedEarliest, sortedKnown[0], today]
+    .filter((value): value is string => Boolean(value))
+    .sort()[0] ?? today
+  const latest = sortedKnown.at(-1) && sortedKnown.at(-1)! > today ? sortedKnown.at(-1)! : today
+  const dates = new Set(enumerateLocalDates(earliest > latest ? today : earliest, latest))
+  for (const date of known) dates.add(date)
+  state.availableDates = dates.size ? [...dates].sort() : [today]
   if (!state.availableDates.includes(state.selectedDate)) {
-    state.selectedDate = state.availableDates.at(-1) ?? localDate()
+    // Clamp to the nearest bound rather than jumping back to today.
+    state.selectedDate = state.selectedDate < state.availableDates[0]!
+      ? state.availableDates[0]!
+      : state.availableDates.at(-1)!
   }
 }
 const input = computed<InputActivitySnapshot>(() => {
   const range = dayRange(state.selectedDate)
-  const snapshot = desktopRuntime
+  return desktopRuntime
     ? liveInputProvider.value?.getSnapshot(range, 'minute') ?? emptyInputSnapshot(range)
     : inputActivityProvider.getSnapshot(range, 'minute')
-  if (!state.deletedInputDates.includes(state.selectedDate)) return snapshot
-  return {
-    ...snapshot,
-    cumulative: {
-      ...snapshot.cumulative,
-      keyStrokes: 0,
-      leftClicks: null,
-      rightClicks: null,
-      combinedClicks: 0,
-      mouseDistance: 0,
-      scrollDistance: 0,
-    },
-    history: [],
-    singleKeys: [],
-    shortcuts: [],
-  }
 })
 const inputHistory = computed<InputActivitySnapshot>(() => {
   const selectedRange = dayRange(state.selectedDate)
@@ -189,12 +225,7 @@ const inputHistory = computed<InputActivitySnapshot>(() => {
   historyStart.setDate(historyStart.getDate() - 29)
   const range = { start: historyStart.getTime(), end: selectedRange.end }
   const provider = desktopRuntime ? liveInputProvider.value : inputActivityProvider
-  const snapshot = provider?.getSnapshot(range, 'day') ?? emptyInputSnapshot(range)
-  if (!state.deletedInputDates.length) return snapshot
-  return {
-    ...snapshot,
-    history: snapshot.history.filter((point) => !state.deletedInputDates.includes(localDate(new Date(point.start)))),
-  }
+  return provider?.getSnapshot(range, 'day') ?? emptyInputSnapshot(range)
 })
 const selectedTool = computed<AiToolDetail | null>(() => state.selectedToolId
   ? runtimeDataProvider.value.getToolDetail(state.selectedDate, state.selectedToolId)
@@ -210,23 +241,21 @@ function persist(): void {
     quietStart: state.quietStart,
     quietEnd: state.quietEnd,
     goals: state.goals,
-    migrationState: state.migrationState,
-    deletedInputDates: state.deletedInputDates,
     dismissedReminderOccurrences: state.dismissedReminderOccurrences,
+    rememberCloseChoice: state.rememberCloseChoice,
   }
   savePersistedState(value)
 }
 
-watch([
+const stopPersistWatch = watch([
   () => state.theme,
   () => state.reminders,
   () => state.closePreference,
   () => state.quietStart,
   () => state.quietEnd,
   () => ({ ...state.goals }),
-  () => state.migrationState,
-  () => [...state.deletedInputDates],
   () => [...state.dismissedReminderOccurrences],
+  () => state.rememberCloseChoice,
 ], persist, { deep: true })
 
 function applyTheme(preview?: 'light' | 'dark'): void {
@@ -240,7 +269,32 @@ function applyTheme(preview?: 'light' | 'dark'): void {
   themeRevision.value += 1
 }
 
-watch(() => state.theme, () => applyTheme())
+const stopThemeWatch = watch(() => state.theme, () => applyTheme())
+
+function goToToday(): void {
+  const today = localDate()
+  if (!state.availableDates.includes(today)) {
+    state.availableDates = [...state.availableDates, today].sort()
+  }
+  state.selectedDate = today
+}
+
+/**
+ * Direct date pick (native <input type="date">). `availableDates` enumerates
+ * every day between the earliest retained record and today, so any in-range
+ * pick lands on a navigable day; out-of-range picks clamp to the bound.
+ * Selecting an old day re-issues a bounded snapshot query via the
+ * selectedDate watcher — recorded history is reachable, not just exportable.
+ */
+function selectDate(date: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+  if (Number.isNaN(new Date(`${date}T12:00:00`).getTime())) return
+  const first = state.availableDates[0]
+  const last = state.availableDates.at(-1)
+  if (first && date < first) date = first
+  if (last && date > last) date = last
+  if (date !== state.selectedDate) state.selectedDate = date
+}
 
 function stepDate(delta: number): void {
   const index = state.availableDates.indexOf(state.selectedDate)
@@ -270,7 +324,7 @@ async function setRecording(recording: boolean): Promise<void> {
     state.recording = previous
     state.recordingStatus = 'error'
     state.recordingMessage = errorMessage(error, '无法修改')
-    showToast(state.recordingMessage)
+    showToast(state.recordingMessage, 'error')
   }
 }
 
@@ -283,17 +337,8 @@ async function syncRecording(): Promise<void> {
   } catch (error) {
     state.recordingStatus = 'error'
     state.recordingMessage = errorMessage(error, '状态读取失败')
-    showToast(state.recordingMessage)
+    showToast(state.recordingMessage, 'error')
   }
-}
-
-function deleteInputDate(date: string): void {
-  if (!input.value.capabilities.deleteByDate) {
-    showToast('本机输入历史为只读记录，iTime 不会修改它')
-    return
-  }
-  if (!state.deletedInputDates.includes(date)) state.deletedInputDates.push(date)
-  showToast(`已删除 ${date} 的输入统计`)
 }
 
 let inputRequest = 0
@@ -333,13 +378,13 @@ async function refreshInputData(): Promise<void> {
     const { health } = result.snapshot
     if (!health.collectorRunning) {
       state.inputDataStatus = 'error'
-      state.inputDataMessage = '计数器未运行'
+      state.inputDataMessage = '键盘计数器未运行；请尝试重启应用'
     } else if (!health.writerRunning || health.queueDisconnected) {
       state.inputDataStatus = 'error'
       state.inputDataMessage = health.lastError || '写入线程未运行'
     } else if (health.droppedEvents > 0) {
       state.inputDataStatus = 'degraded'
-      state.inputDataMessage = `丢弃 ${health.droppedEvents} 次`
+      state.inputDataMessage = `已丢弃 ${health.droppedEvents} 次输入事件`
     } else if (health.writeFailures > 0 || health.readFailures > 0 || result.snapshot.skippedRecords > 0) {
       state.inputDataStatus = 'degraded'
       state.inputDataMessage = health.lastError
@@ -355,7 +400,6 @@ async function refreshInputData(): Promise<void> {
       state.inputDataMessage = '已启动，等待记录'
     }
     state.lastDataRefreshAt = Date.now()
-    state.migrationState = 'ready'
   } catch (error) {
     if (request !== inputRequest) return
     state.inputDataStatus = 'error'
@@ -370,7 +414,9 @@ async function refreshActivityData(): Promise<void> {
   state.activityDataMessage = '读取中'
   const selectedEnd = dayRange(state.selectedDate).end
   const startDate = new Date(selectedEnd)
-  startDate.setDate(startDate.getDate() - 7)
+  // 14 days (well under the 32d backend cap): the rolling week plus the
+  // previous-week baseline used by 周报 comparison.
+  startDate.setDate(startDate.getDate() - 14)
   try {
     const result = await loadActivityData({ start: startDate.getTime(), end: selectedEnd })
     if (request !== activityRequest) return
@@ -382,7 +428,7 @@ async function refreshActivityData(): Promise<void> {
     updateAvailableDates()
     if (!result.snapshot.health.collectorRunning) {
       state.activityDataStatus = 'error'
-      state.activityDataMessage = '采集器未运行'
+      state.activityDataMessage = '采集器未运行；请尝试重启应用'
     } else if (result.snapshot.health.lastError) {
       state.activityDataStatus = 'degraded'
       state.activityDataMessage = `写入异常：${result.snapshot.health.lastError}`
@@ -437,12 +483,12 @@ async function refreshProviderData(): Promise<void> {
       state.providerDataStatus = 'empty'
       if (result.snapshot.diagnostics.permissionFailures > 0) {
         state.providerDataStatus = 'error'
-        state.providerDataMessage = '无读取权限'
+        state.providerDataMessage = '无读取权限；请在系统中检查目录权限'
       } else if (result.snapshot.diagnostics.readFailures > 0) {
         state.providerDataStatus = 'error'
-        state.providerDataMessage = '目录读取失败'
+        state.providerDataMessage = '目录读取失败；请稍后重试或重启应用'
       } else {
-        state.providerDataMessage = '未安装支持的 Coding Agent'
+        state.providerDataMessage = '未检测到支持的 AI 编码工具'
       }
     } else if (result.snapshot.status === 'partial') {
       const { diagnostics } = result.snapshot
@@ -509,7 +555,7 @@ async function updateProviderConsent(update: Partial<Pick<ProviderConsent, 'noti
     await refreshProviderData()
   } catch (error) {
     state.providerConsentStatus = 'error'
-    showToast(errorMessage(error, '授权保存失败'))
+    showToast(errorMessage(error, '授权保存失败'), 'error')
   }
 }
 
@@ -542,18 +588,23 @@ async function setAutostart(enabled: boolean): Promise<void> {
   }
 }
 
-function showToast(message: string): void {
+// 错误类 toast 停留更久并带 tone 供视图区分；信息类维持短提示。
+function showToast(message: string, tone: 'default' | 'error' = 'default'): void {
   const request = ++toastRequest
   state.toast = message
+  state.toastTone = tone
   window.setTimeout(() => {
     if (request === toastRequest) state.toast = ''
-  }, 2600)
+  }, tone === 'error' ? 6000 : 2600)
 }
 
 function applyLocalDataStatus(status: LocalDataStatus): void {
   state.localData = status
   state.localDataStatus = status.health
   state.localDataMessage = status.message
+  // `startAt` is the authoritative earliest-record bound — retention changes
+  // and clear-all must immediately shrink the navigable date range.
+  updateAvailableDates()
 }
 
 async function refreshLocalData(): Promise<void> {
@@ -578,7 +629,7 @@ async function openLocalData(): Promise<void> {
   try {
     await openLocalDataDirectory()
   } catch (error) {
-    showToast(errorMessage(error, '无法打开目录'))
+    showToast(errorMessage(error, '无法打开目录'), 'error')
   } finally {
     state.localDataBusy = null
   }
@@ -596,7 +647,7 @@ async function updateDataRetention(retentionDays: DataRetentionDays): Promise<vo
   } catch (error) {
     state.localDataStatus = 'error'
     state.localDataMessage = errorMessage(error, '保留期更新失败')
-    showToast(state.localDataMessage)
+    showToast(state.localDataMessage, 'error')
   } finally {
     state.localDataBusy = null
   }
@@ -613,7 +664,7 @@ async function exportLocalRecords(format: DataExportFormat): Promise<void> {
     showToast(`${format.toUpperCase()} 已导出`)
   } catch (error) {
     state.localDataExportMessage = errorMessage(error, `导出 ${format.toUpperCase()} 失败`)
-    showToast(state.localDataExportMessage)
+    showToast(state.localDataExportMessage, 'error')
   } finally {
     state.localDataBusy = null
   }
@@ -628,18 +679,24 @@ async function clearLocalRecords(): Promise<boolean> {
     const status = await clearAllLocalData()
     liveActivityDataset.value = { version: 'itime-local-activity-v1', events: [] }
     liveKeyboardDataset.value = { version: 'itime-keyboard-v1', events: [] }
+    liveProviderDataset.value = { version: 'itime-local-provider-v1', events: [] }
+    providerDates.value = []
     liveInputProvider.value = null
     inputDates.value = []
     activityDates.value = []
+    // The backend revokes AI-tool consent as part of delete-all; mirror the
+    // default locally so the AI page stops rendering stale data and a future
+    // enable must pass the notice gate again.
+    state.providerConsent = { ...defaultProviderConsent }
     updateAvailableDates()
     applyLocalDataStatus(status)
-    await Promise.all([refreshInputData(), refreshActivityData()])
+    await Promise.all([refreshInputData(), refreshActivityData(), refreshProviderData()])
     showToast('本地记录已删除')
     return true
   } catch (error) {
     state.localDataStatus = 'error'
     state.localDataMessage = errorMessage(error, '删除失败')
-    showToast(state.localDataMessage)
+    showToast(state.localDataMessage, 'error')
     return false
   } finally {
     state.localDataBusy = null
@@ -668,16 +725,19 @@ export function useAppStore() {
     themeRevision,
     day,
     week,
+    previousWeek,
+    isToday,
     input,
     inputHistory,
     selectedTool,
     stepDate,
+    goToToday,
+    selectDate,
     openTool,
     closeTool,
     setRecording,
     syncRecording,
     applyTheme,
-    deleteInputDate,
     refreshInputData,
     refreshActivityData,
     refreshProviderData,
@@ -696,13 +756,15 @@ export function useAppStore() {
   }
 }
 
-observeSystemTheme(
+const stopThemeObserver = observeSystemTheme(
   () => state.theme,
   (theme) => {
     applyDocumentTheme(previewTheme ?? theme)
     themeRevision.value += 1
   },
 )
+
+let desktopTeardown: (() => void) | null = null
 
 if (desktopRuntime) {
   const dataRefreshInterval = 60_000
@@ -754,18 +816,37 @@ if (desktopRuntime) {
     void refreshRuntimeData(includeProvider).finally(scheduleRefresh)
   }
 
+  function handleVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      clearRefreshTimer()
+      return
+    }
+    refreshNow()
+  }
+
   void (async () => {
     await syncProviderConsent()
     await refreshLocalData()
     refreshNow(state.providerConsentStatus === 'ready')
     await refreshAutostart()
   })()
-  watch(() => state.selectedDate, () => refreshNow())
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      clearRefreshTimer()
-      return
-    }
-    refreshNow()
+  const stopSelectedDateWatch = watch(() => state.selectedDate, () => refreshNow())
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  desktopTeardown = () => {
+    clearRefreshTimer()
+    stopSelectedDateWatch()
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }
+}
+
+// Module-level timers/listeners/watchers have no component lifecycle; release
+// them on Vite HMR dispose so a hot-reloaded store never double-registers.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    stopPersistWatch()
+    stopThemeWatch()
+    stopThemeObserver()
+    desktopTeardown?.()
+    desktopTeardown = null
   })
 }

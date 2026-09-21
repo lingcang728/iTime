@@ -47,7 +47,9 @@ Var ITIME_RESTORE_AUTOSTART
   ; redirected to another copy is preserved even if an ownership marker remains.
   ${If} $0 == "${ITIME_APP_PATHS_OWNER}"
   ${AndIf} $1 == "$INSTDIR\${MAINBINARYNAME}.exe"
-    DeleteRegKey HKCU "${ITIME_APP_PATHS_KEY}\"
+    ; No trailing backslash: "\ " inside quotes is literal and the key name
+    ; must not end with "\\" or DeleteRegKey silently misses the target.
+    DeleteRegKey HKCU "${ITIME_APP_PATHS_KEY}"
   ${EndIf}
 !macroend
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   PhArrowClockwise,
   PhChartBar,
@@ -32,6 +32,27 @@ const store = useAppStore()
 const desktopControlsAvailable = isTauriRuntime()
 const deleteArmed = ref(false)
 const updateInstallArmed = ref(false)
+const aiConsentArmed = ref(false)
+const deleteConfirmation = ref<HTMLElement | null>(null)
+const updateConfirmation = ref<HTMLElement | null>(null)
+const aiConsentConfirmation = ref<HTMLElement | null>(null)
+
+// 内联确认条出现后把焦点交给「取消」，Esc 就地撤销 —— 危险操作不走捷径。
+watch(deleteArmed, async (armed) => {
+  if (!armed) return
+  await nextTick()
+  deleteConfirmation.value?.querySelector('button')?.focus()
+})
+watch(updateInstallArmed, async (armed) => {
+  if (!armed) return
+  await nextTick()
+  updateConfirmation.value?.querySelector('button')?.focus()
+})
+watch(aiConsentArmed, async (armed) => {
+  if (!armed) return
+  await nextTick()
+  aiConsentConfirmation.value?.querySelector('button')?.focus()
+})
 
 const inputStatusLabel = computed(() => ({
   loading: '连接中',
@@ -84,7 +105,8 @@ const updateStatusLabel = computed(() => ({
   downloading: '下载中',
   installing: '安装中',
   failed: '更新失败',
-  upToDate: '已是最新',
+  // 24h 节流命中时 upToDate 只是"跳过了自动检查"，如实呈现而非宣称已验证最新。
+  upToDate: updateState.autoCheckThrottled ? '今日已自动检查' : '已是最新',
 }[updateState.status]))
 const retentionValue = computed(() => store.state.localData.retentionDays?.toString() ?? 'permanent')
 
@@ -132,7 +154,7 @@ const inputFacts = computed(() => {
     { label: '方式', value: '字符键计数', icon: PhKeyboard },
     { label: '粒度', value: historyLabel, icon: PhPulse },
     { label: '内容', value: '不保存', icon: PhShieldCheck },
-    { label: '存储', value: '本地 JSONL', icon: PhHardDrives },
+    { label: '存储', value: '仅本机文件', icon: PhHardDrives },
   ]
 })
 
@@ -141,18 +163,54 @@ function checkedValue(event: Event): boolean {
 }
 
 function updateClosePreference(event: Event): void {
-  store.state.closePreference = checkedValue(event) ? 'hide' : 'ask'
+  // 三态：每次询问 / 隐藏到托盘 / 直接退出 —— 与关闭对话框的选择一一对应。
+  const value = event.currentTarget instanceof HTMLSelectElement ? event.currentTarget.value : 'ask'
+  if (value === 'ask' || value === 'hide' || value === 'quit') {
+    store.state.closePreference = value
+  }
+}
+
+async function updateRecording(event: Event): Promise<void> {
+  const input = event.currentTarget instanceof HTMLInputElement ? event.currentTarget : null
+  await store.setRecording(checkedValue(event))
+  // F-16: 与 autostart/consent 同一约定——失败立即回弹勾选态。
+  if (input && store.state.recordingStatus === 'error') {
+    input.checked = store.state.recording
+  }
 }
 
 async function updateAutostart(event: Event): Promise<void> {
+  const input = event.currentTarget instanceof HTMLInputElement ? event.currentTarget : null
   await store.setAutostart(checkedValue(event))
+  // F-16: 失败时 state 未被修改，主动回弹 DOM 勾选态，不等 error 状态触发的 re-render。
+  if (input && store.state.autostartStatus === 'error') {
+    input.checked = store.state.autostartEnabled
+  }
 }
 
 async function updateAiAgentToolsAccess(event: Event): Promise<void> {
-  await store.updateProviderConsent({
-    noticeSeen: true,
-    aiAgentToolsEnabled: checkedValue(event),
-  })
+  const input = event.currentTarget instanceof HTMLInputElement ? event.currentTarget : null
+  const enabled = checkedValue(event)
+  // First-ever enable must surface the read-scope notice *before* consent is
+  // persisted — the backend rejects `enabled` without `noticeSeen`, and the
+  // notice is what makes the consent real rather than a one-click side effect.
+  if (enabled && !store.state.providerConsent.noticeSeen) {
+    if (input) input.checked = false
+    aiConsentArmed.value = true
+    return
+  }
+  await store.updateProviderConsent(enabled
+    ? { noticeSeen: true, aiAgentToolsEnabled: true }
+    : { aiAgentToolsEnabled: false })
+  // F-16: 保存失败立即回弹勾选态，与后端真实状态保持一致。
+  if (input && store.state.providerConsentStatus === 'error') {
+    input.checked = store.state.providerConsent.aiAgentToolsEnabled
+  }
+}
+
+async function confirmAiAgentToolsAccess(): Promise<void> {
+  aiConsentArmed.value = false
+  await store.updateProviderConsent({ noticeSeen: true, aiAgentToolsEnabled: true })
 }
 
 async function updateRetention(event: Event): Promise<void> {
@@ -186,37 +244,50 @@ onMounted(() => {
           </header>
           <div class="settings-list">
             <label class="control-row">
-              <span class="control-icon"><PhPower :size="20" /></span>
+              <span class="control-icon"><PhPower :size="20" aria-hidden="true" /></span>
               <div><strong>开机自启动</strong><span>登录后自动运行</span><small :class="['system-status', store.state.autostartStatus]">{{ autostartStatusLabel }}</small></div>
               <span class="toggle"><input :checked="store.state.autostartEnabled" :disabled="store.state.autostartStatus === 'loading'" type="checkbox" @change="updateAutostart"><i></i></span>
             </label>
             <label class="control-row">
-              <span class="control-icon"><PhTray :size="20" /></span>
-              <div><strong>关闭时隐藏到托盘</strong><span>后台继续记录</span></div>
-              <span class="toggle"><input :checked="store.state.closePreference === 'hide'" type="checkbox" @change="updateClosePreference"><i></i></span>
+              <span class="control-icon"><PhTray :size="20" aria-hidden="true" /></span>
+              <div><strong>关闭主窗口时</strong><span>每次询问、隐藏到托盘或直接退出</span></div>
+              <select class="control-select" aria-label="关闭主窗口时的行为" :value="store.state.closePreference" @change="updateClosePreference">
+                <option value="ask">每次询问</option>
+                <option value="hide">隐藏到托盘</option>
+                <option value="quit">直接退出</option>
+              </select>
             </label>
             <label class="control-row">
-              <span class="control-icon"><PhChartBar :size="20" /></span>
+              <span class="control-icon"><PhChartBar :size="20" aria-hidden="true" /></span>
               <div><strong>活动记录</strong><span>{{ store.state.recordingMessage }}</span></div>
-              <span class="toggle"><input :checked="store.state.recording" :disabled="store.state.recordingStatus === 'loading'" type="checkbox" @change="store.setRecording(!store.state.recording)"><i></i></span>
+              <span class="toggle"><input :checked="store.state.recording" :disabled="store.state.recordingStatus === 'loading'" type="checkbox" @change="updateRecording"><i></i></span>
             </label>
           </div>
         </section>
 
         <section class="settings-group provider-section" aria-labelledby="provider-title">
           <header class="settings-group__header">
-            <div><h2 id="provider-title">AI Agent 工具</h2><p>统一授权；关闭后停止检测。</p></div>
+            <div><h2 id="provider-title">AI 工具</h2><p>统一授权；关闭后停止检测。</p></div>
           </header>
           <div class="settings-list provider-list">
             <label class="control-row">
-              <span class="control-icon"><PhRobot :size="20" /></span>
-              <div><strong>AI Agent 工具</strong><span>读取本机会话元数据</span></div>
+              <span class="control-icon"><PhRobot :size="20" aria-hidden="true" /></span>
+              <div><strong>AI 工具</strong><span>读取本机会话元数据</span></div>
               <span class="toggle"><input :checked="store.state.providerConsent.aiAgentToolsEnabled" :disabled="store.state.providerConsentStatus === 'loading'" type="checkbox" @change="updateAiAgentToolsAccess"><i></i></span>
             </label>
           </div>
+          <div v-if="aiConsentArmed" ref="aiConsentConfirmation" class="update-confirmation" role="alert" @keydown.esc="aiConsentArmed = false">
+            <PhShieldCheck :size="21" aria-hidden="true" />
+            <div>
+              <strong>授权前请确认读取范围</strong>
+              <p>开启后 iTime 会扫描本机 AI Agent 工具目录（如 ~/.codex/sessions、~/.claude/projects、~/.grok/sessions、~/.copilot/session-state、opencode.db 等）中的会话 JSONL/数据库文件，并在 PATH 中检测工具是否安装。这些文件可能包含提示词与代码内容，但 iTime 仅提取会话 ID、时间戳与事件类型等元数据，字段级丢弃其余内容；所有数据仅保存在本机、不外发。关闭开关即停止扫描。</p>
+            </div>
+            <button type="button" @click="aiConsentArmed = false">取消</button>
+            <button class="confirm-update" type="button" @click="confirmAiAgentToolsAccess">我已了解，开启</button>
+          </div>
           <div :class="['source-status', 'provider-source-status', store.state.providerDataStatus]">
             <span class="status-dot"></span><div><strong>{{ providerStatusLabel }}</strong><p>{{ store.state.providerDataMessage }}</p></div>
-            <button v-if="providerEnabled" type="button" :disabled="store.state.providerDataStatus === 'loading'" @click="store.refreshProviderData"><PhArrowClockwise :size="16" />刷新</button>
+            <button v-if="providerEnabled" type="button" :disabled="store.state.providerDataStatus === 'loading'" @click="store.refreshProviderData"><PhArrowClockwise :size="16" aria-hidden="true" />刷新</button>
           </div>
         </section>
 
@@ -230,18 +301,19 @@ onMounted(() => {
               <strong>{{ updateStatusLabel }}</strong>
               <p v-if="updateState.status === 'available'">当前 {{ updateState.currentVersion }} · {{ formatUpdateDate(updateState.date) }}<template v-if="updateState.sizeBytes"> · {{ formatBytes(updateState.sizeBytes) }}</template></p>
               <p v-else-if="updateState.status === 'downloading'">{{ updateProgress === null ? '下载中' : `已下载 ${updateProgress}%` }}</p>
-              <p v-else-if="updateState.status === 'installing'">正在安装…</p>
+              <!-- F-E1: 安装窗口内记录由后端暂停以静默写盘，明确告知而非看似无响应。 -->
+              <p v-else-if="updateState.status === 'installing'">正在安装，期间记录暂停，完成后自动重启…</p>
               <p v-else-if="updateState.status === 'failed'">{{ updateState.error }}</p>
               <p v-else>版本 {{ updateState.currentVersion || '读取中' }}</p>
             </div>
-            <button type="button" :disabled="!desktopControlsAvailable || updateBusy" @click="checkForDesktopUpdate(true)"><PhArrowClockwise :size="16" />检查更新</button>
+            <button type="button" :disabled="!desktopControlsAvailable || updateBusy" @click="checkForDesktopUpdate(true)"><PhArrowClockwise :size="16" aria-hidden="true" />检查更新</button>
           </div>
           <progress v-if="updateState.status === 'downloading' && updateProgress !== null" class="update-progress" :value="updateProgress" max="100">{{ updateProgress }}%</progress>
           <div v-if="updateState.status === 'available'" class="update-release">
             <div><strong>iTime {{ updateState.version }}</strong><p>{{ updateState.notes || '无更新说明' }}</p></div>
-            <button type="button" @click="updateInstallArmed = true"><PhUploadSimple :size="17" />下载安装</button>
+            <button type="button" @click="updateInstallArmed = true"><PhUploadSimple :size="17" aria-hidden="true" />下载安装</button>
           </div>
-          <div v-if="updateInstallArmed" class="update-confirmation" role="alert">
+          <div v-if="updateInstallArmed" ref="updateConfirmation" class="update-confirmation" role="alert" @keydown.esc="updateInstallArmed = false">
             <PhShieldCheck :size="21" aria-hidden="true" />
             <div><strong>安装 iTime {{ updateState.version }}？</strong><p>会先保存本地数据；失败则保留当前版本。</p></div>
             <button type="button" @click="updateInstallArmed = false">取消</button>
@@ -273,15 +345,15 @@ onMounted(() => {
             </select>
           </label>
           <div class="local-data-actions">
-            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.openLocalData"><PhFolderOpen :size="17" />打开目录</button>
-            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('json')"><PhDownloadSimple :size="17" />导出 JSON</button>
-            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('csv')"><PhDownloadSimple :size="17" />导出 CSV</button>
-            <button class="danger-action" type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="deleteArmed = true"><PhTrash :size="17" />删除全部</button>
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.openLocalData"><PhFolderOpen :size="17" aria-hidden="true" />打开目录</button>
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('json')"><PhDownloadSimple :size="17" aria-hidden="true" />导出 JSON</button>
+            <button type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="store.exportLocalRecords('csv')"><PhDownloadSimple :size="17" aria-hidden="true" />导出 CSV</button>
+            <button class="danger-action" type="button" :disabled="!desktopControlsAvailable || localDataBusy" @click="deleteArmed = true"><PhTrash :size="17" aria-hidden="true" />删除全部</button>
           </div>
           <p v-if="store.state.localDataExportMessage" class="export-result">{{ store.state.localDataExportMessage }}</p>
-          <div v-if="deleteArmed" class="delete-confirmation" role="alert">
+          <div v-if="deleteArmed" ref="deleteConfirmation" class="delete-confirmation" role="alert" @keydown.esc="deleteArmed = false">
             <PhTrash :size="21" aria-hidden="true" />
-            <div><strong>删除全部本地记录？</strong><p>不可撤销；已导出文件不受影响。</p></div>
+            <div><strong>删除全部本地记录？</strong><p>不可撤销。将删除全部活动/键盘记录、图标缓存、恢复数据并撤销 AI 工具授权；已导出的文件与界面偏好设置保留。</p></div>
             <button type="button" :disabled="localDataBusy" @click="deleteArmed = false">取消</button>
             <button class="confirm-delete" type="button" :disabled="localDataBusy" @click="confirmClearLocalData">确认删除</button>
           </div>
@@ -292,10 +364,10 @@ onMounted(() => {
             <div><h2 id="appearance-title">外观</h2></div>
           </header>
           <div class="theme-options" role="radiogroup" aria-label="主题">
-            <span class="theme-icon"><PhPalette :size="20" /><i><strong>主题</strong></i></span>
-            <label :class="{ active: store.state.theme === 'light' }"><input v-model="store.state.theme" type="radio" value="light"><PhSun :size="18" weight="regular" /><span>浅色</span></label>
-            <label :class="{ active: store.state.theme === 'dark' }"><input v-model="store.state.theme" type="radio" value="dark"><PhMoon :size="18" weight="regular" /><span>深色</span></label>
-            <label :class="{ active: store.state.theme === 'system' }"><input v-model="store.state.theme" type="radio" value="system"><PhDesktop :size="18" weight="regular" /><span>跟随系统</span></label>
+            <span class="theme-icon"><PhPalette :size="20" aria-hidden="true" /><i><strong>主题</strong></i></span>
+            <label :class="{ active: store.state.theme === 'light' }"><input v-model="store.state.theme" type="radio" value="light"><PhSun :size="18" weight="regular" aria-hidden="true" /><span>浅色</span></label>
+            <label :class="{ active: store.state.theme === 'dark' }"><input v-model="store.state.theme" type="radio" value="dark"><PhMoon :size="18" weight="regular" aria-hidden="true" /><span>深色</span></label>
+            <label :class="{ active: store.state.theme === 'system' }"><input v-model="store.state.theme" type="radio" value="system"><PhDesktop :size="18" weight="regular" aria-hidden="true" /><span>跟随系统</span></label>
           </div>
         </section>
       </div>
@@ -303,17 +375,29 @@ onMounted(() => {
       <aside class="settings-side">
         <section class="source-panel" aria-labelledby="source-title">
           <header class="settings-group__header">
-            <div><h2 id="source-title">键盘计数</h2></div>
+            <div><h2 id="source-title">键盘统计</h2></div>
           </header>
           <div :class="['source-status', store.state.inputDataStatus]">
             <span class="status-dot"></span><div><strong>{{ inputStatusLabel }}</strong><p>{{ store.state.inputDataMessage }}</p></div>
           </div>
+          <h3 class="source-facts__title">概览</h3>
           <dl class="source-facts">
-            <div v-for="fact in inputFacts" :key="fact.label"><component :is="fact.icon" :size="19" /><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+            <div v-for="fact in inputFacts" :key="fact.label"><component :is="fact.icon" :size="19" aria-hidden="true" /><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
           </dl>
           <button class="refresh-button" type="button" :disabled="store.state.inputDataStatus === 'loading'" @click="store.refreshInputData">
-            <PhArrowClockwise :size="17" weight="regular" />刷新
+            <PhArrowClockwise :size="17" weight="regular" aria-hidden="true" />刷新
           </button>
+        </section>
+        <section class="source-panel shortcuts-panel" aria-labelledby="shortcuts-title">
+          <header class="settings-group__header">
+            <div><h2 id="shortcuts-title">快捷键</h2><p>在页面空白处生效</p></div>
+          </header>
+          <ul class="shortcut-list">
+            <li><span class="shortcut-list__keys"><kbd>Ctrl</kbd><kbd>PgUp</kbd>/<kbd>PgDn</kbd></span><span>上一个 / 下一个页面</span></li>
+            <li><span class="shortcut-list__keys"><kbd>Alt</kbd><kbd>←</kbd>/<kbd>→</kbd></span><span>后退 / 前进</span></li>
+            <li><span class="shortcut-list__keys"><kbd>←</kbd>/<kbd>→</kbd></span><span>空白处直接翻页</span></li>
+            <li><span class="shortcut-list__keys"><kbd>Esc</kbd></span><span>关闭弹层与抽屉</span></li>
+          </ul>
         </section>
       </aside>
     </div>

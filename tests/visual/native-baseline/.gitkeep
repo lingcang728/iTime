@@ -1,0 +1,4 @@
+Native (real WebView2) visual baselines live here as native-wide-<page>.png.
+Generate them once from a packaged build via:
+  pwsh -File scripts/native-release-smoke.ps1   (captures into artifacts/native-qa/visual)
+  node scripts/compare-visual.mjs --native --update-native

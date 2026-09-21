@@ -32,7 +32,6 @@ export interface ForegroundAppInterval extends BaseInterval {
   appName: string
   category: string
   color: string
-  executablePath?: string
   aiToolId?: string
 }
 

@@ -122,11 +122,16 @@ export class KeyboardInputActivityProvider implements InputActivityProvider {
 
 export function parseKeyboardSnapshot(value: unknown): KeyboardWireSnapshot {
   const envelope = keyboardSnapshotSchema.parse(value)
+  // Mirror activityAdapter: invalid buckets must surface in skippedRecords so
+  // the UI can report a degraded state instead of silently losing counts.
+  let rejected = 0
   const buckets = envelope.buckets.flatMap((candidate) => {
     const parsed = bucketSchema.safeParse(candidate)
-    return parsed.success ? [parsed.data] : []
+    if (parsed.success) return [parsed.data]
+    rejected += 1
+    return []
   })
-  return { ...envelope, buckets }
+  return { ...envelope, skippedRecords: envelope.skippedRecords + rejected, buckets }
 }
 
 export function keyboardActivityDataset(value: unknown): TimeDataset {

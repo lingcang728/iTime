@@ -10,7 +10,9 @@ pub fn resolve_known_executable(logical_or_path: &str) -> Option<PathBuf> {
     }
 
     let as_path = PathBuf::from(trimmed);
-    if as_path.is_file() {
+    // Never probe UNC / device-namespace paths — `is_file` on `\\host\share`
+    // triggers SMB and would leak NTLMv2 credentials.
+    if crate::icons::identity::is_safe_local_path(&as_path) && as_path.is_file() {
         return Some(as_path);
     }
 
@@ -20,7 +22,11 @@ pub fn resolve_known_executable(logical_or_path: &str) -> Option<PathBuf> {
         .replace('_', "-");
 
     let candidates = candidate_paths_for(&key);
-    candidates.into_iter().find(|p| p.is_file())
+    // Same guard for env-derived candidates: an unset/odd env var must not turn
+    // a relative or UNC-joined guess into a filesystem probe.
+    candidates
+        .into_iter()
+        .find(|p| crate::icons::identity::is_safe_local_path(p) && p.is_file())
 }
 
 fn candidate_paths_for(key: &str) -> Vec<PathBuf> {

@@ -42,6 +42,21 @@ describe('appIdentity', () => {
     expect(identityGlyph(undefined, 'app:explorer')).toBe('E')
   })
 
+  it('collapses separator runs identically to the Rust normalizer', () => {
+    // Golden vectors shared with icons/identity.rs::normalize_logical_key and
+    // activity/capture.rs::logical_key — keep in sync on both ends.
+    expect(normalizeLogicalKey('QQ 音乐')).toBe('qq')
+    expect(normalizeLogicalKey('VS Code')).toBe('vs-code')
+    expect(normalizeLogicalKey('app - x')).toBe('app-x')
+    expect(normalizeLogicalKey('中文应用')).toBeNull()
+    expect(buildAppIdentity({ appName: 'QQ 音乐' }).identity).toBe('app:qq')
+  })
+
+  it('keeps issued app: identities idempotent like the Rust resolver', () => {
+    expect(buildAppIdentity({ appIdentity: 'app:vscode' }).identity).toBe('app:vscode')
+    expect(buildAppIdentity({ appIdentity: 'app:QQ 音乐' }).identity).toBe('app:qq')
+  })
+
   it('maps display names to stable icon identities', () => {
     expect(canonicalAppKey('文件资源管理器')).toBe('explorer')
     expect(canonicalAppKey('Claude Code')).toBe('claude')

@@ -47,12 +47,12 @@ describe('AI agent surface', () => {
         stubs: {
           PageHeader: true,
           MetricCard: true,
-          AiActivityTimeline: true,
           ApplicationIcon: true,
         },
       },
     })
-    expect(wrapper.text()).toContain('今日')
+    // 预览夹具的 selectedDate 不是今天 → 页面按 P2-20 如实显示「当日」而非「今日」。
+    expect(wrapper.text()).toContain('当日')
     expect(wrapper.text()).toContain('来源：本机会话元数据')
     expect(wrapper.text()).toContain('最活跃时段')
     expect(wrapper.text()).toContain('最佳并发时段')

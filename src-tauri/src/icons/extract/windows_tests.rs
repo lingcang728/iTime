@@ -1,5 +1,4 @@
 use super::*;
-use crate::icons::identity::AppIdentityKind;
 
 fn skip_host_dependent_on_ci(label: &str) -> bool {
     if std::env::var_os("CI").is_some() {
@@ -70,12 +69,7 @@ fn extracts_an_installed_windows_shortcut_by_logical_name() {
     ] {
         let req = ExtractRequest {
             app_identity: format!("app:{logical}"),
-            identity_kind: AppIdentityKind::Logical,
             executable_path: None,
-            process_id: None,
-            aumid: None,
-            package_full_name: None,
-            package_family_name: None,
             size: 48,
         };
         if let Ok((image, source)) = windows::extract_rgba_windows(&req, None, 48) {
@@ -101,14 +95,11 @@ fn extracts_icon_from_an_explicit_real_executable_when_requested() {
         eprintln!("skip: ITIME_ICON_TEST_EXE does not point to a file");
         return;
     }
+    // The explicit-path branch simulates a collector-registered hint; IPC
+    // requests can no longer inject arbitrary paths.
     let req = ExtractRequest {
         app_identity: "app:real-icon-test".into(),
-        identity_kind: AppIdentityKind::Logical,
         executable_path: Some(path.to_string_lossy().to_string()),
-        process_id: None,
-        aumid: None,
-        package_full_name: None,
-        package_family_name: None,
         size: 48,
     };
 
@@ -120,15 +111,25 @@ fn extracts_icon_from_an_explicit_real_executable_when_requested() {
     assert_ne!(source, IconSource::Fallback);
 }
 
+#[test]
+fn resolve_source_path_never_follows_unc_hints() {
+    // Even if a hint-like path slipped in, UNC must be rejected before is_file
+    // so icon resolution can never trigger SMB authentication.
+    let req = ExtractRequest {
+        app_identity: "app:unc-probe".into(),
+        executable_path: Some(r"\\localhost\share\app.exe".into()),
+        size: 48,
+    };
+    let resolved = pipeline::resolve_source_path(&req);
+    if let Some(path) = &resolved {
+        assert!(!path.to_string_lossy().starts_with(r"\\"));
+    }
+}
+
 fn vscode_request() -> ExtractRequest {
     ExtractRequest {
         app_identity: "app:vscode".into(),
-        identity_kind: AppIdentityKind::Logical,
         executable_path: None,
-        process_id: None,
-        aumid: None,
-        package_full_name: None,
-        package_family_name: None,
         size: 64,
     }
 }

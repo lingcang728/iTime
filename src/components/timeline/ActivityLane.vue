@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, ref, watch, type Component } from 'vue'
 import type { TimeRange, TimelineSegment } from '../../domain/events'
 import { formatClock, formatDuration } from '../../utils/format'
 
@@ -13,6 +13,18 @@ const props = defineProps<{
   segments: ActivitySegment[]
   icon?: Component
 }>()
+
+const trackRef = ref<HTMLElement | null>(null)
+const rovingIndex = ref(0)
+
+// 网格线按时间范围参数化：主刻度 1 小时、细格 15 分钟，与刻度说明一致。
+const gridStyle = computed(() => {
+  const duration = Math.max(1, props.range.end - props.range.start)
+  return {
+    '--lane-grid-major': `${3_600_000 / duration * 100}%`,
+    '--lane-grid-minor': `${900_000 / duration * 100}%`,
+  }
+})
 
 const positioned = computed(() => {
   const duration = Math.max(1, props.range.end - props.range.start)
@@ -39,22 +51,46 @@ const positioned = computed(() => {
     }]
   })
 })
+
+watch(() => positioned.value.length, (length) => {
+  rovingIndex.value = Math.min(rovingIndex.value, Math.max(0, length - 1))
+})
+
+// 每条轨道只有一个 Tab 停靠点；方向键 / Home / End 在区间内移动焦点。
+function moveSegmentFocus(event: KeyboardEvent, index: number): void {
+  const last = positioned.value.length - 1
+  const target = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+    ? Math.min(last, index + 1)
+    : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+      ? Math.max(0, index - 1)
+      : event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? last
+          : null
+  if (target === null) return
+  event.preventDefault()
+  rovingIndex.value = target
+  trackRef.value?.querySelectorAll<HTMLElement>('.lane-segment')[target]?.focus()
+}
 </script>
 
 <template>
   <div class="activity-lane">
     <span class="lane-label"><component :is="icon" v-if="icon" :size="20" weight="regular" aria-hidden="true" />{{ label }}</span>
-    <div class="lane-track" role="list" :aria-label="`${label}时间区间`">
+    <div ref="trackRef" class="lane-track" role="list" :aria-label="`${label}时间区间`" :style="gridStyle">
       <span v-if="!positioned.length" class="lane-empty">无记录</span>
       <span
-        v-for="segment in positioned"
+        v-for="(segment, index) in positioned"
         :key="`${segment.start}-${segment.end}-${segment.title}`"
         class="lane-segment"
         :class="[`is-${segment.kind ?? 'other'}`, `is-${segment.variant ?? 'solid'}`, `edge-${segment.edge}`, { muted: segment.muted }]"
         :style="{ '--segment-left': segment.left, '--segment-width': segment.width, '--segment-gap': segment.gap, '--segment-gap-total': segment.gapTotal, '--segment-color': segment.color }"
         role="listitem"
-        tabindex="0"
+        :tabindex="index === rovingIndex ? 0 : -1"
         :aria-label="segment.accessibleLabel"
+        @focus="rovingIndex = index"
+        @keydown="moveSegmentFocus($event, index)"
       >
         <b v-if="segment.widthPercent >= 8 && !segment.muted && segment.variant !== 'hatched'" class="lane-segment__label" aria-hidden="true">{{ segment.title }}</b>
         <span role="tooltip"><strong>{{ segment.title }}</strong>{{ formatClock(segment.start) }}–{{ formatClock(segment.end) }} · {{ formatDuration(segment.durationMs, true) }}</span>
@@ -82,7 +118,7 @@ const positioned = computed(() => {
   gap: 13px;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: 560;
 }
 
 .lane-label svg { color: var(--text-secondary); }
@@ -93,7 +129,7 @@ const positioned = computed(() => {
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--border-strong) 72%, transparent) 1px, transparent 1px),
     linear-gradient(to right, color-mix(in srgb, var(--border-soft) 48%, transparent) 1px, transparent 1px);
-  background-size: 11.111% 100%, 2.777% 100%;
+  background-size: var(--lane-grid-major, 11.111%) 100%, var(--lane-grid-minor, 2.777%) 100%;
 }
 
 .lane-track::after {
@@ -175,8 +211,8 @@ const positioned = computed(() => {
   border-radius: 3px;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-card) 92%, var(--segment-color));
-  font-size: 10px;
-  font-weight: 650;
+  font-size: var(--text-micro);
+  font-weight: 680;
   line-height: 16px;
   text-align: center;
   text-overflow: ellipsis;
@@ -244,7 +280,8 @@ const positioned = computed(() => {
   opacity: 1;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 780px) {
+  /* 与 timeline.css / TimelinePage 的 780px 断点一致，保证轴刻度与轨道 inset 对齐。 */
   .activity-lane {
     grid-template-columns: 118px minmax(0, 1fr);
     gap: var(--space-2);

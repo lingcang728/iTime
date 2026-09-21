@@ -3,16 +3,16 @@ use super::request::{build_extract_request, ExtractRequestInput};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
+/// Security boundary: the WebView may only name a logical app identity and a
+/// size. Concrete `executablePath`/`processId`/`aumid`/`package*`/`siteHost`
+/// inputs were removed on purpose — they made this command a file-existence
+/// oracle, a PID/package probe, and (via UNC paths) an NTLMv2 hash exfiltration
+/// primitive. Unknown fields are rejected so a poisoned frontend fails loudly
+/// instead of being silently ignored.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IconResolveRequest {
     pub app_identity: Option<String>,
-    pub executable_path: Option<String>,
-    pub process_id: Option<u32>,
-    pub aumid: Option<String>,
-    pub package_full_name: Option<String>,
-    pub package_family_name: Option<String>,
-    pub site_host: Option<String>,
     pub requested_size: Option<u32>,
 }
 
@@ -50,12 +50,6 @@ pub fn resolve_app_icon(
 ) -> IconResolveResponse {
     let extract = build_extract_request(ExtractRequestInput {
         app_identity: request.app_identity,
-        executable_path: request.executable_path,
-        process_id: request.process_id,
-        aumid: request.aumid,
-        package_full_name: request.package_full_name,
-        package_family_name: request.package_family_name,
-        site_host: request.site_host,
         requested_size: request.requested_size,
     });
     icons.try_get_cached_or_enqueue(app, extract).into()

@@ -15,6 +15,7 @@ import PageHeader from '../components/PageHeader.vue'
 import ActivityLane, { type ActivitySegment } from '../components/timeline/ActivityLane.vue'
 import type {
   AiInteractionInterval,
+  AiWorkInterval,
   DeviceStateInterval,
   ForegroundAppInterval,
   MediaPlaybackInterval,
@@ -24,9 +25,10 @@ import { coalesceRangesBy } from '../domain/intervals'
 import { comparisonLabel, metricDefinitions, metricInfo } from '../domain/metricDefinitions'
 import { useAppStore } from '../stores/appStore'
 import { hasActivityData } from '../stores/dataAvailability'
-import { formatDuration, formatRatio } from '../utils/format'
+import { formatDuration, formatPercent } from '../utils/format'
 import { useNow } from '../composables/useNow'
 import {
+  isSelectedLocalDay,
   timelineNowPercent,
   timelineRange,
   timelineTicks,
@@ -39,6 +41,8 @@ const store = useAppStore()
 const notesOpen = ref(false)
 const rangeMode = ref<TimelineRangeMode>('day')
 const { nowMs } = useNow()
+const isToday = computed(() => isSelectedLocalDay(store.state.selectedDate, nowMs.value))
+const previousLabel = computed(() => isToday.value ? '昨日' : '前一日')
 const nowPercent = computed(() => timelineNowPercent(
   store.state.selectedDate,
   displayRange.value,
@@ -78,6 +82,14 @@ const aiSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
 ).map((event) => ({
   start: event.start, end: event.end, color: 'var(--timeline-ai)', kind: 'interaction', title: event.toolName,
 })))
+// P3-59: aiWork（Agent 执行区间）由 provider 适配器真实产出，此前在时间线不可见。
+const aiWorkSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
+  byType<AiWorkInterval>('aiWork'),
+  (event) => event.toolId,
+  20_000,
+).map((event) => ({
+  start: event.start, end: event.end, color: 'var(--accent-violet)', kind: 'agent', title: event.toolName,
+})))
 const mediaSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   byType<MediaPlaybackInterval>('media'),
   (event) => `${event.appName}:${event.awayPlayback}`,
@@ -114,16 +126,19 @@ const foregroundComparison = computed(() => comparisonLabel(
   store.day.value.foregroundActivity.value,
   previousDay.value?.foregroundActivity.value ?? null,
   (value) => formatDuration(value, true),
+  previousLabel.value,
 ))
 const aiComparison = computed(() => comparisonLabel(
   store.day.value.aiInteraction.value,
   previousDay.value?.aiInteraction.value ?? null,
   (value) => formatDuration(value, true),
+  previousLabel.value,
 ))
 const parallelComparison = computed(() => comparisonLabel(
   parallelRatio.value,
   previousParallelRatio.value,
   (value) => `${Math.round(value * 100)} 个百分点`,
+  previousLabel.value,
 ))
 const foregroundTrend = computed(() => store.week.value.map((day) => day.foregroundActivity.value ?? 0))
 const aiTrend = computed(() => store.week.value.map((day) => day.aiInteraction.value ?? 0))
@@ -147,7 +162,7 @@ function durationParts(value: number | null): DurationPart[] {
     <div class="timeline-overview">
       <MetricCard :label="metricDefinitions.foregroundActivity.name" :value-parts="durationParts(store.day.value.foregroundActivity.value)" :detail="foregroundComparison" :icon="PhDesktop" visual="bars" :trend="foregroundTrend" :info="metricInfo('foregroundActivity')" />
       <MetricCard :label="metricDefinitions.aiInteraction.name" :value-parts="durationParts(store.day.value.aiInteraction.value)" :detail="aiComparison" :icon="PhSparkle" visual="bars" :trend="aiTrend" :info="metricInfo('aiInteraction')" />
-      <MetricCard :label="metricDefinitions.providerParallelRatio.name" :value="formatRatio(parallelRatio)" :detail="parallelComparison" :icon="PhStack" visual="bars" :trend="parallelTrend" :info="metricInfo('providerParallelRatio')" />
+      <MetricCard :label="metricDefinitions.providerParallelRatio.name" :value="formatPercent(parallelRatio)" :detail="parallelComparison" :icon="PhStack" visual="bars" :trend="parallelTrend" :info="metricInfo('providerParallelRatio')" />
     </div>
 
     <article class="full-timeline" aria-labelledby="activity-tracks-title">
@@ -161,12 +176,12 @@ function durationParts(value: number | null): DurationPart[] {
         </div>
         <div class="track-actions">
           <div class="timeline-legend" aria-label="时间线颜色说明">
-            <span><i class="device" />设备</span><span><i class="app" />应用</span><span><i class="ai" />AI</span><span><i class="media" />媒体</span><span><i class="muted-hatch" />离开<span class="sr-only">设备非活跃</span></span>
+            <span><i class="device" />设备</span><span><i class="app" />应用</span><span><i class="ai" />AI</span><span v-if="aiWorkSegments.length"><i class="agent" />AI 执行</span><span v-if="mediaSegments.length"><i class="media" />媒体</span><span><i class="muted-hatch" />离开<span class="sr-only">设备非活跃</span></span>
           </div>
-          <button type="button" class="timeline-info-button" aria-label="查看统计口径与轨道说明" aria-controls="timeline-notes" :aria-expanded="notesOpen" @click="notesOpen = !notesOpen" @keydown.escape="notesOpen = false"><PhInfo :size="17" />说明</button>
+          <button type="button" class="timeline-info-button" aria-label="查看统计口径与轨道说明" aria-controls="timeline-notes" :aria-expanded="notesOpen" @click="notesOpen = !notesOpen" @keydown.escape="notesOpen = false"><PhInfo :size="17" aria-hidden="true" />说明</button>
           <Transition name="popover">
             <aside v-if="notesOpen" id="timeline-notes" class="timeline-popover" role="dialog" aria-label="统计口径与轨道说明">
-              <button type="button" aria-label="关闭说明" @click="notesOpen = false"><PhX :size="14" /></button>
+              <button type="button" aria-label="关闭说明" @click="notesOpen = false"><PhX :size="14" aria-hidden="true" /></button>
               <div><span>口径</span><strong>重叠只计一次</strong><p>总覆盖 {{ formatDuration(store.day.value.totalDuration.value, true) }}</p></div>
               <div><span>轨道</span><strong>上下对齐 = 同时发生</strong><p>各轨独立，不重复计时。</p></div>
             </aside>
@@ -180,16 +195,18 @@ function durationParts(value: number | null): DurationPart[] {
           <div class="timeline-axis__ticks"><span v-for="tick in axisTicks" :key="tick.label" :style="{ left: `${tick.percent}%` }">{{ tick.label }}</span></div>
         </div>
         <div class="timeline-tracks">
-          <div v-if="nowPercent !== null" class="timeline-now-indicator" :style="{ left: `calc(146px + 14px + ${nowPercent}% * (100% - 146px - 14px - 18px - 18px) / 100)` }" aria-hidden="true" />
+          <div v-if="nowPercent !== null" class="timeline-now-indicator" :style="{ left: `calc(var(--track-inset-start) + ${nowPercent / 100} * (100% - var(--track-inset-start) - var(--track-inset-end)))` }" aria-hidden="true" />
           <ActivityLane label="设备状态" :icon="PhDesktop" :range="displayRange" :segments="deviceSegments" />
           <ActivityLane label="前台应用" :icon="PhSquaresFour" :range="displayRange" :segments="appSegments" />
-          <ActivityLane label="AI 前台" :icon="PhSparkle" :range="displayRange" :segments="aiSegments" />
-          <ActivityLane label="媒体播放" :icon="PhMusicNotes" :range="displayRange" :segments="mediaSegments" />
+          <ActivityLane label="AI 前台活跃" :icon="PhSparkle" :range="displayRange" :segments="aiSegments" />
+          <!-- P3-59: AI 执行/媒体轨道只在有数据时出现——原生侧不产出的恒空轨道与图例不常驻。 -->
+          <ActivityLane v-if="aiWorkSegments.length" label="AI 执行" :icon="PhStack" :range="displayRange" :segments="aiWorkSegments" />
+          <ActivityLane v-if="mediaSegments.length" label="媒体播放" :icon="PhMusicNotes" :range="displayRange" :segments="mediaSegments" />
         </div>
         <div class="timeline-explanation">
-          <PhInfo :size="20" />
+          <PhInfo :size="20" aria-hidden="true" />
           <div><strong>说明</strong><p>10 秒采样，同类合并；主刻度 1 小时，细格 15 分钟。仅前台计活跃。</p></div>
-          <span><PhCheckCircle :size="15" />{{ sourceLabel }}</span>
+          <span><PhCheckCircle :size="15" aria-hidden="true" />{{ sourceLabel }}</span>
         </div>
       </template>
       <div v-else class="section-state timeline-source-state" :data-state="store.state.activityDataStatus">
@@ -201,7 +218,17 @@ function durationParts(value: number | null): DurationPart[] {
 
 <style scoped>
 .timeline-tracks {
+  /* 与 .activity-lane 网格保持一致：18px 内边距 + 标签列 + 列间距 */
+  --track-inset-start: 178px;
+  --track-inset-end: 18px;
   position: relative;
+}
+
+@media (max-width: 780px) {
+  .timeline-tracks {
+    /* 与 timeline.css 同断点：lane 118px 标签列 + 8px 列间距 + 18px 内边距。 */
+    --track-inset-start: 144px;
+  }
 }
 
 .timeline-now-indicator {

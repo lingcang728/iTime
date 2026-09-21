@@ -6,9 +6,7 @@
   min-width: 0;
 }
 
-:root[data-theme="dark"] .input-page .trend-eyebrow {
-  color: #8ac7fa;
-}
+/* .trend-eyebrow 已统一为 var(--accent-strong)，此处的暗色硬编码覆盖移除（P3-10）。 */
 
 @media (max-height: 800px) {
   .input-page { padding-bottom: 20px; }

@@ -91,6 +91,16 @@ export function iconResolverIdentity(input: AppIdentityInput): string | null {
   return input.appIdentity ?? input.iconKey ?? input.appName ?? null
 }
 
+/**
+ * Cross-end contract: must stay identical to Rust `activity/capture.rs::logical_key`
+ * and `icons/identity.rs::normalize_logical_key` — a run of non-ASCII-alphanumeric
+ * characters collapses into a single `-`, and leading/trailing `-` are trimmed.
+ * Golden vectors live in appIdentity.test.ts.
+ * NOTE: `exe:`/`site:` identities can still diverge because Rust canonicalizes the
+ * path before hashing (symlinks / `\\?\` prefixes / drive-letter case). Consumers
+ * must therefore treat the `appIdentity` returned by `resolve_app_icon` /
+ * `app-icon-updated` as the canonical cache key — see appIconService aliases.
+ */
 export function normalizeLogicalKey(value: string | null | undefined): string | null {
   if (!value) return null
   const normalized = value
@@ -138,8 +148,12 @@ export function buildAppIdentity(input: AppIdentityInput): { identity: string; k
     return { identity: `exe:${privatePathKey(path)}`, kind: 'executable_path' }
   }
 
+  // An already-issued `app:` identity is idempotent — strip the prefix before
+  // normalizing, exactly like Rust `normalize_app_identity` does on the IPC
+  // seed (case-sensitive `strip_prefix`, matching `app:` only). Without this,
+  // `app:vscode` would double-prefix to `app:app-vscode`.
   const logical =
-    normalizeLogicalKey(input.appIdentity) ??
+    normalizeLogicalKey(input.appIdentity?.replace(/^app:/, '')) ??
     normalizeLogicalKey(input.iconKey) ??
     normalizeLogicalKey(input.appName) ??
     'unknown'

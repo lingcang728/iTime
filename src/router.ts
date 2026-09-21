@@ -18,3 +18,42 @@ export const router = createRouter({
     { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })
+
+// After an in-place update the running webview can reference chunks that no
+// longer exist; a failed lazy import would otherwise leave a blank page.
+const CHUNK_RELOAD_FLAG = 'itime:chunk-reload-attempted'
+const chunkErrorHints = [
+  'dynamically imported module',
+  'error loading dynamically imported module',
+  'importing a module script failed',
+  'failed to fetch',
+  'chunkloaderror',
+]
+let reloadMarkedInMemory = false
+function reloadAttempted(mark: boolean): boolean {
+  let flagged = reloadMarkedInMemory
+  try {
+    if (mark) sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1')
+    flagged ||= Boolean(sessionStorage.getItem(CHUNK_RELOAD_FLAG))
+  } catch { /* sessionStorage may be unavailable */ }
+  if (mark) reloadMarkedInMemory = true
+  return flagged
+}
+
+router.onError((error) => {
+  const message = String((error as Error)?.message ?? error).toLowerCase()
+  if (!chunkErrorHints.some((hint) => message.includes(hint))) {
+    console.error('[router] navigation failed', error)
+    return
+  }
+  if (reloadAttempted(false)) {
+    // Already reloaded once this session and chunks still fail — don't loop.
+    console.error('[router] chunk still missing after reload', error)
+    return
+  }
+  reloadAttempted(true)
+  void import('./stores/appStore')
+    .then(({ useAppStore }) => useAppStore().showToast('应用已更新，正在重新载入…'))
+    .catch(() => undefined)
+    .finally(() => window.location.reload())
+})

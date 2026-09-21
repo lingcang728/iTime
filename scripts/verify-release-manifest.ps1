@@ -1,3 +1,9 @@
+# Independent re-validation of release/release-manifest.json after packaging:
+# version == package.json, gitCommit == HEAD, exactly two EXEs (portable +
+# installer), per-file sha256 + sourceSha256 (build output vs release copy),
+# role mapping, and latest.json (version / URL / size / updaterManifest sha256).
+# Run standalone via `npm run verify:release`; also invoked inside
+# package-release.ps1 before the native smoke gate.
 param(
   [string]$ReleaseDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'release'),
   [switch]$RequireCleanSource

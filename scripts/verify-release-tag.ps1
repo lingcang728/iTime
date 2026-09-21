@@ -10,6 +10,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $packageJsonPath = Join-Path $root 'package.json'
 $packageLockPath = Join-Path $root 'package-lock.json'
 $cargoManifestPath = Join-Path $root 'src-tauri\Cargo.toml'
+$cargoLockPath = Join-Path $root 'src-tauri\Cargo.lock'
 $tauriConfigPath = Join-Path $root 'src-tauri\tauri.conf.json'
 
 $packageVersion = (Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json).version
@@ -34,11 +35,26 @@ if ($LASTEXITCODE -ne 0) { throw '无法读取 package-lock.json 根版本。' }
 $lockVersion = @($lockVersions)[0].Trim()
 $lockRootVersion = @($lockVersions)[1].Trim()
 
+# Sixth source of truth: the [[package]] entry for the itime crate inside
+# Cargo.lock. `cargo metadata` reflects Cargo.toml; only the lockfile proves the
+# resolved workspace version committed for this release.
+$cargoLockText = Get-Content -LiteralPath $cargoLockPath -Raw
+$itimeLockVersion = $null
+foreach ($block in [regex]::Split($cargoLockText, '(?m)^\[\[package\]\]')) {
+  if ($block -match '(?m)^\s*name\s*=\s*"itime"\s*$' -and
+      $block -match '(?m)^\s*version\s*=\s*"([^"]+)"') {
+    $itimeLockVersion = $Matches[1]
+    break
+  }
+}
+if (-not $itimeLockVersion) { throw 'Cargo.lock 中缺少 itime 包条目。' }
+
 $versions = [ordered]@{
   package = $packageVersion
   packageLock = $lockVersion
   packageLockRoot = $lockRootVersion
   cargo = $cargoPackage.version
+  cargoLock = $itimeLockVersion
   tauri = $tauriVersion
 }
 foreach ($entry in $versions.GetEnumerator()) {

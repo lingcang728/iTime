@@ -20,12 +20,12 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     webview::PageLoadEvent,
-    AppHandle, Emitter, LogicalSize, Manager, State, WindowEvent,
+    AppHandle, Emitter, LogicalSize, Manager, RunEvent, State, WindowEvent,
 };
 
 const DEFAULT_WINDOW_WIDTH: f64 = 1540.0;
@@ -40,8 +40,11 @@ struct RuntimeState {
     recording_generation: Arc<AtomicU64>,
     recording_transition: Mutex<()>,
     toggle_item: Mutex<Option<MenuItem<tauri::Wry>>>,
+    reminder_item: Mutex<Option<MenuItem<tauri::Wry>>>,
     window_fitted: AtomicBool,
     maximize_on_first_show: bool,
+    /// 退出前落盘失败后置位：再次请求退出时不再重试，直接结束进程。
+    force_exit: AtomicBool,
 }
 
 fn launched_from_autostart(args: &[String]) -> bool {
@@ -93,13 +96,37 @@ fn show_main_window(app: &AppHandle) {
 
 #[tauri::command]
 fn configure_reminders(
+    app: AppHandle,
     state: State<'_, ReminderService>,
     enabled: bool,
     interval_minutes: u64,
     quiet_start: String,
     quiet_end: String,
 ) -> Result<(), String> {
-    state.configure(enabled, interval_minutes, &quiet_start, &quiet_end)
+    state.configure(enabled, interval_minutes, &quiet_start, &quiet_end)?;
+    // 托盘菜单项随状态切换文案，窗口藏托盘时也能看出提醒开/关。
+    if let Some(item) = app
+        .state::<RuntimeState>()
+        .reminder_item
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .as_ref()
+    {
+        let _ = item.set_text(if enabled {
+            "关闭提醒"
+        } else {
+            "开启提醒"
+        });
+    }
+    Ok(())
+}
+
+/// 返回实际生效的提醒配置。前端以 localStorage 为权威副本、启动时经
+/// configure_reminders 重推；重推失败时两侧会静默分叉，前端可定期
+/// 用该快照对账纠偏。
+#[tauri::command]
+fn get_reminder_config(state: State<'_, ReminderService>) -> reminders::ReminderConfigSnapshot {
+    state.config_snapshot()
 }
 
 fn apply_recording_state(app: &AppHandle, recording: bool) {
@@ -179,6 +206,10 @@ fn transition_recording_locked(
         state
             .recording_generation
             .store(previous_generation, Ordering::Release);
+        // 2s 控制超时只代表「未收到确认」——已入队的 SetRecording 仍可能被
+        // worker 应用（reply 发送失败会被静默丢弃）。尽力补发一条回到原状态
+        // 的命令，让 worker 与原子量重新收敛，避免记录状态双轨。
+        let _ = collector.set_recording(previous, previous_generation, at);
         let rollback = if persist_setting {
             settings::save_recording(previous)
         } else {
@@ -202,7 +233,7 @@ fn get_recording_state(state: State<'_, RuntimeState>) -> bool {
 }
 
 #[tauri::command]
-fn set_recording_state(
+async fn set_recording_state(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     collector: State<'_, ActivityCollector>,
@@ -243,7 +274,7 @@ fn with_local_data_quiesced<T>(
 }
 
 #[tauri::command]
-fn export_local_data(
+async fn export_local_data(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     activity: State<'_, ActivityCollector>,
@@ -256,17 +287,21 @@ fn export_local_data(
 }
 
 #[tauri::command]
-fn clear_local_data(
+async fn clear_local_data(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     activity: State<'_, ActivityCollector>,
     keyboard: State<'_, KeyboardCollector>,
+    providers: State<'_, ProviderActivityService>,
     confirmation: String,
 ) -> Result<data_management::LocalDataStatus, String> {
     if confirmation != "DELETE_ALL_LOCAL_DATA" {
         return Err("删除确认无效".into());
     }
     with_local_data_quiesced(&app, &state, &activity, &keyboard, || {
+        // "删除全部"也撤销 AI Agent 工具授权：残留的授权态本身就是隐私痕迹，
+        // 撤销后重新开启必须再次经过读取说明确认。
+        providers.set_consent(settings::ProviderConsent::default())?;
         data_management::clear_records()
     })?;
     data_management::get_local_data_status()
@@ -282,32 +317,47 @@ fn request_exit(app: &AppHandle) -> Result<(), String> {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let was_recording = state.recording.load(Ordering::Acquire);
 
+    // 尽力落盘但不被写失败卡死：磁盘满/目录只读时「退出」必须仍然可用。
+    // 第一次失败报错提示；用户再次退出（force_exit 已置位）则直接结束进程，
+    // 退出事件里还有一轮 best-effort 收尾兜底。
+    let mut flush_errors: Vec<String> = Vec::new();
     if was_recording {
-        transition_recording_locked(app, &state, &activity, false, false)?;
-    }
-
-    if let Err(error) = keyboard.flush() {
-        if was_recording {
-            return match transition_recording_locked(app, &state, &activity, true, false) {
-                Ok(_) => Err(error),
-                Err(restore_error) => Err(format!("{error}；恢复采集失败：{restore_error}")),
-            };
+        if let Err(error) = transition_recording_locked(app, &state, &activity, false, false) {
+            flush_errors.push(format!("活动记录收尾失败：{error}"));
         }
-        return Err(error);
     }
-
-    app.exit(0);
-    Ok(())
+    if let Err(error) = keyboard.flush() {
+        flush_errors.push(format!("键盘计数收尾失败：{error}"));
+    }
+    if flush_errors.is_empty() || state.force_exit.swap(false, Ordering::AcqRel) {
+        app.exit(0);
+        return Ok(());
+    }
+    state.force_exit.store(true, Ordering::Release);
+    Err(format!(
+        "{}；数据可能未完全落盘，再次退出将直接结束进程",
+        flush_errors.join("；")
+    ))
 }
 
 #[tauri::command]
-fn quit_app(app: AppHandle) -> Result<(), String> {
+async fn quit_app(app: AppHandle) -> Result<(), String> {
     request_exit(&app)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let launch_args = std::env::args().collect::<Vec<_>>();
+    // 更新迁移重启：旧进程把 PID 传进 --relaunch-after-update=<pid>，
+    // 新实例等它完全退出再初始化，否则单实例互斥会把「显示窗口」转给
+    // 一个正在死亡的旧进程，更新后没有存活实例。
+    #[cfg(windows)]
+    if let Some(pid) = launch_args.iter().find_map(|arg| {
+        arg.strip_prefix(updates::RELAUNCH_ARG_PREFIX)
+            .and_then(|value| value.parse::<u32>().ok())
+    }) {
+        windows_shell::wait_for_process_exit(pid, Duration::from_secs(30));
+    }
     let recording = Arc::new(AtomicBool::new(startup_recording(
         settings::load_recording(),
     )));
@@ -317,17 +367,24 @@ pub fn run() {
         Ok(service) => service,
         Err(error) => {
             eprintln!("iTime 本地数据目录不可用，无法安全启动：{error}");
+            // windows 子系统下 stderr 不可见：至少要给用户一个原生提示。
+            #[cfg(windows)]
+            windows_shell::report_fatal_error(&format!(
+                "iTime 无法启动：本地数据目录不可用。\n\n{error}\n\n请确认 %LOCALAPPDATA% 存在且可写后重试。"
+            ));
             return;
         }
     };
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(RuntimeState {
             recording: recording.clone(),
             recording_generation: recording_generation.clone(),
             recording_transition: Mutex::new(()),
             toggle_item: Mutex::new(None),
+            reminder_item: Mutex::new(None),
             window_fitted: AtomicBool::new(false),
             maximize_on_first_show: launched_from_autostart(&launch_args),
+            force_exit: AtomicBool::new(false),
         })
         .manage(IconService::new())
         .manage(keyboard_service)
@@ -348,15 +405,20 @@ pub fn run() {
             if matches!(payload.event(), PageLoadEvent::Finished) {
                 let window = webview.window();
                 let state = webview.app_handle().state::<RuntimeState>();
-                if !state.window_fitted.swap(true, Ordering::AcqRel) {
-                    if state.maximize_on_first_show {
-                        let _ = window.maximize();
-                    } else {
-                        let _ = fit_main_window_to_work_area(&window);
-                    }
+                // 只在首次加载完成时拟合/显示/聚焦：之后的 webview 重载
+                // （崩溃恢复等）不再抢前台焦点。
+                if state.window_fitted.swap(true, Ordering::AcqRel) {
+                    return;
                 }
-                let _ = window.show();
-                let _ = window.set_focus();
+                if state.maximize_on_first_show {
+                    // 自启动：显示但不 set_focus，避免登录后被抢输入焦点。
+                    let _ = window.maximize();
+                    let _ = window.show();
+                } else {
+                    let _ = fit_main_window_to_work_area(&window);
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
         })
         .setup(|app| {
@@ -364,6 +426,11 @@ pub fn run() {
             // owned by the NSIS installer; portable builds never self-register.
             #[cfg(windows)]
             windows_shell::configure_process_identity();
+            // 清掉上次崩溃/强杀残留的 *.tmp-<pid> 半成品（settings、
+            // update-preparation 的原子写临时文件）。
+            if let Ok(config_dir) = settings::config_dir() {
+                atomic_json::cleanup_stale_temp(&config_dir);
+            }
             if let Err(error) = data_management::apply_saved_retention() {
                 eprintln!("iTime 数据保留期清理失败：{error}");
             }
@@ -400,13 +467,18 @@ pub fn run() {
                 None::<&str>,
             )?;
             let overview = MenuItem::with_id(app, "overview", "今日概览", true, None::<&str>)?;
-            let reminders = MenuItem::with_id(app, "reminders", "提醒开关", true, None::<&str>)?;
+            // 提醒默认关闭；前端推送配置后由 configure_reminders 同步文案。
+            let reminders = MenuItem::with_id(app, "reminders", "开启提醒", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &toggle, &overview, &reminders, &quit])?;
             *app.state::<RuntimeState>()
                 .toggle_item
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(toggle.clone());
+            *app.state::<RuntimeState>()
+                .reminder_item
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(reminders.clone());
 
             TrayIconBuilder::with_id("main")
                 .icon(
@@ -461,6 +533,11 @@ pub fn run() {
                 .build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
+                // The QA devtools escape hatch only exists in builds that opt
+                // into the `devtools` cargo feature (`open_devtools` is gated
+                // behind it — compiling this without the feature would fail).
+                // Release binaries compile this out entirely.
+                #[cfg(feature = "devtools")]
                 if std::env::var("ITIME_NATIVE_QA").ok().as_deref() == Some("1") {
                     window.open_devtools();
                 }
@@ -484,6 +561,7 @@ pub fn run() {
             clear_local_data,
             quit_app,
             configure_reminders,
+            get_reminder_config,
             activity::get_activity_snapshot,
             provider_activity::get_provider_consent,
             provider_activity::set_provider_consent,
@@ -494,8 +572,21 @@ pub fn run() {
             icons::commands::resolve_app_icon,
             keyboard::get_keyboard_snapshot
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running iTime");
+        .build(tauri::generate_context!())
+        .expect("error while building iTime");
+    app.run(|app_handle, event| {
+        if let RunEvent::ExitRequested { .. } = event {
+            // app.exit()/系统关机不跑 Drop：这里对采集线程做一轮有界的
+            // best-effort 收尾，让 pending 活动/键盘计数尽量落盘
+            // （内部均有 CONTROL_TIMEOUT 封顶，不会无限拖延退出）。
+            if let Some(activity) = app_handle.try_state::<ActivityCollector>() {
+                let _ = activity.shutdown(unix_millis().unwrap_or(0));
+            }
+            if let Some(keyboard) = app_handle.try_state::<KeyboardCollector>() {
+                let _ = keyboard.shutdown();
+            }
+        }
+    });
 }
 
 #[cfg(test)]

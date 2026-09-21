@@ -84,7 +84,10 @@ impl IconService {
         app_identity: String,
         path: PathBuf,
     ) {
-        if !path.is_file() {
+        // Hints are the only source of real executable paths for extraction.
+        // Check the path class *before* `is_file`: probing a UNC/device path
+        // would itself trigger SMB and leak NTLMv2 credentials.
+        if !super::identity::is_safe_local_path(&path) || !path.is_file() {
             return;
         }
         let mut guard = self

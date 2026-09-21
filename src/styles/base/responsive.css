@@ -72,11 +72,6 @@
     padding-block: 7px;
   }
 
-  .goal-ring-card {
-    gap: 6px;
-    padding-block: var(--space-2);
-  }
-
   .page {
     padding-top: 10px;
     padding-bottom: var(--space-3);
@@ -118,8 +113,7 @@ html[data-reference="compact"] .nav-item {
   font-size: var(--text-sm);
 }
 
-html[data-reference="compact"] .profile-card,
-html[data-reference="compact"] .goal-ring-card {
+html[data-reference="compact"] .profile-card {
   display: none;
 }
 

@@ -14,8 +14,14 @@ use std::{
 use tauri::State;
 
 const DAY_MILLIS: u64 = 24 * 60 * 60 * 1_000;
+/// Same query-window ceiling as the activity/keyboard snapshots — an
+/// unbounded range must not fan out into an unbounded scan.
+const MAX_QUERY_MILLIS: u64 = 32 * DAY_MILLIS;
 const ACTIVE_GRACE_MILLIS: u64 = 5 * 60 * 1_000;
 const MAX_PROVIDER_FILES: usize = 2_048;
+/// A single session file beyond this size is skipped instead of parsed — a
+/// runaway JSONL must not make one snapshot read hundreds of megabytes.
+const MAX_PROVIDER_FILE_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Coding agents aligned with Open Design / CC Switch style discovery.
 /// Exact session parsers exist only for a subset; others are detect-only when installed.
@@ -234,6 +240,7 @@ struct ProviderDiagnostics {
     bad_events: usize,
     read_failures: usize,
     permission_failures: usize,
+    oversized_files: usize,
 }
 
 impl ProviderDiagnostics {
@@ -247,6 +254,7 @@ impl ProviderDiagnostics {
             || self.bad_events > 0
             || self.read_failures > 0
             || self.permission_failures > 0
+            || self.oversized_files > 0
     }
 }
 
@@ -324,7 +332,7 @@ impl ProviderActivityService {
             .clone()
     }
 
-    fn set_consent(&self, consent: ProviderConsent) -> Result<ProviderConsent, String> {
+    pub(crate) fn set_consent(&self, consent: ProviderConsent) -> Result<ProviderConsent, String> {
         consent.validate()?;
         settings::save_provider_consent(consent.clone())?;
         *self
@@ -353,6 +361,7 @@ impl ProviderActivityService {
 
         let home = std::env::var_os("USERPROFILE")
             .map(PathBuf::from)
+            .filter(|path| crate::icons::is_safe_local_path(path))
             .ok_or_else(|| "Windows 用户目录不可用".to_string())?;
         self.snapshot_with_home(start, end, unix_millis(), &home, consent)
     }
@@ -365,7 +374,7 @@ impl ProviderActivityService {
         home: &Path,
         consent: ProviderConsent,
     ) -> Result<ProviderActivitySnapshot, String> {
-        if end <= start {
+        if end <= start || end - start > MAX_QUERY_MILLIS {
             return Err("Provider 活动查询区间无效".into());
         }
         if !consent.ai_agent_tools_enabled {
@@ -430,6 +439,17 @@ impl ProviderActivityService {
         let mut intervals = Vec::new();
         let mut skipped_files = 0;
         for candidate in &candidates {
+            // Skip oversized files by policy rather than failing or parsing
+            // them — they surface in skippedFiles and the diagnostics.
+            if candidate.length > MAX_PROVIDER_FILE_BYTES {
+                skipped_files += 1;
+                diagnostics.oversized_files += 1;
+                self.cache
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .remove(&candidate.path);
+                continue;
+            }
             match self.load_file(candidate) {
                 Ok((parsed, cache_hit)) => {
                     if cache_hit {
@@ -517,7 +537,24 @@ impl ProviderActivityService {
     }
 
     fn load_file(&self, candidate: &Candidate) -> io::Result<(ParsedFile, bool)> {
-        let metadata = fs::metadata(&candidate.path)?;
+        // Re-stat without following links: the path could have been swapped for
+        // a symlink between enumeration and open (TOCTOU), and reads must never
+        // be redirected onto a network share or an unrelated file.
+        let metadata = fs::symlink_metadata(&candidate.path)?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "provider session path is not a regular file",
+            ));
+        }
+        // The file may have grown since enumeration; enforce the same cap on
+        // the fresh size so a still-appending session cannot slip through.
+        if metadata.len() > MAX_PROVIDER_FILE_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "provider session file exceeds size limit",
+            ));
+        }
         let modified_at = metadata_modified(&metadata);
         if candidate.kind != ProviderKind::OpenCode {
             if let Some(cached) = self
@@ -609,7 +646,9 @@ pub(crate) fn set_provider_consent(
     providers.set_consent(consent)
 }
 
-#[tauri::command]
+// Snapshot scans provider session files; `command(async)` keeps it off the
+// main thread.
+#[tauri::command(async)]
 pub(crate) fn get_provider_activity_snapshot(
     providers: State<'_, ProviderActivityService>,
     start: u64,
@@ -659,6 +698,12 @@ fn discover_path_binaries() -> HashSet<String> {
         .copied()
         .collect();
     for dir in std::env::split_paths(&path) {
+        // PATH is user/environment controlled; skip relative, UNC and device
+        // namespace entries so existence probes never reach network shares or
+        // magic paths (SMB auth leak, NTLM relay bait).
+        if !crate::icons::is_safe_local_path(&dir) {
+            continue;
+        }
         for name in &names {
             for ext in ["", ".exe", ".cmd", ".bat", ".ps1"] {
                 let candidate = dir.join(format!("{name}{ext}"));
@@ -740,7 +785,9 @@ fn directory_has_matching_file(
     depth: u8,
     predicate: impl Fn(&Path) -> bool + Copy,
 ) -> bool {
-    if depth == 0 || !root.is_dir() {
+    // `is_symlink` first: a symlinked root or junction must not pull the scan
+    // outside the provider's own directory (or onto a network target).
+    if depth == 0 || root.is_symlink() || !root.is_dir() {
         return false;
     }
     let Ok(entries) = fs::read_dir(root) else {
@@ -748,7 +795,9 @@ fn directory_has_matching_file(
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
+        // DirEntry::file_type does not follow symlinks, so a symlinked
+        // directory reports is_dir()==false here and is never descended.
+        if entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
             if directory_has_matching_file(&path, depth - 1, predicate) {
                 return true;
             }
@@ -802,7 +851,9 @@ fn collect_file_candidate(
     output: &mut Vec<Candidate>,
     diagnostics: &mut ProviderDiagnostics,
 ) -> bool {
-    let metadata = match fs::metadata(path) {
+    // symlink_metadata does not follow links — a planted `.jsonl` symlink can
+    // never redirect reads to a network share or an unrelated file.
+    let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_file() => metadata,
         Ok(_) => return false,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return false,
@@ -828,7 +879,10 @@ fn collect_candidates(
     output: &mut Vec<Candidate>,
     diagnostics: &mut ProviderDiagnostics,
 ) -> bool {
-    if depth == 0 {
+    // `is_symlink` never follows the link: a symlinked/junctioned provider root
+    // must not pull the scan outside the tool's own directory or onto a
+    // network share.
+    if depth == 0 || root.is_symlink() {
         return false;
     }
     let entries = match fs::read_dir(root) {
@@ -858,6 +912,12 @@ fn collect_candidates(
         };
         if file_type.is_dir() {
             collect_candidates(&path, kind, modified_after, depth - 1, output, diagnostics);
+            continue;
+        }
+        // `file_type` never follows links — a planted `rollout-*.jsonl` symlink
+        // (or any non-regular entry) is skipped here so `load_file` can never
+        // be redirected onto a UNC share or an unrelated local file.
+        if !file_type.is_file() {
             continue;
         }
         if !provider_file_name(&path, kind) {

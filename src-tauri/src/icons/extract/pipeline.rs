@@ -73,18 +73,18 @@ pub fn extract_and_cache(req: &ExtractRequest) -> Result<ExtractedIcon, ExtractE
 pub(super) fn resolve_source_path(req: &ExtractRequest) -> Option<PathBuf> {
     if let Some(path) = req.executable_path.as_deref() {
         let candidate = PathBuf::from(path);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-        if let Some(known) = known_apps::resolve_known_executable(path) {
-            return Some(known);
-        }
-    }
-
-    #[cfg(windows)]
-    if let Some(path) = req.process_id.and_then(process_executable_path) {
-        if path.is_file() {
-            return Some(path);
+        // `executable_path` can only arrive via collector-registered hints, but
+        // double-check anyway: probing a UNC path would trigger SMB and leak
+        // NTLMv2 credentials; device-namespace paths are equally out of scope.
+        // The guard wraps the *whole* branch — the known-app fallback below also
+        // performs an `is_file` probe and must never see a `\\host\share` path.
+        if crate::icons::identity::is_safe_local_path(&candidate) {
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            if let Some(known) = known_apps::resolve_known_executable(path) {
+                return Some(known);
+            }
         }
     }
 
@@ -93,50 +93,6 @@ pub(super) fn resolve_source_path(req: &ExtractRequest) -> Option<PathBuf> {
         .strip_prefix("app:")
         .unwrap_or(req.app_identity.as_str());
     known_apps::resolve_known_executable(logical)
-}
-
-#[cfg(windows)]
-struct OwnedProcess(windows::Win32::Foundation::HANDLE);
-
-#[cfg(windows)]
-impl Drop for OwnedProcess {
-    fn drop(&mut self) {
-        use windows::Win32::Foundation::CloseHandle;
-        // SAFETY: this wrapper exclusively owns a valid OpenProcess handle.
-        let _ = unsafe { CloseHandle(self.0) };
-    }
-}
-
-#[cfg(windows)]
-fn process_executable_path(process_id: u32) -> Option<PathBuf> {
-    use windows::{
-        core::PWSTR,
-        Win32::System::Threading::{
-            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
-            PROCESS_QUERY_LIMITED_INFORMATION,
-        },
-    };
-    if process_id == 0 {
-        return None;
-    }
-    // SAFETY: the caller supplies a PID only; OpenProcess validates it and returns an owned handle.
-    let process = OwnedProcess(unsafe {
-        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id).ok()?
-    });
-    let mut buffer = vec![0_u16; 32_768];
-    let mut length = u32::try_from(buffer.len()).ok()?;
-    // SAFETY: buffer is uniquely owned and its writable capacity is provided in length.
-    unsafe {
-        QueryFullProcessImageNameW(
-            process.0,
-            PROCESS_NAME_WIN32,
-            PWSTR(buffer.as_mut_ptr()),
-            &mut length,
-        )
-    }
-    .ok()?;
-    let used = usize::try_from(length).ok()?.min(buffer.len());
-    Some(PathBuf::from(String::from_utf16_lossy(&buffer[..used])))
 }
 
 fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {

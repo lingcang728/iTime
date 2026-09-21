@@ -43,6 +43,12 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+          cache: pip
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
 
       - name: Reuse runner Rust toolchain
         shell: pwsh
@@ -50,6 +56,16 @@ jobs:
           rustup default stable
           rustc --version
           cargo --version
+
+      # F-14 supply-chain gate: releases must not ship crates with known
+      # vulnerabilities. `cargo install` output is cached by rust-cache.
+      - name: Audit Rust dependencies
+        shell: pwsh
+        run: |
+          if (-not (Test-Path src-tauri/Cargo.lock)) { cargo generate-lockfile --manifest-path src-tauri/Cargo.toml }
+          cargo install cargo-audit --locked
+          Push-Location src-tauri
+          try { cargo audit } finally { Pop-Location }
 
       - name: Install locked project dependencies
         shell: pwsh
@@ -82,20 +98,25 @@ jobs:
             "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           }
 
-      - name: Audit production dependencies
-        if: steps.validate.outputs.skip != 'true'
-        run: npm run audit:prod
-
+      # package:release runs the full gate chain in order: `npm run verify`
+      # (unit + IPC contract + build + audits + cargo) -> tauri build ->
+      # transactional asset copy with SHA-256 -> manifest + latest.json ->
+      # native WebView2/IPC smoke + native visual baseline on the packaged EXE.
+      # -SkipLocalDeploy keeps the runner from touching a desktop shortcut it
+      # does not have (CI auto-skips too).
       - name: Build release from clean checkout
         if: steps.validate.outputs.skip != 'true'
-        run: npm run package:release
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -SkipLocalDeploy
 
-      - name: Upload synthetic visual failure evidence
+      - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-visual-failure-${{ github.run_id }}
-          path: artifacts/visual/
+          name: release-failure-evidence-${{ github.run_id }}
+          path: |
+            artifacts/visual/
+            artifacts/native-qa/
           if-no-files-found: ignore
           retention-days: 7
           include-hidden-files: false
@@ -129,4 +150,5 @@ jobs:
           ./scripts/verify-release-assets.ps1 `
             -ManifestPath 'release/release-manifest.json' `
             -AssetsDirectory $download `
-            -RequireCleanSource
+            -RequireCleanSource `
+            -CheckLatestEndpoint

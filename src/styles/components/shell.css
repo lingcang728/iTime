@@ -13,6 +13,12 @@
   isolation: isolate;
 }
 
+.desktop-app[data-maximized='true'] {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .sidebar {
   min-width: 0;
   min-height: 0;
@@ -40,7 +46,7 @@
 
 .brand-block strong {
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 680;
   letter-spacing: -0.35px;
 }
 
@@ -60,7 +66,7 @@
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 450;
   transition: background-color 180ms var(--ease-out), color 180ms var(--ease-out), transform 140ms var(--ease-out);
 }
 
@@ -92,16 +98,35 @@
 }
 
 .profile-card {
+  appearance: none;
   width: 100%;
   min-height: 64px;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 0;
+  border: 1px solid var(--border-soft);
   border-radius: 9px;
   color: var(--text-secondary);
   background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms var(--ease-out);
+}
+
+.profile-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.profile-card:active {
+  transform: scale(.985);
+}
+
+.profile-card:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .profile-card > svg {
@@ -111,6 +136,7 @@
 
 .profile-card > div {
   min-width: 0;
+  flex: 1;
   display: grid;
   gap: 4px;
 }
@@ -119,7 +145,7 @@
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 560;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -128,6 +154,26 @@
   color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.sync-status__chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.sync-status[data-state='paused'] > svg:first-of-type,
+.sync-status[data-state='paused'] strong {
+  color: var(--warning);
+}
+
+.sync-status[data-state='busy'] > svg:first-of-type {
+  color: var(--text-muted);
+}
+
+.sync-status[data-state='error'] > svg:first-of-type,
+.sync-status[data-state='error'] strong {
+  color: var(--danger);
 }
 
 .app-surface {
@@ -177,6 +223,7 @@
   transform: scale(.94);
 }
 
+/* Windows 平台约定：关闭按钮悬停为红底白字，亮暗主题一致，不走主题 token。 */
 .window-controls button.close:hover {
   color: #ffffff;
   background: #c65353;
@@ -203,6 +250,40 @@
     font-size: 14px;
   }
 }
+
+.first-run-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 35%, var(--border-soft));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--bg-card));
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.first-run-notice > svg { color: var(--accent-strong); flex-shrink: 0; }
+.first-run-notice p { margin: 0; flex: 1; }
+
+.first-run-notice button {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 680;
+}
+
+.first-run-notice button:hover { border-color: var(--accent-strong); background: var(--bg-hover); }
+.first-run-notice button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
 @media (max-height: 780px) {
   .sidebar {

@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "comment": "IPC contract manifest for scripts/check-ipc-contract.mjs. 'responses' maps each Rust Serialize struct to the frontend zod schema / TS interface that parses it (file#schema.path, nested objects via '.key', array elements via '.key[]'). 'commandResponses' covers inline invoke<T> generics. 'requests' checks nested request arg objects against Deserialize structs. 'enums' compares Rust enum variants with z.enum values. 'literals' pins constant wire values (privacy literals) to their expected initializer values. 'eventPayloads' compares emit() payload structs with listenDesktop<T> inline types.",
+  "responses": [
+    { "rust": "ActivitySnapshot", "ts": "src/providers/activityAdapter.ts#snapshotEnvelopeSchema" },
+    { "rust": "ActivitySlice", "ts": "src/providers/activityAdapter.ts#intervalSchema", "extraOk": ["generation"] },
+    { "rust": "ActivityCapabilities", "ts": "src/providers/activityAdapter.ts#snapshotEnvelopeSchema.capabilities" },
+    { "rust": "CollectorHealth", "ts": "src/providers/activityAdapter.ts#snapshotEnvelopeSchema.health" },
+    { "rust": "KeyboardSnapshot", "ts": "src/providers/keyboardAdapter.ts#keyboardSnapshotSchema" },
+    { "rust": "KeyboardBucket", "ts": "src/providers/keyboardAdapter.ts#bucketSchema" },
+    { "rust": "KeyboardCapabilities", "ts": "src/providers/keyboardAdapter.ts#keyboardSnapshotSchema.capabilities" },
+    { "rust": "KeyboardHealthSnapshot", "ts": "src/providers/keyboardAdapter.ts#keyboardSnapshotSchema.health" },
+    { "rust": "ProviderActivitySnapshot", "ts": "src/providers/providerActivityAdapter.ts#snapshotSchema" },
+    { "rust": "ProviderInterval", "ts": "src/providers/providerActivityAdapter.ts#providerIntervalSchema" },
+    { "rust": "ProviderConsent", "ts": "src/providers/providerActivityAdapter.ts#providerConsentSchema" },
+    { "rust": "ProviderDiagnostics", "ts": "src/providers/providerActivityAdapter.ts#snapshotSchema.diagnostics", "extraOk": ["oversizedFiles"] },
+    { "rust": "AgentToolCapability", "ts": "src/providers/providerActivityAdapter.ts#snapshotSchema.capabilities.tools[]" },
+    { "rust": "LocalDataStatus", "ts": "src/platform/localData.ts#localDataStatusSchema" },
+    { "rust": "ExportResult", "ts": "src/platform/localData.ts#exportResultSchema" },
+    { "rust": "IconResolveResponse", "ts": "src/services/appIconService.ts#NativeResponse" },
+    { "rust": "IconUpdateEvent", "ts": "src/services/appIconService.ts#NativeResponse" }
+  ],
+  "commandResponses": [
+    { "command": "prepare_for_update", "rust": "UpdatePreparation" }
+  ],
+  "requests": [
+    { "command": "resolve_app_icon", "arg": "request", "rust": "IconResolveRequest" }
+  ],
+  "enums": [
+    { "rust": "DeviceState", "ts": "src/providers/activityAdapter.ts#intervalSchema.deviceState" }
+  ],
+  "eventPayloads": [
+    { "event": "rest-reminder-due", "rust": "ReminderDueEvent" }
+  ],
+  "literals": [
+    {
+      "rust": "ActivityCapabilities",
+      "fields": {
+        "contentCaptured": false,
+        "windowTitlesCaptured": false,
+        "executablePathsCaptured": false,
+        "historicalBackfill": false,
+        "sessionStatesCaptured": false
+      }
+    },
+    {
+      "rust": "KeyboardCapabilities",
+      "fields": {
+        "contentCaptured": false,
+        "keyIdentityCaptured": false,
+        "directKeyCount": true,
+        "modifierCombinationsExcluded": true,
+        "shiftCharacterKeysIncluded": true,
+        "granularity": "minute",
+        "timezoneSemantics": "local-time",
+        "historicalBackfill": false
+      }
+    },
+    {
+      "rust": "ProviderCapabilities",
+      "fields": { "contentCaptured": false }
+    }
+  ]
+}

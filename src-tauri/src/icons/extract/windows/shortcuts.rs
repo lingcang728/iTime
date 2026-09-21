@@ -129,19 +129,19 @@ fn shortcut_roots() -> Vec<PathBuf> {
 }
 
 fn collect_shortcuts(directory: &Path, depth: u8, output: &mut Vec<PathBuf>) {
-    if depth == 0 || !directory.is_dir() {
+    if depth == 0 || directory.is_symlink() || !directory.is_dir() {
         return;
     }
     let Ok(entries) = std::fs::read_dir(directory) else {
         return;
     };
-    let mut entries = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .collect::<Vec<_>>();
-    entries.sort();
-    for path in entries {
-        if path.is_dir() {
+    let mut entries = entries.flatten().collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        let path = entry.path();
+        // DirEntry::file_type does not follow symlinks — junctioned folders are
+        // never descended, so the scan cannot escape onto network trees.
+        if entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
             collect_shortcuts(&path, depth - 1, output);
         } else if path
             .extension()
@@ -196,6 +196,11 @@ fn load_shortcut(path: &Path) -> Option<ShortcutMetadata> {
 }
 
 fn normalized_path(path: &Path) -> Option<String> {
+    // Check the path class *before* canonicalize: a .lnk target pointing at a
+    // UNC share would otherwise make canonicalize itself the SMB/NTLMv2 probe.
+    if !crate::icons::identity::is_safe_local_path(path) {
+        return None;
+    }
     let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let value = resolved
         .to_string_lossy()

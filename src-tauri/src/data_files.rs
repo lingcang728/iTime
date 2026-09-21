@@ -90,9 +90,34 @@ pub(crate) fn append_json_line(
     Ok(path)
 }
 
+/// Strict record naming: only shapes the writer itself produces — legacy
+/// `{prefix}-v1.jsonl` and dated `{prefix}-YYYY-MM-DD[-part<N>]-v1.jsonl`.
+/// A looser prefix match lets a same-user process drop arbitrary
+/// `activity-*.jsonl` files that readers would parse and render as forged
+/// history.
 fn is_record_name(name: &str, prefix: &str) -> bool {
-    name == format!("{prefix}-v1.jsonl")
-        || (name.starts_with(&format!("{prefix}-")) && name.ends_with(SCHEMA_SUFFIX))
+    let Some(rest) = name.strip_prefix(&format!("{prefix}-")) else {
+        return false;
+    };
+    if rest == "v1.jsonl" {
+        return true;
+    }
+    let Some(core) = rest.strip_suffix(SCHEMA_SUFFIX) else {
+        return false;
+    };
+    // `get` instead of slicing: a non-ASCII filename must not panic here.
+    let Some(date) = core.get(..10) else {
+        return false;
+    };
+    if NaiveDate::parse_from_str(date, "%Y-%m-%d").is_err() {
+        return false;
+    }
+    match &core[10..] {
+        "" => true,
+        tail => tail.strip_prefix("-part").is_some_and(|digits| {
+            !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+        }),
+    }
 }
 
 pub(crate) fn record_files_in(root: &Path, prefix: &str) -> Result<Vec<PathBuf>, String> {
@@ -102,18 +127,63 @@ pub(crate) fn record_files_in(root: &Path, prefix: &str) -> Result<Vec<PathBuf>,
     let mut paths = Vec::new();
     for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
-        let path = entry.path();
-        if path.is_file()
-            && path
+        // DirEntry::file_type never follows links: a planted `activity-*.jsonl`
+        // symlink is neither listed nor ever opened by readers.
+        let is_file = entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false);
+        if is_file
+            && entry
                 .file_name()
-                .and_then(|name| name.to_str())
+                .to_str()
                 .is_some_and(|name| is_record_name(name, prefix))
         {
-            paths.push(path);
+            paths.push(entry.path());
         }
     }
     paths.sort();
     Ok(paths)
+}
+
+/// Files carrying a record prefix that do NOT match a writer-produced name —
+/// planted or stale residue. Readers never list them; retention cleanup and
+/// "删除全部" sweep them so they cannot linger as forgeable material.
+fn foreign_record_files_in(root: &Path, prefix: &str) -> Result<Vec<PathBuf>, String> {
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut paths = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let is_file = entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false);
+        if !is_file {
+            continue;
+        }
+        // Only the `-v1.jsonl` suffix was ever readable under the old loose
+        // naming rule, so only those foreign names are worth sweeping — a
+        // future `{prefix}-*-v2.jsonl` written by a newer version must survive
+        // a downgrade's cleanup pass.
+        let foreign = entry.file_name().to_str().is_some_and(|name| {
+            name.starts_with(&format!("{prefix}-"))
+                && name.ends_with(SCHEMA_SUFFIX)
+                && !is_record_name(name, prefix)
+        });
+        if foreign {
+            paths.push(entry.path());
+        }
+    }
+    Ok(paths)
+}
+
+/// Prefixed non-record files across both record families.
+pub(crate) fn foreign_record_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut files = foreign_record_files_in(root, ACTIVITY_PREFIX)?;
+    files.extend(foreign_record_files_in(root, KEYBOARD_PREFIX)?);
+    Ok(files)
 }
 
 pub(crate) fn all_record_files(root: &Path) -> Result<Vec<PathBuf>, String> {
@@ -123,13 +193,37 @@ pub(crate) fn all_record_files(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
+/// Shards are named by the local date of the records' `start` timestamp, so a
+/// query window only needs the shards whose date falls inside `[start, end)`.
+/// Undated legacy files (`{prefix}-v1.jsonl`) and unparsable names are always
+/// included so nothing readable is ever pruned away.
+pub(crate) fn record_files_covering(
+    root: &Path,
+    prefix: &str,
+    start: u64,
+    end: u64,
+) -> Result<Vec<PathBuf>, String> {
+    let files = record_files_in(root, prefix)?;
+    let (Some(first), Some(last)) = (
+        date_for(start).ok(),
+        date_for(end.saturating_sub(1).max(start)).ok(),
+    ) else {
+        return Ok(files);
+    };
+    Ok(files
+        .into_iter()
+        .filter(|path| shard_date(path, prefix).is_none_or(|date| date >= first && date <= last))
+        .collect())
+}
+
 pub(crate) fn shard_date(path: &Path, prefix: &str) -> Option<NaiveDate> {
     let name = path.file_name()?.to_str()?;
     let remainder = name.strip_prefix(&format!("{prefix}-"))?;
     if remainder == "v1.jsonl" || remainder.len() < 10 {
         return None;
     }
-    NaiveDate::parse_from_str(&remainder[..10], "%Y-%m-%d").ok()
+    // `get` instead of slicing: a non-ASCII filename must not panic here.
+    NaiveDate::parse_from_str(remainder.get(..10)?, "%Y-%m-%d").ok()
 }
 
 pub(crate) fn cleanup_expired_in(
@@ -137,23 +231,51 @@ pub(crate) fn cleanup_expired_in(
     retention_days: Option<u16>,
     today: NaiveDate,
 ) -> Result<usize, String> {
-    let Some(retention_days) = retention_days else {
-        return Ok(0);
-    };
-    let cutoff = today - chrono::Duration::days(i64::from(retention_days.saturating_sub(1)));
+    let cutoff = retention_days
+        .map(|days| today - chrono::Duration::days(i64::from(days.saturating_sub(1))));
+    // A shard dated beyond tomorrow was produced by a badly skewed clock and can
+    // never age out of a retention window or receive new writes — sweep it.
+    let future_limit = today + chrono::Duration::days(1);
     let mut removed = 0;
     for prefix in [ACTIVITY_PREFIX, KEYBOARD_PREFIX] {
+        let legacy_name = format!("{prefix}-v1.jsonl");
         for path in record_files_in(root, prefix)? {
-            let Some(date) = shard_date(&path, prefix) else {
-                // Legacy undated files are never removed automatically.
-                continue;
+            let remove = match shard_date(&path, prefix) {
+                Some(date) => {
+                    // The current local-date shard is always active and must
+                    // never be removed.
+                    date > future_limit
+                        || cutoff.is_some_and(|cutoff| date < cutoff && date != today)
+                }
+                None => {
+                    // Only the exact pre-sharding legacy file is preserved
+                    // forever; any other undated file carrying a record prefix
+                    // is foreign residue that would otherwise linger forever.
+                    path.file_name().and_then(|name| name.to_str()) != Some(legacy_name.as_str())
+                }
             };
-            // The current local-date shard is always active and must never be removed.
-            if date >= cutoff || date == today {
+            if !remove {
                 continue;
             }
-            fs::remove_file(&path)
-                .map_err(|error| format!("无法清理 {}：{error}", path.display()))?;
+            // 文件名即可定位问题；不回显完整路径，避免把用户名泄露进 UI。
+            let label = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("未知分片")
+                .to_string();
+            fs::remove_file(&path).map_err(|error| format!("无法清理 {label}：{error}"))?;
+            removed += 1;
+        }
+        // Foreign `{prefix}-*-v1.jsonl` residue (planted or stale junk that
+        // fails strict record naming) is swept in every retention pass so it
+        // cannot linger as forgeable history material.
+        for path in foreign_record_files_in(root, prefix)? {
+            let label = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("未知分片")
+                .to_string();
+            fs::remove_file(&path).map_err(|error| format!("无法清理 {label}：{error}"))?;
             removed += 1;
         }
     }
@@ -164,39 +286,20 @@ pub(crate) fn cleanup_expired(retention_days: Option<u16>) -> Result<usize, Stri
     cleanup_expired_in(&data_dir()?, retention_days, Local::now().date_naive())
 }
 
-pub(crate) fn migrate_legacy_file_in(root: &Path, prefix: &str) -> Result<usize, String> {
-    fs::create_dir_all(root).map_err(|error| error.to_string())?;
-    let legacy = root.join(format!("{prefix}-v1.jsonl"));
-    let pending = root.join(format!(".{prefix}-v1.migrating"));
-    if legacy.is_file() && pending.is_file() {
-        return Err(format!(
-            "{} 同时存在旧数据与未完成迁移，请保留文件并重试",
-            root.display()
-        ));
-    }
-    if legacy.is_file() {
-        fs::rename(&legacy, &pending)
-            .map_err(|error| format!("无法关闭旧版 {} 数据文件：{error}", prefix))?;
-    }
-    if !pending.is_file() {
-        return Ok(0);
-    }
-
-    // Exact-line multiplicities make an interrupted migration resumable without
-    // duplicating records already copied before the interruption.
-    let mut existing = HashMap::<String, usize>::new();
-    for path in record_files_in(root, prefix)? {
-        for line in BufReader::new(fs::File::open(path).map_err(|error| error.to_string())?).lines()
-        {
-            let line = line.map_err(|error| error.to_string())?;
-            *existing.entry(line).or_default() += 1;
-        }
-    }
-
+/// Copies every readable `version:1` line out of the staging file into dated
+/// shards. `existing` tracks exact-line multiplicities already present in the
+/// shards so an interrupted run resumes without duplicating, and is updated as
+/// lines are copied so later staging files dedupe against earlier ones.
+fn migrate_pending_lines(
+    root: &Path,
+    prefix: &str,
+    pending: &Path,
+    existing: &mut HashMap<String, usize>,
+    unreadable: &mut Vec<String>,
+) -> Result<usize, String> {
     let mut seen = HashMap::<String, usize>::new();
-    let mut unreadable = Vec::new();
     let mut migrated = 0;
-    for line in BufReader::new(fs::File::open(&pending).map_err(|error| error.to_string())?).lines()
+    for line in BufReader::new(fs::File::open(pending).map_err(|error| error.to_string())?).lines()
     {
         let line = match line {
             Ok(line) => line,
@@ -219,8 +322,57 @@ pub(crate) fn migrate_legacy_file_in(root: &Path, prefix: &str) -> Result<usize,
             continue;
         }
         append_json_line(root, prefix, timestamp, line.as_bytes())?;
+        *existing.entry(line).or_default() += 1;
         migrated += 1;
     }
+    Ok(migrated)
+}
+
+pub(crate) fn migrate_legacy_file_in(root: &Path, prefix: &str) -> Result<usize, String> {
+    fs::create_dir_all(root).map_err(|error| error.to_string())?;
+    let legacy = root.join(format!("{prefix}-v1.jsonl"));
+    let pending = root.join(format!(".{prefix}-v1.migrating"));
+
+    // Exact-line multiplicities make an interrupted migration resumable without
+    // duplicating records already copied before the interruption. A shard that
+    // cannot be opened right now must not abort the whole migration; worst case
+    // its duplicates are copied again and skipped by readers as exact repeats.
+    let mut existing = HashMap::<String, usize>::new();
+    for path in record_files_in(root, prefix)? {
+        // The legacy file itself is a migration source, not a destination:
+        // counting its lines would make every pending line look already-copied.
+        if path == legacy {
+            continue;
+        }
+        let Ok(file) = fs::File::open(&path) else {
+            continue;
+        };
+        for line in BufReader::new(file).lines() {
+            let Ok(line) = line else {
+                break;
+            };
+            *existing.entry(line).or_default() += 1;
+        }
+    }
+
+    // An interrupted migration can leave `pending` behind while a downgrade or
+    // a restored backup recreates `legacy`. Fold both into the staging path one
+    // at a time — pending first since it was already mid-flight — instead of
+    // deadlocking on their coexistence.
+    let mut unreadable = Vec::new();
+    let mut migrated = 0;
+    for source in [pending.clone(), legacy] {
+        if !source.is_file() {
+            continue;
+        }
+        if source != pending {
+            fs::rename(&source, &pending)
+                .map_err(|error| format!("无法关闭旧版 {prefix} 数据文件：{error}"))?;
+        }
+        migrated += migrate_pending_lines(root, prefix, &pending, &mut existing, &mut unreadable)?;
+        fs::remove_file(&pending).map_err(|error| error.to_string())?;
+    }
+
     if !unreadable.is_empty() {
         let recovery = root.join("Recovery");
         fs::create_dir_all(&recovery).map_err(|error| error.to_string())?;
@@ -236,7 +388,6 @@ pub(crate) fn migrate_legacy_file_in(root: &Path, prefix: &str) -> Result<usize,
         }
         file.sync_all().map_err(|error| error.to_string())?;
     }
-    fs::remove_file(&pending).map_err(|error| error.to_string())?;
     Ok(migrated)
 }
 
@@ -413,6 +564,164 @@ mod tests {
         let shard = root.join("keyboard-2026-07-27-v1.jsonl");
         assert_eq!(fs::read_to_string(shard).unwrap().lines().count(), 2);
         assert_eq!(fs::read_dir(root.join("Recovery")).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn covering_files_prune_shards_outside_the_query_window() {
+        let root = fixture_root("covering");
+        fs::create_dir_all(&root).unwrap();
+        for name in [
+            "activity-2026-07-20-v1.jsonl",
+            "activity-2026-07-27-v1.jsonl",
+            "activity-2026-08-01-part2-v1.jsonl",
+            "activity-v1.jsonl",
+        ] {
+            fs::write(root.join(name), b"{}\n").unwrap();
+        }
+        let start = Local
+            .with_ymd_and_hms(2026, 7, 27, 0, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp_millis() as u64;
+        let end = Local
+            .with_ymd_and_hms(2026, 7, 28, 0, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp_millis() as u64;
+        let files = record_files_covering(&root, ACTIVITY_PREFIX, start, end).unwrap();
+        let names: Vec<_> = files
+            .iter()
+            .map(|path| path.file_name().unwrap().to_str().unwrap().to_string())
+            .collect();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(
+            names,
+            vec![
+                "activity-2026-07-27-v1.jsonl".to_string(),
+                "activity-v1.jsonl".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn retention_sweeps_future_and_undated_residue_but_keeps_legacy() {
+        let root = fixture_root("retention-anomalies");
+        fs::create_dir_all(&root).unwrap();
+        for name in [
+            "activity-v1.jsonl",
+            "activity-x-v1.jsonl",
+            "activity-2030-01-01-v1.jsonl",
+            "activity-2026-07-27-v1.jsonl",
+            "activity-2026-07-28-v1.jsonl",
+        ] {
+            fs::write(root.join(name), b"{}\n").unwrap();
+        }
+        let removed =
+            cleanup_expired_in(&root, None, NaiveDate::from_ymd_opt(2026, 7, 27).unwrap()).unwrap();
+        assert_eq!(removed, 2);
+        assert!(root.join("activity-v1.jsonl").is_file());
+        assert!(root.join("activity-2026-07-27-v1.jsonl").is_file());
+        assert!(root.join("activity-2026-07-28-v1.jsonl").is_file());
+        assert!(!root.join("activity-x-v1.jsonl").exists());
+        assert!(!root.join("activity-2030-01-01-v1.jsonl").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn migration_folds_reappeared_legacy_file_into_pending() {
+        let root = fixture_root("legacy-coexist");
+        fs::create_dir_all(&root).unwrap();
+        let timestamp = Local
+            .with_ymd_and_hms(2026, 7, 27, 13, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp_millis() as u64;
+        let pending_line = format!(r#"{{"version":1,"start":{timestamp},"keyStrokes":2}}"#);
+        let legacy_line = format!(
+            r#"{{"version":1,"start":{},"keyStrokes":5}}"#,
+            timestamp + 60_000
+        );
+        fs::write(
+            root.join(".keyboard-v1.migrating"),
+            format!("{pending_line}\n"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("keyboard-v1.jsonl"),
+            format!("{pending_line}\n{legacy_line}\n"),
+        )
+        .unwrap();
+        assert_eq!(migrate_legacy_file_in(&root, KEYBOARD_PREFIX).unwrap(), 2);
+        let shard = root.join("keyboard-2026-07-27-v1.jsonl");
+        assert_eq!(fs::read_to_string(shard).unwrap().lines().count(), 2);
+        assert!(!root.join(".keyboard-v1.migrating").exists());
+        assert!(!root.join("keyboard-v1.jsonl").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn record_names_match_only_writer_shapes() {
+        // Shapes the writer actually produces.
+        assert!(is_record_name("activity-v1.jsonl", ACTIVITY_PREFIX));
+        assert!(is_record_name(
+            "activity-2026-07-27-v1.jsonl",
+            ACTIVITY_PREFIX
+        ));
+        assert!(is_record_name(
+            "keyboard-2026-07-27-part2-v1.jsonl",
+            KEYBOARD_PREFIX
+        ));
+        // Planted lookalikes are not records — they would otherwise be read
+        // and rendered as forged history.
+        assert!(!is_record_name("activity-x-v1.jsonl", ACTIVITY_PREFIX));
+        assert!(!is_record_name(
+            "activity-2026-07-27.jsonl",
+            ACTIVITY_PREFIX
+        ));
+        assert!(!is_record_name(
+            "activity-2026-07-27-part-v1.jsonl",
+            ACTIVITY_PREFIX
+        ));
+        assert!(!is_record_name(
+            "activity-2026-07-27-evil-v1.jsonl",
+            ACTIVITY_PREFIX
+        ));
+        assert!(!is_record_name(
+            "other-2026-07-27-v1.jsonl",
+            ACTIVITY_PREFIX
+        ));
+        // A non-ASCII lookalike must be rejected without panicking on slicing.
+        assert!(!is_record_name("activity-中文-v1.jsonl", ACTIVITY_PREFIX));
+    }
+
+    #[test]
+    fn foreign_residue_is_never_listed_but_is_swept_by_cleanup() {
+        let root = fixture_root("foreign");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("activity-forged-v1.jsonl"), b"{}\n").unwrap();
+        fs::write(root.join("activity-2026-07-27-v1.jsonl"), b"{}\n").unwrap();
+        // A future-schema file must survive a downgrade's sweep.
+        fs::write(root.join("activity-v2.jsonl"), b"{}\n").unwrap();
+
+        assert_eq!(
+            record_files_in(&root, ACTIVITY_PREFIX).unwrap().len(),
+            1,
+            "foreign files must never reach record readers"
+        );
+        let foreign = foreign_record_files(&root).unwrap();
+        assert_eq!(foreign.len(), 1);
+        assert_eq!(
+            foreign[0].file_name().and_then(|n| n.to_str()),
+            Some("activity-forged-v1.jsonl")
+        );
+
+        let removed =
+            cleanup_expired_in(&root, None, NaiveDate::from_ymd_opt(2026, 7, 27).unwrap()).unwrap();
+        assert_eq!(removed, 1);
+        assert!(root.join("activity-2026-07-27-v1.jsonl").is_file());
+        assert!(root.join("activity-v2.jsonl").is_file());
+        assert!(!root.join("activity-forged-v1.jsonl").exists());
         let _ = fs::remove_dir_all(root);
     }
 

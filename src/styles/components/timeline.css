@@ -2,126 +2,13 @@
   margin-top: var(--space-3);
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 500;
-}
-
-.legend span::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  display: inline-block;
-  margin-right: 5px;
-  border-radius: 50%;
-  background: var(--neutral-series);
-}
-
-.legend .attention::before,
-.legend .green::before {
-  background: var(--accent-strong);
-}
-
-.legend .agent::before,
-.legend .interaction::before,
-.legend .violet::before {
-  border: 1px solid var(--accent-strong);
-  background: var(--accent-soft);
-}
-
-.legend .media::before,
-.legend .orange::before,
-.legend .gray::before {
-  background: var(--neutral-series);
-}
-
-.time-axis {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.timeline-lane {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  margin-top: 7px;
-}
-
-.timeline-lane:not(:has(.timeline-lane__label)) {
-  display: block;
-}
-
-.timeline-lane__label {
-  width: 64px;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 500;
-}
-
-.timeline-lane__track {
-  height: 30px;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  background: var(--bg-inset);
-}
-
-.timeline-segment {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 4px;
-  background: var(--segment-color, var(--neutral-series));
-  opacity: 0.96;
-}
-
-.timeline-segment.is-attention {
-  background: var(--accent-strong);
-}
-
-.timeline-segment.is-agent {
-  background: color-mix(in srgb, var(--accent) 68%, var(--bg-inset));
-}
-
-.timeline-segment.is-media,
-.timeline-segment.is-other {
-  background: var(--neutral-series);
-}
-
-.timeline-segment.is-interaction {
-  border: 1px solid var(--accent-strong);
-  background: var(--accent-soft);
-}
-
-.timeline-segment.is-waiting {
-  border: 1px dashed var(--accent-muted);
-  background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--accent) 34%, transparent) 3px 5px);
-}
-
-.timeline-segment.is-overlap {
-  border: 1px solid var(--accent-strong);
-  background: repeating-linear-gradient(90deg, var(--accent-strong) 0 4px, var(--neutral-series) 4px 8px);
-}
-
-.timeline-segment.muted {
-  opacity: 0.42;
-}
-
 .button {
   min-height: 32px;
   padding: 0 13px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: 680;
   cursor: pointer;
   transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
 }

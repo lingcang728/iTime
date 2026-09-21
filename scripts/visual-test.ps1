@@ -1,39 +1,45 @@
 param(
   [switch]$UpdateBaseline,
-  [switch]$SkipReference
+  [switch]$SkipReference,
+  # Native mode (default) exercises the packaged release\iTime.exe over real
+  # WebView2 + IPC. -Dev keeps the old Chrome+Vite path for local layout
+  # iteration only — it must never be used as the release gate.
+  [switch]$Dev,
+  [string]$Executable = 'release\iTime.exe'
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+
+if (-not $Dev) {
+  # The visual release gate runs on the real packaged application: the native
+  # smoke launches $Executable with an isolated environment, captures
+  # native-wide-<page>.png screenshots over the WebView2 CDP endpoint and
+  # compares them against tests\visual\native-baseline (see
+  # native-release-smoke.ps1 + compare-visual.mjs --native).
+  $smoke = Join-Path $PSScriptRoot 'native-release-smoke.ps1'
+  $exePath = if ([System.IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Path $root $Executable }
+  if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+    throw "缺少打包产物 $Executable；真实应用视觉门禁需要 release\iTime.exe，请先运行 npm run package:release（本地布局迭代可用 -Dev）。"
+  }
+  if ($UpdateBaseline) {
+    & $smoke -Executable $Executable -UpdaterCheck off -UpdateVisualBaseline
+    if ($LASTEXITCODE -ne 0) { throw '真实 EXE 原生验收失败，未更新视觉基线。' }
+  } else {
+    & $smoke -Executable $Executable -UpdaterCheck off
+    if ($LASTEXITCODE -ne 0) { throw '真实 EXE 视觉与功能验收失败。' }
+  }
+  exit 0
+}
+
+# ------------------------- dev-only Vite path -------------------------
+# Chrome + Vite only proves layout inside a dev server; it says nothing about
+# the shipped WebView2 shell, IPC payloads or bundled assets. Keep it for
+# component-level iteration behind -Dev.
 $output = Join-Path $root 'artifacts\visual'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 
-function Find-Playwright {
-  if ($env:ITIME_PLAYWRIGHT) {
-    if (-not (Test-Path -LiteralPath $env:ITIME_PLAYWRIGHT)) { throw "ITIME_PLAYWRIGHT 指向不存在的文件：$env:ITIME_PLAYWRIGHT" }
-    $python = Join-Path (Split-Path -Parent (Split-Path -Parent $env:ITIME_PLAYWRIGHT)) 'python.exe'
-    return @{ Kind = 'exe'; Value = $env:ITIME_PLAYWRIGHT; Python = $(if (Test-Path -LiteralPath $python) { $python } else { $null }) }
-  }
-  $command = Get-Command playwright -ErrorAction SilentlyContinue
-  if ($command) {
-    $python = Join-Path (Split-Path -Parent (Split-Path -Parent $command.Source)) 'python.exe'
-    return @{ Kind = 'exe'; Value = $command.Source; Python = $(if (Test-Path -LiteralPath $python) { $python } else { $null }) }
-  }
-  $pythonLauncher = Get-Command py -ErrorAction SilentlyContinue
-  if ($pythonLauncher) {
-    & $pythonLauncher.Source -m playwright --version *> $null
-    if ($LASTEXITCODE -eq 0) { return @{ Kind = 'module'; Value = $pythonLauncher.Source; Python = $pythonLauncher.Source } }
-  }
-  if ($env:PLAYWRIGHT_BROWSERS_PATH) {
-    $sharedRoot = Split-Path -Parent $env:PLAYWRIGHT_BROWSERS_PATH
-    $shared = Get-ChildItem -LiteralPath $sharedRoot -Filter playwright.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($shared) {
-      $python = Join-Path (Split-Path -Parent (Split-Path -Parent $shared.FullName)) 'python.exe'
-      return @{ Kind = 'exe'; Value = $shared.FullName; Python = $(if (Test-Path -LiteralPath $python) { $python } else { $null }) }
-    }
-  }
-  throw '未找到共享 Playwright。请在现有共享 Python 环境安装 playwright，并将可执行文件加入 PATH，或设置 ITIME_PLAYWRIGHT=<playwright.exe 的完整路径>。项目不会自行安装第二份 Playwright。'
-}
+. (Join-Path $PSScriptRoot 'Find-PlaywrightRuntime.ps1')
 
 function Invoke-Playwright([hashtable]$runtime, [string[]]$arguments) {
   if ($arguments[0] -eq 'screenshot' -and -not ($arguments -contains '--channel')) {
@@ -53,7 +59,7 @@ function Invoke-Playwright([hashtable]$runtime, [string[]]$arguments) {
   if ($LASTEXITCODE -ne 0) { throw "Playwright 命令失败：$($arguments -join ' ')" }
 }
 
-$runtime = Find-Playwright
+$runtime = Find-PlaywrightRuntime
 $viteEntry = Join-Path $root 'node_modules\vite\bin\vite.js'
 if (-not (Test-Path -LiteralPath $viteEntry)) { throw '缺少 node_modules。请先运行 npm install。' }
 $server = Start-Process -FilePath (Get-Command node).Source -ArgumentList @($viteEntry, '--host', '127.0.0.1', '--port', '1420', '--strictPort') -WorkingDirectory $root -WindowStyle Hidden -PassThru

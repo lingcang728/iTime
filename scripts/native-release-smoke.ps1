@@ -1,6 +1,17 @@
 param(
   [string]$Executable = 'release\iTime.exe',
-  [string]$OutputDirectory = 'artifacts\native-qa'
+  [string]$OutputDirectory = 'artifacts\native-qa',
+  # required = updater must report 已是最新版本 (strict, needs network + published latest <= build);
+  # advisory = record the status and warn on failure, never fail the gate (default
+  #            for standalone runs — the release pipeline passes an explicit mode);
+  # off      = skip the updater connectivity probe entirely.
+  [ValidateSet('required', 'advisory', 'off')][string]$UpdaterCheck = 'advisory',
+  # Capture per-page screenshots from the real WebView2 app over CDP and compare
+  # them with tests\visual\native-baseline (structural SSIM). Pass -SkipVisualBaseline
+  # to run functional checks only, or -UpdateVisualBaseline to re-pin the
+  # baseline from this run's captures.
+  [switch]$SkipVisualBaseline,
+  [switch]$UpdateVisualBaseline
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,11 +38,14 @@ if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
   throw "缺少待验收 EXE：$executablePath"
 }
 
-$python = 'G:\python\python.exe'
-$playwright = 'G:\python\Scripts\playwright.exe'
-if (-not (Test-Path -LiteralPath $python -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $playwright -PathType Leaf)) {
-  throw '未找到本机共享 Python Playwright；禁止在项目内重复安装。'
+. (Join-Path $PSScriptRoot 'Find-PlaywrightRuntime.ps1')
+$playwrightRuntime = Find-PlaywrightRuntime
+$python = $playwrightRuntime.Python
+if (-not $python) {
+  throw '已发现 Playwright CLI，但未找到其 Python 运行时。请设置 ITIME_PLAYWRIGHT 指向共享 Python 环境中的 playwright.exe。'
+}
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
+  throw "Playwright Python 运行时不存在：$python"
 }
 
 $otherInstances = @(Get-Process -Name iTime -ErrorAction SilentlyContinue)
@@ -114,6 +128,7 @@ $tempPath = Join-Path $runtimePath 'Temp'
 
 $reportPath = Join-Path $outputPath 'report.json'
 $screenshotPath = Join-Path $outputPath 'settings.png'
+$visualPath = Join-Path $outputPath 'visual'
 $devToolsPortPath = Join-Path $runtimePath 'WebView2\EBWebView\DevToolsActivePort'
 $pythonScript = Join-Path $PSScriptRoot 'native-release-smoke.py'
 $before = Get-ShellSnapshot
@@ -161,14 +176,30 @@ try {
   } while ($null -eq $version -and (Get-Date) -lt $deadline)
   if ($null -eq $version) { throw '真实 WebView2 临时 CDP 端点未在 30 秒内就绪。' }
 
-  & $python `
-    $pythonScript `
-    --cdp-url "http://127.0.0.1:$port" `
-    --host-pid $process.Id `
-    --isolated-root $runtimePath `
-    --report $reportPath `
-    --screenshot $screenshotPath
+  $smokeArgs = @(
+    $pythonScript,
+    '--cdp-url', "http://127.0.0.1:$port",
+    '--host-pid', $process.Id,
+    '--isolated-root', $runtimePath,
+    '--report', $reportPath,
+    '--screenshot', $screenshotPath,
+    '--updater-check', $UpdaterCheck
+  )
+  if (-not $SkipVisualBaseline) { $smokeArgs += @('--visual-dir', $visualPath) }
+  & $python @smokeArgs
   if ($LASTEXITCODE -ne 0) { throw '真实 EXE 原生功能验收失败。' }
+
+  if (-not $SkipVisualBaseline) {
+    # Compare the real packaged WebView2 rendering against the native baseline
+    # (tests\visual\native-baseline). First run must establish the baseline via
+    # -UpdateVisualBaseline (or `node scripts/compare-visual.mjs --native
+    # --update-native`).
+    $compareArgs = @((Join-Path $PSScriptRoot 'compare-visual.mjs'), '--native', '--native-dir', $visualPath)
+    if ($UpdateVisualBaseline) { $compareArgs += '--update-native' }
+    & (Get-Command node).Source @compareArgs
+    if ($LASTEXITCODE -ne 0) { throw '真实应用视觉基线比对失败，请查看 artifacts\native-qa\visual\native-report.json。' }
+    if ($UpdateVisualBaseline) { Write-Host '已更新 tests\visual\native-baseline（真实打包应用基线）。' }
+  }
 
   $after = Get-ShellSnapshot
   $afterJson = $after | ConvertTo-Json -Depth 8 -Compress
@@ -177,6 +208,9 @@ try {
   }
 
   $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+  foreach ($warning in @($report.warnings)) {
+    Write-Warning "原生冒烟警告：$warning"
+  }
   $report | Add-Member -NotePropertyName executable -NotePropertyValue ([ordered]@{
     fileName = [System.IO.Path]::GetFileName($executablePath)
     sizeBytes = (Get-Item -LiteralPath $executablePath).Length

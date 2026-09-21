@@ -4,9 +4,9 @@ use image::RgbaImage;
 use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
-use windows::core::{Interface, Owned, PCWSTR, PWSTR};
+use windows::core::{Interface, Owned, PCWSTR};
 use windows::Win32::Foundation::SIZE;
 use windows::Win32::Graphics::Gdi::HBITMAP;
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
@@ -61,14 +61,6 @@ pub(super) fn shell_item_image_from_path(
     size: u32,
 ) -> Result<RgbaImage, ExtractError> {
     let wide = to_wide(path.as_os_str());
-    shell_item_image_from_wide(&wide, size)
-}
-
-pub(super) fn shell_item_image_from_parsing_name(
-    parsing_name: &str,
-    size: u32,
-) -> Result<RgbaImage, ExtractError> {
-    let wide = to_wide(OsStr::new(parsing_name));
     shell_item_image_from_wide(&wide, size)
 }
 
@@ -226,42 +218,6 @@ fn images_equivalent(left: &RgbaImage, right: &RgbaImage) -> bool {
         .map(|(left, right)| u64::from(left.abs_diff(*right)))
         .sum::<u64>();
     total <= u64::from(left.width()) * u64::from(left.height()) * 4
-}
-
-pub(super) fn package_path_by_full_name(full_name: &str) -> Option<PathBuf> {
-    use windows::Win32::Storage::Packaging::Appx::GetPackagePathByFullName;
-
-    let wide = to_wide(OsStr::new(full_name));
-    let mut length = 0_u32;
-    // SAFETY: [Category 8 - FFI boundary] the package name is live and
-    // NUL-terminated; a null output buffer is the documented sizing query.
-    let _ = unsafe { GetPackagePathByFullName(PCWSTR(wide.as_ptr()), &mut length, PWSTR::null()) };
-    if length == 0 {
-        return None;
-    }
-    let capacity = usize::try_from(length).ok()?;
-    let mut buffer = vec![0_u16; capacity];
-    // SAFETY: [Category 8 - FFI boundary] `buffer` has exactly the capacity
-    // advertised through `length` and cannot reallocate during this call.
-    let result = unsafe {
-        GetPackagePathByFullName(
-            PCWSTR(wide.as_ptr()),
-            &mut length,
-            PWSTR(buffer.as_mut_ptr()),
-        )
-    };
-    if result.is_err() {
-        return None;
-    }
-    let used = usize::try_from(length).ok()?;
-    if used > buffer.len() {
-        return None;
-    }
-    buffer.truncate(used);
-    let path = String::from_utf16_lossy(&buffer)
-        .trim_end_matches('\0')
-        .to_string();
-    (!path.is_empty()).then(|| PathBuf::from(path))
 }
 
 #[allow(dead_code)]

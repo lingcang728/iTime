@@ -35,7 +35,7 @@ body,
 
 body {
   font-family: var(--font-ui);
-  font-weight: 500;
+  font-weight: 450;
   color: var(--text-primary);
   background: var(--bg-app);
   -webkit-font-smoothing: antialiased;
@@ -90,7 +90,7 @@ button {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-inverse);
-  background: var(--accent-blue);
+  background: var(--accent-strong);
 }
 
 .skip-link:focus {

@@ -4,6 +4,8 @@ export interface RuntimeSyncInput {
   lastUpdatedAt: number | null
   statuses: string[]
   messages: string[]
+  /** When true the collector is paused — refreshes still succeed but no new data appears. */
+  recordingPaused?: boolean
 }
 
 export interface RuntimeSyncStatus {
@@ -20,6 +22,15 @@ export function runtimeSyncStatus(input: RuntimeSyncInput): RuntimeSyncStatus {
       title: '部分数据读取失败',
       detail: input.messages[failed] || '请打开设置查看数据来源',
       state: 'error',
+    }
+  }
+  // A paused recorder must never look like a healthy "refreshed N minutes ago" —
+  // surface it before degraded/loading/ready states so it stays visible.
+  if (input.recordingPaused) {
+    return {
+      title: '记录已暂停',
+      detail: '数据仅回看；在设置中恢复活动记录',
+      state: 'degraded',
     }
   }
   const degraded = input.statuses.findIndex((status) => status === 'degraded')

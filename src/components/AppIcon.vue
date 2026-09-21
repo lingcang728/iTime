@@ -17,12 +17,12 @@ import vscodeIcon from '../assets/apps/vscode.svg'
 import itimeIcon from '../assets/logo.svg'
 import {
   peekAppIcon,
-  forgetAppIcon,
   resolveAppIcon,
+  sameIconIdentity,
+  subscribeAppIconHints,
   subscribeAppIcons,
   type IconStatus,
 } from '../services/appIconService'
-import { listenDesktop } from '../platform/desktop'
 import { useAppStore } from '../stores/appStore'
 
 const props = withDefaults(
@@ -113,13 +113,25 @@ const ariaLabel = computed(() => props.appName || props.appIdentity || props.ico
 let unsubscribe: (() => void) | undefined
 let unsubscribeHints: (() => void) | undefined
 let mounted = false
+/** Backend-canonical identity learned from the last native resolve (may differ from identityInfo). */
+const nativeIdentity = ref<string | null>(null)
 
 async function refresh(): Promise<void> {
   imageBroken.value = false
+  // A catalog brand icon wins over native extraction — skip the IPC entirely.
+  if (preferEmbedded.value) {
+    status.value = 'resolved'
+    nativeUrl.value = null
+    return
+  }
   const identity = identityInfo.value.identity
   const requestedSize = requestedNativeSize.value
+  // Forget the previously learned canonical identity — it belongs to the
+  // props that produced it, not necessarily to this request.
+  nativeIdentity.value = null
   const peeked = peekAppIcon(identity, requestedSize)
   if (peeked) {
+    nativeIdentity.value = peeked.appIdentity
     status.value = peeked.status
     nativeUrl.value = peeked.iconUrl ?? null
   } else {
@@ -140,11 +152,15 @@ async function refresh(): Promise<void> {
     processId: props.processId,
   })
 
+  // Staleness is judged against what this instance asked for, not against
+  // result.appIdentity — the backend-normalized identity is authoritative and
+  // may legitimately differ (separator collapsing, canonicalized exe paths).
   if (
     !mounted
-    || result.appIdentity !== identityInfo.value.identity
-    || result.width !== requestedNativeSize.value
+    || identityInfo.value.identity !== identity
+    || requestedNativeSize.value !== requestedSize
   ) return
+  nativeIdentity.value = result.appIdentity
   status.value = result.status
   nativeUrl.value = result.iconUrl ?? null
   if (result.status === 'failed' || result.status === 'unknown') {
@@ -162,20 +178,23 @@ onMounted(() => {
   mounted = true
   unsubscribe = subscribeAppIcons((result) => {
     if (
-      result.appIdentity !== identityInfo.value.identity
-      || result.width !== requestedNativeSize.value
+      !sameIconIdentity(result.appIdentity, identityInfo.value.identity)
+      && !sameIconIdentity(result.appIdentity, nativeIdentity.value)
     ) return
+    if (result.width !== requestedNativeSize.value) return
+    nativeIdentity.value = result.appIdentity
     status.value = result.status
     nativeUrl.value = result.iconUrl ?? null
     if (result.status === 'resolved') imageBroken.value = false
   })
-  void listenDesktop<string>('app-icon-hint-updated', (identity) => {
-    if (identity !== identityInfo.value.identity) return
-    forgetAppIcon(identity)
+  // Single shared native listener lives in the service; it already cleared the
+  // matching cache entries before this fires.
+  unsubscribeHints = subscribeAppIconHints((identity) => {
+    if (
+      !sameIconIdentity(identity, identityInfo.value.identity)
+      && !sameIconIdentity(identity, nativeIdentity.value)
+    ) return
     void refresh()
-  }).then((cleanup) => {
-    if (mounted) unsubscribeHints = cleanup
-    else cleanup()
   })
   void refresh()
 })
@@ -228,6 +247,6 @@ watch(
     >
       {{ glyph }}
     </span>
-    <PhAppWindow v-else class="app-icon__generic" :size="Math.max(12, size - 2)" weight="duotone" />
+    <PhAppWindow v-else class="app-icon__generic" :size="Math.max(12, size - 2)" weight="duotone" aria-hidden="true" />
   </span>
 </template>

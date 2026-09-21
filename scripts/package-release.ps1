@@ -1,5 +1,17 @@
-param(
-  [string]$OutputDirectory
+﻿param(
+  [string]$OutputDirectory,
+  # Skip the post-build native smoke gate (real WebView2 + IPC acceptance on the
+  # freshly packaged release\iTime.exe). On by default; use only when no shared
+  # Playwright runtime is available.
+  [switch]$SkipNativeSmoke,
+  # Updater connectivity probe mode inside the native smoke. 'advisory' (default
+  # for the release gate) records the outcome without failing on offline hosts;
+  # 'required' hard-fails unless the endpoint reports 已是最新版本.
+  [ValidateSet('required', 'advisory', 'off')][string]$NativeSmokeUpdaterCheck = 'advisory',
+  # Skip syncing %LOCALAPPDATA%\iTime + the desktop shortcut. Forced on CI so a
+  # COM/desktop hiccup on a runner can never fail a release.
+  [switch]$SkipLocalDeploy,
+  [switch]$ForceLocalDeploy
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,8 +99,12 @@ function Get-TextSha256 {
 
 Push-Location $root
 try {
-  & npm run verify:full
-  if ($LASTEXITCODE -ne 0) { throw '完整验证门禁失败，拒绝打包发布。' }
+  # Static + unit gates run BEFORE the build; the real-app gates (native smoke
+  # over WebView2/IPC + native visual baseline) run AFTER it below, on the
+  # freshly packaged EXE — testing release\iTime.exe before tauri build would
+  # validate a stale artifact.
+  & npm run verify
+  if ($LASTEXITCODE -ne 0) { throw '静态/单元验证门禁失败，拒绝打包发布。' }
 
   $metadataRaw = & cargo metadata --format-version 1 --no-deps --manifest-path $manifest
   if ($LASTEXITCODE -ne 0) { throw '无法解析 Cargo 元数据。' }
@@ -105,6 +121,16 @@ try {
   $gitCommit = (& git rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $gitCommit) { throw '无法读取当前 Git commit。' }
   $sourceDirty = [bool]((& git status --porcelain --untracked-files=no) -join '')
+
+  # Fail fast: the post-build native smoke launches release\iTime.exe and the
+  # single-instance plugin would redirect into any already-running copy.
+  if (-not $SkipNativeSmoke) {
+    $runningITime = @(Get-Process -Name iTime -ErrorAction SilentlyContinue)
+    if ($runningITime.Count -gt 0) {
+      $runningPaths = @($runningITime | ForEach-Object { $_.Path }) -join '；'
+      throw "打包前请先关闭正在运行的 iTime 实例（原生冒烟要求无残留进程）：$runningPaths"
+    }
+  }
 
   $sourceExecutable = Join-Path $targetDirectory 'release\itime.exe'
   $bundleDirectory = Join-Path $targetDirectory 'release\bundle\nsis'
@@ -124,6 +150,30 @@ try {
     if (-not (Test-Path -LiteralPath $privateKeyPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $encryptedPasswordPath -PathType Leaf)) {
       throw '缺少 Tauri updater 签名密钥；拒绝生成不可验证的更新包。'
+    }
+    # The private key is the root of the updater trust chain: keep its NTFS ACL
+    # restricted to the current user so sibling processes cannot exfiltrate it.
+    $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    foreach ($secretFile in @($privateKeyPath, $encryptedPasswordPath)) {
+      try {
+        $acl = Get-Acl -LiteralPath $secretFile
+        $foreignRules = @($acl.Access | Where-Object {
+          $_.IdentityReference.Value -cne $currentIdentity -and
+          $_.IdentityReference.Value -notin @('SYSTEM', 'NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators')
+        })
+        if (-not $acl.AreAccessRulesProtected -or $foreignRules.Count -gt 0) {
+          $acl.SetAccessRuleProtection($true, $false)
+          foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRule($rule) }
+          $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+            $currentIdentity,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Allow))
+          Set-Acl -LiteralPath $secretFile -AclObject $acl
+          Write-Host "已收紧签名密钥文件 ACL（仅当前用户）：$secretFile"
+        }
+      } catch {
+        Write-Warning "无法收紧签名密钥 ACL（$secretFile）：$($_.Exception.Message)"
+      }
     }
     $securePassword = ConvertTo-SecureString (Get-Content -LiteralPath $encryptedPasswordPath -Raw)
     $credential = [System.Management.Automation.PSCredential]::new('itime-updater', $securePassword)
@@ -176,10 +226,10 @@ try {
   try {
     Copy-WithRetry -Source $sourceExecutable -Destination $stagedExecutable
     Copy-WithRetry -Source $sourceSetup.FullName -Destination $stagedSetup
-    if ((Get-Sha256 -Path $sourceExecutable) -ne (Get-Sha256 -Path $stagedExecutable)) {
+    if ((Get-Sha256 -Path $sourceExecutable) -cne (Get-Sha256 -Path $stagedExecutable)) {
       throw '可执行文件暂存校验失败。'
     }
-    if ((Get-Sha256 -Path $sourceSetup.FullName) -ne (Get-Sha256 -Path $stagedSetup)) {
+    if ((Get-Sha256 -Path $sourceSetup.FullName) -cne (Get-Sha256 -Path $stagedSetup)) {
       throw '安装包暂存校验失败。'
     }
 
@@ -200,7 +250,7 @@ try {
     foreach ($pair in $pairs) {
       $sourceHash = Get-Sha256 -Path $pair.Source
       $destinationHash = Get-Sha256 -Path $pair.Destination
-      if ($sourceHash -ne $destinationHash) { throw "发布文件校验失败：$($pair.Destination)" }
+      if ($sourceHash -cne $destinationHash) { throw "发布文件校验失败：$($pair.Destination)" }
       $file = Get-Item -LiteralPath $pair.Destination
       if ($file.LastWriteTime -lt $startedAt) { throw "发布文件时间不属于本轮构建：$($pair.Destination)" }
       $manifestFiles += [ordered]@{
@@ -278,11 +328,29 @@ try {
     & $releaseVerifier -ReleaseDirectory $releaseDirectory
     if ($LASTEXITCODE -ne 0) { throw '发布 manifest 独立校验失败。' }
 
+    # Native smoke gate: exercise the freshly packaged EXE over real WebView2 +
+    # real IPC (recording transitions, consent default, local data controls,
+    # window lifecycle, portable-shell isolation) and compare real-app
+    # screenshots against tests/visual/native-baseline. This is the only gate
+    # that covers Rust<->frontend contract drift on the shipped binary.
+    if (-not $SkipNativeSmoke) {
+      $nativeSmoke = Join-Path $PSScriptRoot 'native-release-smoke.ps1'
+      & $nativeSmoke -Executable $destinationExecutable -UpdaterCheck $NativeSmokeUpdaterCheck
+      if ($LASTEXITCODE -ne 0) { throw '打包产物原生冒烟失败（真实 WebView2/IPC/视觉基线验收未通过）。' }
+    } else {
+      Write-Warning '已跳过原生冒烟门禁（-SkipNativeSmoke）：发布产物未经过真实应用验收。'
+    }
+
     # Sync the current-user install used by the desktop shortcut so the user
     # always opens this build after package:release (not a stale AppData copy).
-    $localDeploy = Join-Path $PSScriptRoot 'deploy-local-install.ps1'
-    & $localDeploy -ReleaseExecutable $destinationExecutable
-    if ($LASTEXITCODE -ne 0) { throw '本机安装目录 / 桌面快捷方式同步失败。' }
+    $deployEnabled = -not $SkipLocalDeploy -and -not ($env:CI -eq 'true' -and -not $ForceLocalDeploy)
+    if ($deployEnabled) {
+      $localDeploy = Join-Path $PSScriptRoot 'deploy-local-install.ps1'
+      & $localDeploy -ReleaseExecutable $destinationExecutable
+      if ($LASTEXITCODE -ne 0) { throw '本机安装目录 / 桌面快捷方式同步失败。' }
+    } else {
+      Write-Host '跳过本机安装目录 / 桌面快捷方式同步（CI 或 -SkipLocalDeploy）。'
+    }
   } catch {
     if ($wroteDestinationExecutable -and (Test-Path -LiteralPath $backupExecutable)) {
       Copy-WithRetry -Source $backupExecutable -Destination $destinationExecutable

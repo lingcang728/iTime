@@ -1,6 +1,12 @@
 import type { AppDuration, DaySnapshot, ForegroundAppInterval, StatValue, TimeRange } from '../../domain/events'
-import type { FocusSample } from '../../data/focusHeatmap'
 import { coalesceRangesBy, durationOf, intersectRanges } from '../../domain/intervals'
+
+// F-13: FocusSample 曾由已删除的 data/focusHeatmap.ts 导出；heatmap 组件移除后
+// 该类型仅剩本模块使用，就近定义。
+export interface FocusSample {
+  date: string
+  duration: number | null
+}
 
 const hour = 3_600_000
 const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']

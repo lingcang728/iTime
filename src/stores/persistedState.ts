@@ -14,9 +14,8 @@ export interface PersistedState {
   quietStart: string
   quietEnd: string
   goals: Record<string, number>
-  migrationState: 'notFound' | 'partial' | 'ready' | 'imported'
-  deletedInputDates: string[]
   dismissedReminderOccurrences: string[]
+  rememberCloseChoice: boolean
 }
 
 export const persistedDefaults: PersistedState = {
@@ -27,9 +26,8 @@ export const persistedDefaults: PersistedState = {
   quietStart: '22:00',
   quietEnd: '08:00',
   goals: { learning: 120, development: 180, ai: 180, continuous: 50 },
-  migrationState: 'partial',
-  deletedInputDates: [],
   dismissedReminderOccurrences: [],
+  rememberCloseChoice: false,
 }
 
 const storedSchema = z.object({
@@ -39,16 +37,23 @@ const storedSchema = z.object({
   quietStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   quietEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   goals: z.record(z.string(), z.number().finite().nonnegative()).optional(),
-  migrationState: z.enum(['notFound', 'partial', 'ready', 'imported']).optional(),
-  deletedInputDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   dismissedReminderOccurrences: z.array(z.string().min(1).max(200)).max(90).optional(),
+  rememberCloseChoice: z.boolean().optional(),
 }).strip()
 
 export function loadPersistedState(): PersistedState {
   if (typeof localStorage === 'undefined') return { ...persistedDefaults }
+  const raw = localStorage.getItem(STORAGE_KEY)
   try {
-    const parsed = storedSchema.safeParse(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
-    if (!parsed.success) return { ...persistedDefaults }
+    const parsed = storedSchema.safeParse(JSON.parse(raw ?? '{}'))
+    if (!parsed.success) {
+      // Never silently drop user preferences: quarantine the corrupt blob so it
+      // stays recoverable/debuggable instead of being overwritten on next save.
+      if (raw) {
+        try { localStorage.setItem(`${STORAGE_KEY}.corrupt`, raw) } catch { /* best effort */ }
+      }
+      return { ...persistedDefaults }
+    }
     const value = parsed.data
     const goals = Object.fromEntries(Object.entries(value.goals ?? {})
       .filter(([key, goal]) => {
@@ -62,11 +67,18 @@ export function loadPersistedState(): PersistedState {
       goals: { ...persistedDefaults.goals, ...goals },
     }
   } catch {
+    if (raw) {
+      try { localStorage.setItem(`${STORAGE_KEY}.corrupt`, raw) } catch { /* best effort */ }
+    }
     return { ...persistedDefaults }
   }
 }
 
 export function savePersistedState(value: PersistedState): void {
   if (typeof localStorage === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+  } catch {
+    // QuotaExceeded / privacy-mode storage: UI keeps working without persistence.
+  }
 }

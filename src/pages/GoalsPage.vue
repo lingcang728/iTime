@@ -83,7 +83,7 @@ function saveQuietHours(): void {
     <PageHeader title="提醒与目标" subtitle="每日目标与休息提醒" />
     <section v-if="activityDataAvailable" class="goal-overview" aria-labelledby="goal-overview-title">
       <div class="goal-overview__copy">
-        <span>今日</span>
+        <span>{{ store.isToday.value ? '今日' : '当日' }}</span>
         <h2 id="goal-overview-title">{{ reachedCount ? `已达成 ${reachedCount} 项` : '继续推进' }}</h2>
         <p>仅作提醒，不评价效率</p>
       </div>
@@ -95,7 +95,7 @@ function saveQuietHours(): void {
       </div>
     </section>
 
-    <section v-if="activityDataAvailable" class="goal-stats" aria-label="今日目标进度">
+    <section v-if="activityDataAvailable" class="goal-stats" :aria-label="`${store.isToday.value ? '今日' : '当日'}目标进度`">
       <article v-for="goal in progressGoals" :key="goal.id" class="goal-stat">
         <header>
           <span class="goal-stat__icon"><component :is="goal.icon" :size="19" weight="regular" aria-hidden="true" /></span>
@@ -124,7 +124,7 @@ function saveQuietHours(): void {
             <small>{{ definition.hint }}</small>
           </label>
         </div>
-        <div class="form-footer"><p :class="{ error: targetError }" role="status" aria-live="polite">{{ targetMessage || '请输入整数分钟' }}</p><button class="save-button" type="button" @click="saveTargets"><PhCheck :size="17" />保存</button></div>
+        <div class="form-footer"><p :class="{ error: targetError }" role="status" aria-live="polite">{{ targetMessage || '请输入整数分钟' }}</p><button class="save-button" type="button" @click="saveTargets"><PhCheck :size="17" aria-hidden="true" />保存</button></div>
       </section>
 
       <aside class="reminder-panel" aria-label="提醒设置">
@@ -133,6 +133,10 @@ function saveQuietHours(): void {
           <div><span>连续使用</span><h2>每 {{ store.state.goals.continuous }} 分钟提醒</h2></div>
           <label class="toggle"><input v-model="store.state.reminders" type="checkbox" aria-label="启用连续使用休息提醒"><i></i></label>
         </section>
+        <!-- P3-26: 配置推送失败后后端与开关可能不一致，失败状态持续可见。 -->
+        <p v-if="store.state.reminderSyncFailed" class="reminder-sync-error" role="alert">
+          提醒设置尚未同步到系统提醒服务：{{ store.state.reminderSyncMessage }}。开关状态已保存，恢复后会自动重试。
+        </p>
         <section class="quiet-section">
           <header>
             <span class="section-line-icon"><PhMoon :size="20" weight="regular" aria-hidden="true" /></span>

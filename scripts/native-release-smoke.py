@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from ctypes import wintypes
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,6 +20,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--isolated-root", required=True)
     parser.add_argument("--report", required=True)
     parser.add_argument("--screenshot", required=True)
+    # required: updater must report 已是最新版本 (needs network + published latest <= build).
+    # advisory: record the outcome and emit a warning instead of failing.
+    # off:      skip the online updater connectivity probe entirely.
+    parser.add_argument("--updater-check", choices=["required", "advisory", "off"], default="required")
+    # When set, capture native-wide-<page>.png screenshots of the real WebView2 app
+    # for every page into this directory (visual baseline input).
+    parser.add_argument("--visual-dir", default=None)
     return parser.parse_args()
 
 
@@ -66,6 +73,23 @@ def ensure_within(path: Path, parent: Path) -> Path:
     if os.path.commonpath([resolved, parent.resolve()]) != str(parent.resolve()):
         raise AssertionError(f"path escaped isolated runtime: {resolved}")
     return resolved
+
+
+def capture_stable(page: Page, path: Path) -> bool:
+    """Write a screenshot once two consecutive frames match; return stability."""
+    previous = None
+    current = b""
+    for _ in range(8):
+        current = page.screenshot(animations="disabled")
+        if current == previous:
+            Path(path).write_bytes(current)
+            return True
+        previous = current
+        page.evaluate(
+            "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+        )
+    Path(path).write_bytes(current)
+    return False
 
 
 def select_app_page(pages: list[Page]) -> Page:
@@ -128,6 +152,7 @@ def main() -> int:
         "schemaVersion": 1,
         "passed": False,
         "checks": {},
+        "warnings": [],
     }
 
     try:
@@ -299,19 +324,31 @@ def main() -> int:
                 raise AssertionError("Provider source status was not visible")
             update_label = page.locator(".update-status strong")
             update_label.wait_for(state="visible", timeout=15_000)
-            page.wait_for_function(
-                """() => {
-                  const label = document.querySelector('.update-status strong')?.textContent?.trim();
-                  return Boolean(label && label !== '尚未检查' && label !== '正在检查');
-                }""",
-                timeout=20_000,
-            )
-            update_status = update_label.inner_text().strip()
-            if update_status != "已是最新版本":
-                error = page.locator(".update-status p").inner_text().strip()
-                raise AssertionError(
-                    f"desktop updater did not finish successfully: {update_status}: {error}"
-                )
+            update_status = "skipped"
+            if args.updater_check != "off":
+                try:
+                    page.wait_for_function(
+                        """() => {
+                          const label = document.querySelector('.update-status strong')?.textContent?.trim();
+                          return Boolean(label && label !== '尚未检查' && label !== '正在检查');
+                        }""",
+                        timeout=20_000,
+                    )
+                    update_status = update_label.inner_text().strip()
+                except PlaywrightTimeoutError:
+                    update_status = "timeout"
+                if update_status != "已是最新版本":
+                    try:
+                        error = page.locator(".update-status p").inner_text().strip()
+                    except Exception:
+                        error = ""
+                    message = (
+                        f"desktop updater did not finish successfully: "
+                        f"{update_status}: {error}"
+                    )
+                    if args.updater_check == "required":
+                        raise AssertionError(message)
+                    report["warnings"].append(message)
             page.screenshot(path=str(screenshot_path), full_page=True)
             report["checks"]["nativeSettingsSurface"] = {
                 "localDataActionsVisible": True,
@@ -319,8 +356,59 @@ def main() -> int:
                 "singleAiAgentToolsSwitchDefaultOff": True,
                 "providerStatusVisible": True,
                 "updateStatus": update_status,
+                "updateCheckMode": args.updater_check,
                 "screenshot": screenshot_path.name,
             }
+
+            if args.visual_dir:
+                visual_dir = Path(args.visual_dir).resolve()
+                visual_dir.mkdir(parents=True, exist_ok=True)
+                # Force a deterministic light theme — the packaged app has no
+                # ?theme= query hook, so seed persisted state and reload once.
+                page.evaluate(
+                    """() => {
+                      try {
+                        const saved = JSON.parse(localStorage.getItem('itime-prototype-state') || '{}');
+                        saved.theme = 'light';
+                        localStorage.setItem('itime-prototype-state', JSON.stringify(saved));
+                      } catch (error) {}
+                    }"""
+                )
+                page.reload()
+                page.wait_for_function(
+                    "() => Boolean(window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)",
+                    timeout=15_000,
+                )
+                visual_pages = ["home", "ai", "timeline", "input", "weekly", "goals", "settings"]
+                visual_report: dict[str, Any] = {"directory": str(visual_dir), "pages": {}}
+                for page_id in visual_pages:
+                    page.evaluate(
+                        "(hash) => { location.hash = hash }", f"#/{page_id}"
+                    )
+                    page.wait_for_url(f"**/#/{page_id}", timeout=10_000)
+                    page.locator(".page").wait_for(state="visible", timeout=10_000)
+                    page.wait_for_function(
+                        """(pageId) => {
+                          const el = document.querySelector('.page');
+                          if (!el) return false;
+                          const style = getComputedStyle(el);
+                          return style.opacity === '1'
+                            && style.visibility !== 'hidden'
+                            && el.getBoundingClientRect().height > 0;
+                        }""",
+                        arg=page_id,
+                    )
+                    shot = visual_dir / f"native-wide-{page_id}.png"
+                    stable = capture_stable(page, shot)
+                    visual_report["pages"][page_id] = {
+                        "screenshot": shot.name,
+                        "stable": stable,
+                    }
+                    if not stable:
+                        report["warnings"].append(
+                            f"native visual capture for {page_id} never stabilized"
+                        )
+                report["checks"]["nativeVisualBaseline"] = visual_report
 
             page.evaluate("location.hash = '#/home'")
             page.wait_for_url("**/#/home", timeout=10_000)

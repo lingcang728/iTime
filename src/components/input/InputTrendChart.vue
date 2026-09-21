@@ -130,17 +130,18 @@ onBeforeUnmount(() => {
   if (modeMotionTimer !== null) window.clearTimeout(modeMotionTimer)
 })
 
-function formatAxisValue(value: number): string {
-  if (value >= 10_000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`
+// F21：中文界面用「万」而非「k」做紧凑轴标签；一万以下交给 Intl 分组。
+function formatCompact(value: number): string {
+  if (value >= 10_000) return `${(value / 10_000).toFixed(value % 10_000 === 0 ? 0 : 1)}万`
   return numberFormatter.format(Math.round(value))
 }
 
+function formatAxisValue(value: number): string {
+  return formatCompact(value)
+}
+
 function formatBarValue(value: number): string {
-  if (!isDense.value) return numberFormatter.format(value)
-  if (value >= 10_000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`
-  return numberFormatter.format(value)
+  return formatCompact(value)
 }
 
 function shouldShowAxisLabel(index: number): boolean {
@@ -363,9 +364,7 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
 
 <style scoped>
 .input-trend-chart {
-  --input-chart-accent: #2f86df;
-  --input-chart-accent-deep: #2574c7;
-  --input-chart-point-fill: #f7f9fb;
+  /* --input-chart-accent / -deep / -point-fill 已上移到 tokens.css，亮暗双主题同源（P2-5）。 */
   --chart-motion-duration: 360ms;
   --chart-motion-ease: cubic-bezier(.22, 1, .36, 1);
   --chart-bar-duration: 320ms;
@@ -388,7 +387,7 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
   justify-content: space-between;
   padding: 10px 10px 18px 0;
   color: var(--text-muted);
-  font: 500 11px/1 var(--font-data);
+  font: 450 var(--text-micro)/1 var(--font-data);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -561,7 +560,7 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
   border-radius: 4px;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--bg-card) 86%, transparent);
-  font: 650 10px/1 var(--font-data);
+  font: 560 var(--text-micro)/1 var(--font-data);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   transition: color 80ms ease, font-weight 80ms ease;
@@ -569,12 +568,15 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
 
 .trend-value-node.is-active .trend-bar-value {
   color: var(--text-primary);
-  font-weight: 700;
+  font-weight: 680;
 }
+
+/* 密集（30 天）模式：值标签只跟随当前悬停/聚焦柱，避免相邻标签互撞。 */
+.is-bar.is-dense .trend-value-node { opacity: 0; }
+.is-bar.is-dense .trend-value-node.is-active { opacity: 1; }
 
 .is-dense .trend-bar-value {
   padding-inline: 2px;
-  font-size: 9px;
 }
 
 /* During range change: directional clip-path reveal + position snap */
@@ -724,7 +726,7 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
   box-shadow: var(--shadow-popover);
-  font: 600 11px/1.3 var(--font-data);
+  font: 560 var(--text-micro)/1.3 var(--font-data);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
@@ -744,7 +746,7 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
   grid-column: 2;
   grid-row: 2;
   color: var(--text-muted);
-  font: 500 11px/1 var(--font-data);
+  font: 450 var(--text-micro)/1 var(--font-data);
   font-variant-numeric: tabular-nums;
 }
 
@@ -781,8 +783,6 @@ function handlePointKeydown(event: KeyboardEvent, index: number): void {
     min-height: 238px;
   }
 
-  .trend-bar-value { font-size: 9px; }
-  .is-dense .trend-bar-value { font-size: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

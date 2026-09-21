@@ -20,7 +20,13 @@ fn extract_shortcut(
             return Some((image, IconSource::Shortcut));
         }
     }
-    if let Some(icon_path) = shortcut.icon_path.as_deref().filter(|path| path.is_file()) {
+    // A .lnk's icon location is attacker-controllable; reject UNC/device paths
+    // before `is_file` — the probe itself would trigger SMB authentication.
+    if let Some(icon_path) = shortcut
+        .icon_path
+        .as_deref()
+        .filter(|path| crate::icons::identity::is_safe_local_path(path) && path.is_file())
+    {
         if let Ok(image) = shell::extract_icon_ex_image_at(icon_path, shortcut.icon_index, size) {
             if let Some(image) = non_generic(image, size) {
                 return Some((image, IconSource::Shortcut));
@@ -48,24 +54,9 @@ pub(super) fn extract_rgba_windows(
         }
     }
 
-    if let Some(aumid) = req.aumid.as_deref().filter(|value| !value.is_empty()) {
-        let parsing_name = format!("shell:AppsFolder\\{aumid}");
-        if let Ok(image) = shell::shell_item_image_from_parsing_name(&parsing_name, size) {
-            return Ok((image, IconSource::ShellItem));
-        }
-    }
-
-    if let Some(full_name) = req
-        .package_full_name
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        if let Some(package_path) = shell::package_path_by_full_name(full_name) {
-            if let Ok(image) = shell::shell_item_image_from_path(&package_path, size) {
-                return Ok((image, IconSource::PackageAsset));
-            }
-        }
-    }
+    // NOTE: no caller-controlled AUMID / package-name lookups here. The IPC
+    // surface only carries a logical identity, so `shell:AppsFolder\…` and
+    // `GetPackagePathByFullName` probing primitives were removed deliberately.
 
     if let Some(path) = path {
         if let Ok(image) = shell::extract_icon_ex_image(path, size) {
@@ -92,11 +83,7 @@ pub(super) fn extract_rgba_windows(
     }
 
     Err(ExtractError::NotFound(format!(
-        "no icon source for {}{}",
-        req.app_identity,
-        req.package_family_name
-            .as_deref()
-            .map(|family| format!(" ({family})"))
-            .unwrap_or_default()
+        "no icon source for {}",
+        req.app_identity
     )))
 }

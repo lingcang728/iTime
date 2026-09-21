@@ -1,9 +1,17 @@
 param(
   [string]$ReleaseExecutable = 'release\iTime.exe',
-  [string]$InstallDirectory
+  [string]$InstallDirectory,
+  # COM/desktop access does not exist on CI runners; deploy:local is a no-op
+  # there unless explicitly forced.
+  [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($env:CI -eq 'true' -and -not $Force) {
+  Write-Host 'CI 环境跳过本机安装目录 / 桌面快捷方式同步（deploy:local 仅面向开发者桌面）。'
+  exit 0
+}
 
 $root = Split-Path -Parent $PSScriptRoot
 $rootPrefix = [System.IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
@@ -83,25 +91,47 @@ function Set-DesktopShortcut {
   return $link
 }
 
-function Stop-InstalledITime {
+function Get-ITimeProcesses {
+  # Split running iTime processes into those verified to be the installed copy
+  # (Path readable and equal to $InstalledExecutable) and those we cannot
+  # attribute. Only verified processes may be stopped — killing an iTime whose
+  # Path is unreadable could terminate the wrong install (F20).
   param([Parameter(Mandatory = $true)][string]$InstalledExecutable)
 
   $targetFull = [System.IO.Path]::GetFullPath($InstalledExecutable)
-  $running = @(Get-Process -Name 'iTime', 'itime' -ErrorAction SilentlyContinue | Where-Object {
-      try {
-        if (-not $_.Path) { return $true }
-        return ([System.IO.Path]::GetFullPath($_.Path)).Equals(
-          $targetFull,
-          [System.StringComparison]::OrdinalIgnoreCase
-        )
-      } catch {
-        return $true
+  $verified = @()
+  $unverifiable = @()
+  foreach ($proc in @(Get-Process -Name 'iTime', 'itime' -ErrorAction SilentlyContinue)) {
+    $procPath = $null
+    try { $procPath = $proc.Path } catch { $procPath = $null }
+    if ([string]::IsNullOrWhiteSpace($procPath)) {
+      $unverifiable += $proc
+      continue
+    }
+    try {
+      if ([System.IO.Path]::GetFullPath($procPath).Equals($targetFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $verified += $proc
       }
-    })
+    } catch {
+      $unverifiable += $proc
+    }
+  }
+  return [pscustomobject]@{ Verified = $verified; Unverifiable = $unverifiable }
+}
 
-  if ($running.Count -eq 0) { return 0 }
+function Stop-InstalledITime {
+  param([Parameter(Mandatory = $true)][string]$InstalledExecutable)
 
-  foreach ($proc in $running) {
+  $initial = Get-ITimeProcesses -InstalledExecutable $InstalledExecutable
+  if ($initial.Verified.Count -eq 0) {
+    if ($initial.Unverifiable.Count -gt 0) {
+      $pids = ($initial.Unverifiable | ForEach-Object { $_.Id }) -join ','
+      Write-Warning "存在无法读取路径的 iTime 进程（PID=$pids）；未强制结束。若安装目录文件被占用，请手动关闭对应实例后重试。"
+    }
+    return 0
+  }
+
+  foreach ($proc in $initial.Verified) {
     try {
       $proc.CloseMainWindow() | Out-Null
     } catch {
@@ -110,22 +140,12 @@ function Stop-InstalledITime {
   }
   Start-Sleep -Milliseconds 800
 
-  $still = @(Get-Process -Name 'iTime', 'itime' -ErrorAction SilentlyContinue | Where-Object {
-      try {
-        if (-not $_.Path) { return $true }
-        return ([System.IO.Path]::GetFullPath($_.Path)).Equals(
-          $targetFull,
-          [System.StringComparison]::OrdinalIgnoreCase
-        )
-      } catch {
-        return $true
-      }
-    })
+  $still = (Get-ITimeProcesses -InstalledExecutable $InstalledExecutable).Verified
   foreach ($proc in $still) {
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
   }
   Start-Sleep -Milliseconds 400
-  return $running.Count
+  return $initial.Verified.Count
 }
 
 $releasePath = if ([System.IO.Path]::IsPathRooted($ReleaseExecutable)) {
@@ -166,7 +186,7 @@ $hadInstalled = Test-Path -LiteralPath $installedExecutable -PathType Leaf
 
 try {
   Copy-WithRetry -Source $releasePath -Destination $staged
-  if ((Get-Sha256 -Path $staged) -ne $sourceHash) {
+  if ((Get-Sha256 -Path $staged) -cne $sourceHash) {
     throw '安装目录暂存文件校验失败。'
   }
   if ($hadInstalled) {
@@ -174,7 +194,7 @@ try {
   }
   Copy-WithRetry -Source $staged -Destination $installedExecutable
   $installedHash = Get-Sha256 -Path $installedExecutable
-  if ($installedHash -ne $sourceHash) {
+  if ($installedHash -cne $sourceHash) {
     throw "安装目录 EXE 与 release 不一致：installed=$installedHash release=$sourceHash"
   }
 } catch {

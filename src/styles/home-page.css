@@ -52,11 +52,13 @@
   text-align: right;
 }
 
+/* F28：超出可视高度时列表自身滚动，不再被卡片 overflow:hidden 静默裁切。 */
 .ranking-list {
   min-height: 0;
   display: grid;
   flex: 1;
   align-content: start;
+  overflow-y: auto;
 }
 
 .ranking-row {
@@ -121,7 +123,7 @@
 .rank-value b {
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  font-weight: 520;
+  font-weight: 560;
 }
 
 .ranking-more {
@@ -148,7 +150,7 @@
   flex: 1;
   align-content: start;
   margin-top: 12px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .home-activity-row {
@@ -161,7 +163,7 @@
 
 .home-activity-row time {
   color: var(--text-muted);
-  font: 500 var(--text-xs)/1 var(--font-data);
+  font: 560 var(--text-xs)/1 var(--font-data);
   font-variant-numeric: tabular-nums;
 }
 
@@ -214,12 +216,12 @@
 .home-activity-card strong {
   color: var(--text-primary);
   font-size: var(--text-xs);
-  font-weight: 580;
+  font-weight: 560;
 }
 
 .home-activity-card small {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 .home-activity-card em {
@@ -260,7 +262,7 @@
 
 .insight-copy strong {
   font-size: var(--text-section);
-  font-weight: 640;
+  font-weight: 680;
 }
 
 .insight-copy p,
@@ -302,7 +304,7 @@
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  font-weight: 520;
+  font-weight: 560;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

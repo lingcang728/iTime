@@ -8,7 +8,9 @@ use model::{ActivityError, ActivitySnapshot};
 pub(crate) use model::{ActivitySlice, DeviceState};
 use tauri::State;
 
-#[tauri::command]
+// Snapshot reads do full-directory file I/O; `command(async)` keeps them off
+// the main thread.
+#[tauri::command(async)]
 pub(crate) fn get_activity_snapshot(
     collector: State<'_, ActivityCollector>,
     start: u64,
@@ -17,12 +19,6 @@ pub(crate) fn get_activity_snapshot(
     let mut snapshot = storage::read_snapshot(start, end)?;
     snapshot.set_health(collector.health());
     Ok(snapshot)
-}
-
-pub(crate) fn read_all_records_from(
-    root: &std::path::Path,
-) -> Result<(Vec<ActivitySlice>, usize, u64), ActivityError> {
-    storage::read_all_records_from(root)
 }
 
 pub(crate) fn visit_records_from(

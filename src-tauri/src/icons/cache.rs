@@ -3,9 +3,14 @@ use sha2::{Digest, Sha256};
 use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::SystemTime;
 
 const MAX_DISK_CACHE_BYTES: u64 = 32 * 1024 * 1024;
+/// Random per-install salt mixed into cache file names so the on-disk file list
+/// cannot be reversed into an app-usage list via dictionary hashing.
+const SALT_FILE_NAME: &str = ".salt";
+const SALT_BYTES: usize = 16;
 
 #[derive(Debug, Clone)]
 pub struct CacheKeyMaterial {
@@ -35,8 +40,62 @@ pub fn ensure_cache_dir() -> std::io::Result<PathBuf> {
     Ok(dir)
 }
 
+fn generate_salt() -> Option<[u8; SALT_BYTES]> {
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::Com::CoCreateGuid;
+        // SAFETY: CoCreateGuid has no preconditions and returns a fresh GUID.
+        if let Ok(guid) = unsafe { CoCreateGuid() } {
+            return Some(guid.to_u128().to_le_bytes());
+        }
+    }
+    // Fallback: not cryptographically strong, but only defeats offline
+    // dictionary reversal — uniqueness per install is all that is required.
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(nanos.to_le_bytes());
+    hasher.update(std::process::id().to_le_bytes());
+    hasher.update(std::thread::current().name().unwrap_or("").as_bytes());
+    hasher.update(b"itime-icon-cache-salt");
+    let digest = hasher.finalize();
+    let mut salt = [0_u8; SALT_BYTES];
+    salt.copy_from_slice(&digest[..SALT_BYTES]);
+    Some(salt)
+}
+
+/// Load (or lazily create) the per-install cache salt. Persists inside the icon
+/// cache directory so a full purge of cached icons can retire it too.
+fn cache_salt() -> Option<[u8; SALT_BYTES]> {
+    static SALT: OnceLock<Option<[u8; SALT_BYTES]>> = OnceLock::new();
+    SALT.get_or_init(|| {
+        let path = icons_cache_dir().join(SALT_FILE_NAME);
+        if let Ok(bytes) = fs::read(&path) {
+            if bytes.len() >= SALT_BYTES {
+                let mut salt = [0_u8; SALT_BYTES];
+                salt.copy_from_slice(&bytes[..SALT_BYTES]);
+                return Some(salt);
+            }
+        }
+        let generated = generate_salt()?;
+        if ensure_cache_dir().is_ok() && fs::write(&path, generated).is_ok() {
+            Some(generated)
+        } else {
+            None
+        }
+    })
+    .to_owned()
+}
+
 pub fn cache_file_name(material: &CacheKeyMaterial) -> String {
     let mut hasher = Sha256::new();
+    if let Some(salt) = cache_salt() {
+        hasher.update(salt);
+        hasher.update(b"|");
+    }
     hasher.update(material.app_identity.as_bytes());
     hasher.update(b"|");
     if let Some(path) = &material.source_path {
@@ -165,6 +224,50 @@ fn prune_cache_dir(
     Ok(())
 }
 
+/// Remove every cached icon PNG under `dir`. The `.salt` file is preserved so
+/// in-session cache keys stay consistent; it contains only random bytes.
+pub(crate) fn purge_cache_in(dir: &Path) -> Result<usize, String> {
+    if !dir.is_dir() {
+        return Ok(0);
+    }
+    let mut removed = 0_usize;
+    let mut failures = Vec::new();
+    for entry in fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == SALT_FILE_NAME)
+        {
+            continue;
+        }
+        match fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            Err(error) => failures.push(format!(
+                "{}：{error}",
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("未知缓存文件")
+            )),
+        }
+    }
+    if failures.is_empty() {
+        Ok(removed)
+    } else {
+        Err(failures.join("；"))
+    }
+}
+
+/// Delete all cached icon PNGs — used by "删除全部本地数据" so the cache cannot
+/// survive as a forensic app-usage list.
+pub(crate) fn purge_cache() -> Result<usize, String> {
+    purge_cache_in(&icons_cache_dir())
+}
+
 pub fn file_mtime_secs(path: &Path) -> Option<u64> {
     let meta = fs::metadata(path).ok()?;
     let modified = meta.modified().ok()?;
@@ -269,5 +372,31 @@ mod tests {
         assert!(newer.exists());
         assert!(current.exists());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn purge_removes_png_files_but_keeps_the_salt() {
+        let directory = fixture_dir("purge");
+        fs::create_dir_all(&directory).unwrap();
+        let icon = directory.join("abc_64px_v4.png");
+        let salt = directory.join(SALT_FILE_NAME);
+        let tmp = directory.join("orphan.png.tmp");
+        fs::write(&icon, b"\x89PNG\r\n\x1a\n....").unwrap();
+        fs::write(&salt, [7_u8; SALT_BYTES]).unwrap();
+        fs::write(&tmp, b"partial").unwrap();
+
+        let removed = purge_cache_in(&directory).unwrap();
+
+        assert_eq!(removed, 2);
+        assert!(!icon.exists());
+        assert!(!tmp.exists());
+        assert!(salt.exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn purge_on_missing_directory_is_a_noop() {
+        let directory = fixture_dir("purge-missing");
+        assert_eq!(purge_cache_in(&directory).unwrap(), 0);
     }
 }

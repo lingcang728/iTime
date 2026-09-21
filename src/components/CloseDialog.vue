@@ -52,9 +52,16 @@ async function choose(choice: 'hide' | 'quit') {
   if (store.state.rememberCloseChoice) {
     store.state.closePreference = choice
   }
-  store.state.closeDialogOpen = false
-  if (choice === 'hide') await hideWindow()
-  else await quitApplication()
+  try {
+    if (choice === 'hide') await hideWindow()
+    else await quitApplication()
+    store.state.closeDialogOpen = false
+  } catch (error) {
+    // quit_app can fail on best-effort flush (磁盘满/目录只读)：后端已允许
+    // 再次退出强制结束，保留对话框并如实提示，而不是静默无反应。
+    const message = error instanceof Error ? error.message : String(error)
+    store.showToast(message, 'error')
+  }
 }
 </script>
 

@@ -20,6 +20,8 @@ export interface UpdateViewState {
   downloadedBytes: number
   totalBytes: number | null
   error: string
+  /** True when `upToDate` reflects a skipped (24h-throttled) auto check, not a real check. */
+  autoCheckThrottled: boolean
 }
 
 const AUTO_CHECK_KEY = 'itime-updater-last-auto-check-v2'
@@ -35,6 +37,7 @@ export const updateState = reactive<UpdateViewState>({
   downloadedBytes: 0,
   totalBytes: null,
   error: '',
+  autoCheckThrottled: false,
 })
 
 type TauriUpdate = Awaited<ReturnType<typeof import('@tauri-apps/plugin-updater')['check']>>
@@ -77,6 +80,7 @@ export async function checkForDesktopUpdate(manual = false): Promise<void> {
     const lastCheck = Number(localStorage.getItem(AUTO_CHECK_KEY) ?? 0)
     if (!manual && Date.now() - lastCheck < AUTO_CHECK_INTERVAL) {
       updateState.status = 'upToDate'
+      updateState.autoCheckThrottled = true
       return
     }
 
@@ -85,6 +89,7 @@ export async function checkForDesktopUpdate(manual = false): Promise<void> {
     if (!pendingUpdate) {
       localStorage.setItem(AUTO_CHECK_KEY, String(Date.now()))
       updateState.status = 'upToDate'
+      updateState.autoCheckThrottled = false
       updateState.version = ''
       updateState.notes = ''
       updateState.sizeBytes = null
@@ -92,6 +97,7 @@ export async function checkForDesktopUpdate(manual = false): Promise<void> {
     }
     localStorage.removeItem(AUTO_CHECK_KEY)
     updateState.status = 'available'
+    updateState.autoCheckThrottled = false
     updateState.currentVersion = pendingUpdate.currentVersion
     updateState.version = pendingUpdate.version
     updateState.date = pendingUpdate.date ?? ''
@@ -102,16 +108,22 @@ export async function checkForDesktopUpdate(manual = false): Promise<void> {
   } catch (error) {
     pendingUpdate = null
     updateState.status = 'failed'
+    updateState.autoCheckThrottled = false
     updateState.error = errorMessage(error)
   }
 }
 
 export async function downloadAndInstallDesktopUpdate(): Promise<void> {
+  // In-flight guard must engage synchronously — before the first await — or a
+  // second entry (double click / dual callers) would pass the 'available' check
+  // and its failure path could clobber a healthy download (TOCTOU).
+  if (updateState.status === 'downloading' || updateState.status === 'installing') return
   if (!pendingUpdate || updateState.status !== 'available') {
     updateState.status = 'failed'
     updateState.error = '没有可安装的更新，请重新检查。'
     return
   }
+  updateState.status = 'downloading'
 
   const { invoke } = await import('@tauri-apps/api/core')
   let prepared = false
@@ -120,7 +132,6 @@ export async function downloadAndInstallDesktopUpdate(): Promise<void> {
     const preparation = await invoke<{ portable: boolean }>('prepare_for_update')
     portable = preparation.portable
     prepared = true
-    updateState.status = 'downloading'
     updateState.error = ''
     updateState.downloadedBytes = 0
     await pendingUpdate.downloadAndInstall((event) => {
@@ -166,6 +177,7 @@ export function resetUpdateServiceForTests(): void {
     downloadedBytes: 0,
     totalBytes: null,
     error: '',
+    autoCheckThrottled: false,
   } satisfies UpdateViewState)
   localStorage.removeItem(AUTO_CHECK_KEY)
 }
