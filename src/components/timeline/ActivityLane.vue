@@ -2,9 +2,11 @@
 import { computed, ref, watch, type Component } from 'vue'
 import type { TimeRange, TimelineSegment } from '../../domain/events'
 import { formatClock, formatDuration } from '../../utils/format'
+import ApplicationIcon from '../ApplicationIcon.vue'
 
 export interface ActivitySegment extends TimelineSegment {
   title: string
+  appId?: string
 }
 
 const props = defineProps<{
@@ -92,6 +94,9 @@ function moveSegmentFocus(event: KeyboardEvent, index: number): void {
         @focus="rovingIndex = index"
         @keydown="moveSegmentFocus($event, index)"
       >
+        <b v-if="segment.widthPercent >= 2.4 && segment.appId && !segment.muted && segment.variant !== 'hatched'" class="lane-segment__icon" aria-hidden="true">
+          <ApplicationIcon :app-identity="segment.appId" :app-name="segment.title" :size="14" />
+        </b>
         <b v-if="segment.widthPercent >= 8 && !segment.muted && segment.variant !== 'hatched'" class="lane-segment__label" aria-hidden="true">{{ segment.title }}</b>
         <span role="tooltip"><strong>{{ segment.title }}</strong>{{ formatClock(segment.start) }}–{{ formatClock(segment.end) }} · {{ formatDuration(segment.durationMs, true) }}</span>
       </span>
@@ -153,6 +158,7 @@ function moveSegmentFocus(event: KeyboardEvent, index: number): void {
   --segment-color: var(--accent-green);
   position: absolute;
   z-index: 2;
+  container-type: inline-size;
   top: 9px;
   left: calc(var(--segment-left) + var(--segment-gap));
   width: max(4px, calc(var(--segment-width) - var(--segment-gap-total)));
@@ -200,6 +206,28 @@ function moveSegmentFocus(event: KeyboardEvent, index: number): void {
 
 .lane-segment.is-hatched {
   background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--segment-color) 48%, transparent) 0 3px, transparent 3px 6px);
+}
+
+.lane-segment__icon {
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  display: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+@container (min-width: 22px) {
+  .lane-segment__icon { display: grid; }
+}
+
+.lane-segment:has(.lane-segment__icon) .lane-segment__label {
+  left: 22px;
+  max-width: calc(100% - 26px);
 }
 
 .lane-segment__label {

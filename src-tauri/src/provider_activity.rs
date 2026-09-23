@@ -1152,23 +1152,52 @@ fn parse_opencode_db(path: &Path) -> io::Result<ParsedFile> {
     connection
         .busy_timeout(std::time::Duration::from_millis(750))
         .map_err(sqlite_io_error)?;
+    // Current OpenCode stores turns in session_message. Older builds used message.
+    // A schema we do not know is "not timed yet", not a failed directory read.
+    let sql = if sqlite_table_exists(&connection, "session_message")? {
+        "SELECT time_created, json_extract(data, '$.time.completed') \
+         FROM session_message \
+         WHERE type = 'assistant' \
+           AND json_extract(data, '$.time.completed') IS NOT NULL"
+    } else if sqlite_table_exists(&connection, "message")? {
+        "SELECT time_created, json_extract(data, '$.time.completed') \
+         FROM message \
+         WHERE json_extract(data, '$.role') = 'assistant' \
+           AND json_extract(data, '$.time.completed') IS NOT NULL"
+    } else {
+        return Ok(ParsedFile::default());
+    };
+    read_opencode_completed(&connection, path, sql)
+}
+
+fn sqlite_table_exists(connection: &Connection, table: &str) -> io::Result<bool> {
     let mut statement = connection
-        .prepare(
-            "SELECT time_created, json_extract(data, '$.time.completed') \
-             FROM message \
-             WHERE json_extract(data, '$.role') = 'assistant' \
-               AND json_extract(data, '$.time.completed') IS NOT NULL",
-        )
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1")
         .map_err(sqlite_io_error)?;
+    let mut rows = statement.query([table]).map_err(sqlite_io_error)?;
+    Ok(rows.next().map_err(sqlite_io_error)?.is_some())
+}
+
+fn read_opencode_completed(
+    connection: &Connection,
+    path: &Path,
+    sql: &str,
+) -> io::Result<ParsedFile> {
+    let mut statement = connection.prepare(sql).map_err(sqlite_io_error)?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?)))
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
         .map_err(sqlite_io_error)?;
     let mut facts = ParsedFileFacts::default();
     let mut diagnostics = ParseDiagnostics::default();
     for row in rows {
         match row {
-            Ok((start, end)) if end > start && end - start <= 7 * DAY_MILLIS => {
-                facts.completed.push(opencode_interval(path, start, end));
+            Ok((start, end))
+                if end > start
+                    && u64::try_from(end - start).is_ok_and(|span| span <= 7 * DAY_MILLIS) =>
+            {
+                facts
+                    .completed
+                    .push(opencode_interval(path, start as u64, end as u64));
             }
             Ok(_) => diagnostics.bad_events += 1,
             Err(_) => diagnostics.bad_lines += 1,
@@ -1184,6 +1213,12 @@ fn sqlite_io_error(error: rusqlite::Error) -> io::Error {
                 || code.code == rusqlite::ErrorCode::PermissionDenied =>
         {
             io::ErrorKind::PermissionDenied
+        }
+        // The database is open in another process. That is not a missing directory.
+        rusqlite::Error::SqliteFailure(code, _)
+            if code.code == rusqlite::ErrorCode::DatabaseBusy =>
+        {
+            io::ErrorKind::WouldBlock
         }
         _ => io::ErrorKind::InvalidData,
     };
@@ -1554,7 +1589,17 @@ fn claude_interval(
     }
 }
 
+fn is_transient_io(error: &io::Error) -> bool {
+    // Gone between list and open, or Windows sharing/lock while a tool is writing.
+    error.kind() == io::ErrorKind::NotFound
+        || error.kind() == io::ErrorKind::WouldBlock
+        || matches!(error.raw_os_error(), Some(32 | 33))
+}
+
 fn record_io_error(diagnostics: &mut ProviderDiagnostics, error: &io::Error) {
+    if is_transient_io(error) || error.kind() == io::ErrorKind::InvalidData {
+        return;
+    }
     if error.kind() == io::ErrorKind::PermissionDenied {
         diagnostics.permission_failures += 1;
     } else {
@@ -2116,6 +2161,66 @@ mod tests {
         );
         assert_eq!(diagnostics.permission_failures, 1);
         assert_eq!(diagnostics.read_failures, 0);
+        record_io_error(
+            &mut diagnostics,
+            &io::Error::new(io::ErrorKind::NotFound, "gone"),
+        );
+        record_io_error(&mut diagnostics, &io::Error::from_raw_os_error(32));
+        assert_eq!(diagnostics.read_failures, 0);
+    }
+
+    #[test]
+    fn reads_current_opencode_session_message_times_without_message_content() {
+        let path = fixture_path("opencode-v2.db");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE session_message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    time_created INTEGER NOT NULL,
+                    time_updated INTEGER NOT NULL,
+                    data TEXT NOT NULL
+                );
+                INSERT INTO session_message VALUES (
+                    'private-message-id',
+                    'private-session-id',
+                    'assistant',
+                    1,
+                    1752800000000,
+                    1752800120000,
+                    '{\"time\":{\"created\":1752800000000,\"completed\":1752800120000},\"content\":\"must-not-escape\"}'
+                );",
+            )
+            .unwrap();
+        drop(connection);
+
+        let parsed = parse_opencode_db(&path).unwrap();
+        let _ = fs::remove_file(path);
+        assert_eq!(parsed.facts.completed.len(), 1);
+        assert_eq!(
+            parsed.facts.completed[0].end - parsed.facts.completed[0].start,
+            120_000
+        );
+        let json = serde_json::to_string(&parsed.facts.completed[0]).unwrap();
+        assert!(!json.contains("must-not-escape"));
+        assert!(!json.contains("private-message-id"));
+        assert!(!json.contains("private-session-id"));
+    }
+
+    #[test]
+    fn unknown_opencode_schema_is_not_a_read_failure() {
+        let path = fixture_path("opencode-empty.db");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch("CREATE TABLE other (id INTEGER PRIMARY KEY);")
+            .unwrap();
+        drop(connection);
+        let parsed = parse_opencode_db(&path).unwrap();
+        let _ = fs::remove_file(path);
+        assert!(parsed.facts.completed.is_empty());
     }
 
     #[test]

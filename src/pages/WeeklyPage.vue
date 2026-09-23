@@ -54,7 +54,6 @@ const averageInput = computed(() => summary.value.totalInput === null || !active
   ? null
   : summary.value.totalInput / activeInputDays.value)
 const heatHours = [9, 11, 13, 15, 17, 19, 21]
-const lockedHeatCell = ref<string | null>(null)
 // P3-48: 49 个热力格只占一个 Tab 位，方向键在格间移动（roving tabindex）。
 const rovingHeatIndex = ref(0)
 const hourlyHeat = computed(() => {
@@ -144,12 +143,10 @@ function moveHeatFocus(event: KeyboardEvent, index: number): void {
                 :key="heatCellId(cell.day.date, row.label)"
                 type="button"
                 class="heat-cell"
-                :class="[`intensity-${cell.intensity}`, { locked: lockedHeatCell === heatCellId(cell.day.date, row.label) }]"
+                :class="`intensity-${cell.intensity}`"
                 :tabindex="rowIndex * summary.days.length + cellIndex === rovingHeatIndex ? 0 : -1"
                 @focus="rovingHeatIndex = rowIndex * summary.days.length + cellIndex"
                 :aria-label="`${cell.day.label} ${cell.day.note} ${row.label} 起，专注 ${formatDuration(cell.value, true)}`"
-                :aria-pressed="lockedHeatCell === heatCellId(cell.day.date, row.label)"
-                @click="lockedHeatCell = lockedHeatCell === heatCellId(cell.day.date, row.label) ? null : heatCellId(cell.day.date, row.label)"
                 @keydown="moveHeatFocus($event, rowIndex * summary.days.length + cellIndex)"
               ><span role="tooltip">{{ cell.day.label }} {{ cell.day.note }}<strong>{{ row.label }} · {{ formatDuration(cell.value, true) }}</strong></span></button>
             </template>

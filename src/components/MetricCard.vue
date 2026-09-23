@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
     <span v-if="icon" class="metric-icon" aria-hidden="true"><component :is="icon" :size="24" weight="regular" /></span>
     <div class="metric-card__body">
       <div class="metric-card__header">
-        <span>{{ label }}<em v-if="estimated" class="metric-est-badge">估算</em></span>
+        <span class="metric-card__title"><span class="metric-card__title-text">{{ label }}</span><em v-if="estimated" class="metric-est-badge">估算</em></span>
         <button
           v-if="info"
           ref="infoButtonRef"
@@ -160,6 +160,24 @@ onBeforeUnmount(() => {
 <style scoped>
 .metric-card__header {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metric-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metric-card__title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-card {
@@ -223,7 +241,7 @@ onBeforeUnmount(() => {
 }
 
 .metric-est-badge {
-  margin-left: 6px;
+  flex: none;
   padding: 1px 6px;
   border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
   border-radius: 99px;
@@ -231,7 +249,8 @@ onBeforeUnmount(() => {
   font-size: var(--text-micro);
   font-style: normal;
   font-weight: 560;
-  vertical-align: 1px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .metric-info {

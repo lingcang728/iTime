@@ -73,7 +73,7 @@ const appSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   (event) => event.appId,
   20_000,
 ).map((event) => ({
-  start: event.start, end: event.end, color: event.color || 'var(--timeline-app)', kind: 'other', title: event.appName,
+  start: event.start, end: event.end, color: event.color || 'var(--timeline-app)', kind: 'other', title: event.appName, appId: event.appId,
 })))
 const aiSegments = computed<ActivitySegment[]>(() => coalesceRangesBy(
   byType<AiInteractionInterval>('aiInteraction'),
@@ -235,11 +235,10 @@ function durationParts(value: number | null): DurationPart[] {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background: var(--accent-strong);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-strong) 70%, transparent);
+  width: 1px;
+  background: color-mix(in srgb, var(--text-primary) 55%, transparent);
   pointer-events: none;
-  z-index: 10;
-  border-radius: 1px;
+  /* Behind the segments so the marker does not paint across their right edge. */
+  z-index: 1;
 }
 </style>
