@@ -285,7 +285,10 @@ onBeforeUnmount(() => {
       <button class="profile-card sync-status" :data-state="syncDisplay.state" type="button" :aria-label="`${syncDisplay.title}，${syncDisplay.detail}；打开本机数据设置`" @click="router.push({ name: 'settings' })">
         <PhPause v-if="syncDisplay.state === 'paused'" :size="24" weight="regular" aria-hidden="true" />
         <PhCloudCheck v-else :size="24" weight="regular" aria-hidden="true" />
-        <div><strong>{{ syncDisplay.title }}</strong><small>{{ syncDisplay.detail }}</small></div>
+        <span class="sync-status__copy">
+          <strong>{{ syncDisplay.title }}</strong>
+          <small>{{ syncDisplay.detail }}</small>
+        </span>
         <PhCaretRight class="sync-status__chevron" :size="14" aria-hidden="true" />
       </button>
     </aside>
@@ -301,19 +304,21 @@ onBeforeUnmount(() => {
           <button type="button" aria-label="关闭" class="close" @click="requestClose"><PhX :size="14" aria-hidden="true" /></button>
         </div>
       </div>
-      <div v-if="showFirstRunNotice" class="first-run-notice" role="note">
-        <PhShieldCheck :size="18" aria-hidden="true" />
-        <p>iTime 正在本机记录前台应用与按键计数（不记录任何内容）；数据只保存在本机，可在「设置 → 本地数据」随时导出或删除。</p>
-        <button type="button" @click="dismissFirstRunNotice">知道了</button>
+      <div class="app-body">
+        <div v-if="showFirstRunNotice" class="first-run-notice" role="note">
+          <PhShieldCheck :size="18" aria-hidden="true" />
+          <p>iTime 正在本机记录前台应用与按键计数（不记录任何内容）；数据只保存在本机，可在「设置 → 本地数据」随时导出或删除。</p>
+          <button type="button" @click="dismissFirstRunNotice">知道了</button>
+        </div>
+        <main id="main-content" class="page-viewport" tabindex="-1">
+          <!-- P1-12: 暂停/切换中状态是所有数据页的全局状态，挂在页面壳上而非逐页重复。
+               .page-banner-slot 自带与 .page 相同的宽度与断点侧距；:empty 时收起不占空间。 -->
+          <div class="page-banner-slot"><RecordingPausedBanner /></div>
+          <RouterView v-slot="{ Component }">
+            <Transition name="page" mode="out-in"><component :is="Component" /></Transition>
+          </RouterView>
+        </main>
       </div>
-      <main id="main-content" class="page-viewport" tabindex="-1">
-        <!-- P1-12: 暂停/切换中状态是所有数据页的全局状态，挂在页面壳上而非逐页重复。
-             .page-banner-slot 自带与 .page 相同的宽度与断点侧距；:empty 时收起不占空间。 -->
-        <div class="page-banner-slot"><RecordingPausedBanner /></div>
-        <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in"><component :is="Component" /></Transition>
-        </RouterView>
-      </main>
     </section>
     <AiDetailDrawer />
     <CloseDialog />
